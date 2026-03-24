@@ -228,7 +228,6 @@ function PWAInstallPrompt() {
 }
 
 export default function App() {
-  console.log('App component rendering...');
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('isLoggedIn') === 'true');
   const [currentRole, setCurrentRole] = useState<Role>(() => (localStorage.getItem('currentRole') as Role) || 'Enfermero');
   const [isOnline, setIsOnline] = useState(navigator.onLine);

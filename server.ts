@@ -1,14 +1,13 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer } from "vite";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // API health check
   app.get("/api/health", (req, res) => {
@@ -17,6 +16,7 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== "production") {
     // Vite middleware for development
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -24,11 +24,12 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files from the 'dist' directory in production
-    app.use(express.static(path.join(__dirname, "dist")));
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
 
     // Handle SPA routing: serve index.html for all non-API routes
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 

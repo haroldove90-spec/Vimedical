@@ -4,7 +4,6 @@ import App from './App.tsx';
 import './index.css';
 
 // Register Service Worker for PWA
-/*
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(registration => {
@@ -14,15 +13,6 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
-*/
-
-window.addEventListener('error', (event) => {
-  console.error('Global error caught:', event.error);
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-});
 
 console.log('Main.tsx executing...');
 const rootElement = document.getElementById('root')!;
