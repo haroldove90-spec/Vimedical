@@ -1,0 +1,21 @@
+{
+  "name": "ViMedical",
+  "short_name": "ViMedical",
+  "description": "Sistema de Gestión de Heridas y Curaciones",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3C6B94",
+  "theme_color": "#3C6B94",
+  "icons": [
+    {
+      "src": "https://appdesign.appdesignproyectos.com/vimedical.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://appdesign.appdesignproyectos.com/vimedical.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

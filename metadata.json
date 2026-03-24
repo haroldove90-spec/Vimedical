@@ -1,0 +1,5 @@
+{
+  "name": "ViMedical",
+  "description": "Dashboard clínico para el seguimiento y curación de heridas.",
+  "requestFramePermissions": ["camera", "geolocation"]
+}
