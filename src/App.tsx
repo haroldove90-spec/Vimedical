@@ -358,7 +358,8 @@ export default function App() {
           gender: p.gender,
           maritalStatus: p.marital_status,
           occupation: p.occupation,
-          address: p.address
+          address: p.address,
+          initialWoundPhoto: p.initial_wound_photo
         }));
         const finalPatients = [...formattedPatients];
         setPatients(finalPatients);
@@ -564,6 +565,29 @@ export default function App() {
     const updatedPatients = patients.map(p => p.id === updatedPatient.id ? updatedPatient : p);
     setPatients(updatedPatients);
     syncService.setCache('patients', updatedPatients);
+    
+    // Sincronizar con Supabase
+    syncService.addToQueue('patients', 'UPDATE', {
+      id: updatedPatient.id,
+      full_name: updatedPatient.fullName,
+      date_of_birth: updatedPatient.dateOfBirth,
+      phone: updatedPatient.phone,
+      religion: updatedPatient.religion,
+      education_level: updatedPatient.educationLevel,
+      family_history: updatedPatient.familyHistory,
+      pathological_history: updatedPatient.pathologicalHistory,
+      non_pathological_history: updatedPatient.nonPathologicalHistory,
+      gender: updatedPatient.gender,
+      marital_status: updatedPatient.maritalStatus,
+      occupation: updatedPatient.occupation,
+      address: updatedPatient.address,
+      initial_wound_photo: updatedPatient.initialWoundPhoto,
+      clinical_comments: updatedPatient.clinicalComments
+    });
+    
+    if (navigator.onLine) {
+      syncService.processQueue();
+    }
   };
 
   const handleUpdateWoundStatus = (woundId: string, status: Wound['status'], comments?: string) => {
@@ -1341,6 +1365,7 @@ function ClinicalHistoryDetailView({
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Patient>({ ...patient });
   const [newComment, setNewComment] = useState('');
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const handleSave = () => {
     onUpdate(formData);
@@ -1381,8 +1406,42 @@ function ClinicalHistoryDetailView({
     toast.success('Generando historial clínico completo en PDF...');
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const updatedPatient = { ...patient, initialWoundPhoto: reader.result as string };
+        onUpdate(updatedPatient);
+        toast.success('Foto de la herida subida correctamente.');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8">
+      {/* Zoom Modal */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button 
+            className="absolute top-6 right-6 text-white hover:text-secondary transition-colors"
+            onClick={() => setZoomedImage(null)}
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img 
+            src={zoomedImage} 
+            alt="Zoom herida" 
+            className="max-w-full max-h-full rounded-2xl shadow-2xl animate-in zoom-in duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <button 
@@ -1518,6 +1577,54 @@ function ClinicalHistoryDetailView({
                 <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Teléfono</p>
                 <p className="font-bold">{patient.phone}</p>
               </div>
+            </div>
+          </div>
+
+          {/* Foto de la Herida */}
+          <div className="bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 space-y-6">
+            <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm border-b border-slate-100 pb-4">Primera Foto de la Herida</h3>
+            
+            <div className="space-y-4">
+              {patient.initialWoundPhoto ? (
+                <div className="relative group">
+                  <img 
+                    src={patient.initialWoundPhoto} 
+                    alt="Foto inicial herida" 
+                    className="w-full h-64 object-cover rounded-2xl cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setZoomedImage(patient.initialWoundPhoto!)}
+                  />
+                  <button 
+                    onClick={() => setZoomedImage(patient.initialWoundPhoto!)}
+                    className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/20 rounded-2xl"
+                  >
+                    <div className="bg-white/90 p-3 rounded-full shadow-lg">
+                      <Maximize className="w-5 h-5 text-primary" />
+                    </div>
+                  </button>
+                  {currentRole === 'Enfermero' && (
+                    <label className="absolute bottom-4 right-4 bg-white/90 p-3 rounded-full shadow-lg cursor-pointer hover:bg-white transition-colors">
+                      <Camera className="w-5 h-5 text-primary" />
+                      <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                    </label>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+                  <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+                    <Camera className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <p className="text-slate-500 font-medium text-sm mb-4">No hay foto registrada</p>
+                  {currentRole === 'Enfermero' && (
+                    <label className="bg-primary text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all cursor-pointer shadow-lg shadow-primary/20">
+                      Subir Primera Foto
+                      <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                    </label>
+                  )}
+                </div>
+              )}
+              <p className="text-[10px] text-slate-400 font-medium italic text-center">
+                Esta foto servirá como referencia inicial para el seguimiento del tratamiento.
+              </p>
             </div>
           </div>
         </div>

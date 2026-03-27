@@ -71,6 +71,7 @@ export type Patient = {
   maritalStatus?: string;
   occupation?: string;
   address?: string;
+  initialWoundPhoto?: string;
   clinicalComments?: ClinicalComment[];
   privacyNoticeSigned?: boolean;
   privacyNoticeSignature?: string;
