@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, User, Activity, AlertTriangle, PlusCircle, Clock, 
   ChevronRight, Camera, CheckSquare, Square, FileText, CheckCircle, XCircle, UserCircle, Menu, X, Download,
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
-  BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle
+  BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -25,7 +25,7 @@ import { requestNotificationPermission, triggerFullNotification, playNotificatio
 import { syncService } from './services/syncService';
 import { Lock, LogOut, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
-type View = 'dashboard' | 'patients' | 'patient-detail' | 'wound-detail' | 'new-assessment' | 'new-treatment' | 'new-patient' | 'settings' | 'clinical-history' | 'clinical-history-detail' | 'quotations' | 'new-quotation' | 'quotation-detail' | 'privacy-notice' | 'consent-form' | 'certificates' | 'new-certificate' | 'certificate-detail' | 'treatment-proposals' | 'new-treatment-proposal' | 'treatment-proposal-detail' | 'register-nurse' | 'diagnostics' | 'new-diagnostic' | 'diagnostic-detail' | 'profile' | 'nurses-management';
+type View = 'dashboard' | 'patients' | 'patient-detail' | 'wound-detail' | 'new-assessment' | 'new-treatment' | 'new-patient' | 'settings' | 'clinical-history' | 'clinical-history-detail' | 'quotations' | 'new-quotation' | 'quotation-detail' | 'privacy-notice' | 'consent-form' | 'certificates' | 'new-certificate' | 'certificate-detail' | 'treatment-proposals' | 'new-treatment-proposal' | 'treatment-proposal-detail' | 'register-nurse' | 'diagnostics' | 'new-diagnostic' | 'diagnostic-detail' | 'profile' | 'nurses-management' | 'ecommerce';
 
 interface UserProfile {
   id: string;
@@ -307,16 +307,6 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (isLoggedIn) {
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('currentRole', currentRole);
-    } else {
-      localStorage.removeItem('isLoggedIn');
-      localStorage.removeItem('currentRole');
-    }
-  }, [isLoggedIn, currentRole]);
-
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedWoundId, setSelectedWoundId] = useState<string | null>(null);
@@ -328,10 +318,32 @@ export default function App() {
   const [proposals, setProposals] = useState<TreatmentProposal[]>(MOCK_PROPOSALS);
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(MOCK_DIAGNOSTICS);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
-  const [currentProfile, setCurrentProfileData] = useState<UserProfile | null>(null);
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [currentProfile, setCurrentProfileData] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('currentProfile');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(null);
   const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(null);
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('currentRole', currentRole);
+      if (currentProfile) {
+        localStorage.setItem('currentProfile', JSON.stringify(currentProfile));
+      }
+    } else {
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('currentRole');
+      localStorage.removeItem('currentProfile');
+    }
+  }, [isLoggedIn, currentRole, currentProfile]);
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -726,6 +738,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchProfiles = async () => {
+      setLoadingProfiles(true);
       const { data, error } = await supabase.from('profiles').select('*');
       if (data && data.length > 0) {
         const mappedProfiles: UserProfile[] = data.map(p => ({
@@ -744,13 +757,14 @@ export default function App() {
         }));
         setProfiles(mappedProfiles);
       }
+      setLoadingProfiles(false);
     };
     fetchProfiles();
   }, []);
 
   useEffect(() => {
     // Inicializar perfil basado en el rol si no hay uno
-    if (isLoggedIn && !currentProfile) {
+    if (isLoggedIn && !currentProfile && !loadingProfiles) {
       const existingProfile = profiles.find(p => p.role === currentRole);
       if (existingProfile) {
         setCurrentProfileData(existingProfile);
@@ -774,7 +788,7 @@ export default function App() {
         });
       }
     }
-  }, [isLoggedIn, currentRole]); // Removed profiles from dependencies
+  }, [isLoggedIn, currentRole, loadingProfiles]); // Removed profiles from dependencies
 
   const handleUpdateProfile = async (updatedProfile: UserProfile) => {
     setCurrentProfileData(updatedProfile);
@@ -806,10 +820,9 @@ export default function App() {
       } else {
         const { data } = await supabase.from('profiles').insert([supabaseData]).select();
         if (data && data[0]) {
-          setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? { ...updatedProfile, id: data[0].id } : p));
-          if (currentProfile?.id === updatedProfile.id) {
-            setCurrentProfileData({ ...updatedProfile, id: data[0].id });
-          }
+          const profileWithNewId = { ...updatedProfile, id: data[0].id };
+          setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? profileWithNewId : p));
+          setCurrentProfileData(prev => prev?.id === updatedProfile.id ? profileWithNewId : prev);
         }
       }
     } catch (err) {
@@ -854,6 +867,7 @@ export default function App() {
             }} 
             onBack={() => setCurrentView('dashboard')}
             onRegister={handleUpdateProfile}
+            sendNotification={sendNotification}
           />
         </ErrorBoundary>
       );
@@ -1009,6 +1023,20 @@ export default function App() {
             >
               <Users className="w-5 h-5" />
               Enfermeros
+            </button>
+          )}
+
+          {currentRole === 'Administrador' && (
+            <button
+              onClick={() => navigateTo('ecommerce')}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'ecommerce'
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <ShoppingBag className="w-5 h-5" />
+              E-commerce
             </button>
           )}
 
@@ -1277,6 +1305,9 @@ export default function App() {
               onBack={() => navigateTo('dashboard')} 
             />
           )}
+          {currentView === 'ecommerce' && (
+            <EcommerceView onBack={() => navigateTo('dashboard')} />
+          )}
           {currentView === 'nurses-management' && (
             <NursesManagementView 
               profiles={profiles} 
@@ -1296,6 +1327,7 @@ export default function App() {
               }} 
               onBack={() => setCurrentView('dashboard')} 
               onRegister={handleUpdateProfile}
+              sendNotification={sendNotification}
             />
           )}
         </div>
@@ -1967,9 +1999,73 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
   );
 }
 
+function EcommerceView({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center p-8">
+      <div className="max-w-md w-full bg-white border border-slate-200 rounded-[3rem] p-12 text-center shadow-2xl shadow-slate-200/50 animate-in fade-in zoom-in duration-500">
+        <div className="w-24 h-24 bg-primary/10 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
+          <ShoppingBag className="w-12 h-12 text-primary animate-pulse" />
+        </div>
+        <h2 className="text-4xl font-black tracking-tighter text-slate-900 mb-4">E-commerce</h2>
+        <div className="inline-block px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest mb-8">
+          Próximamente
+        </div>
+        <p className="text-slate-500 font-medium leading-relaxed mb-10">
+          Estamos trabajando en un módulo de tienda en línea para que puedas gestionar insumos y productos médicos directamente desde ViMedical.
+        </p>
+        <button 
+          onClick={onBack}
+          className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-slate-900/20 hover:bg-primary transition-all active:scale-95"
+        >
+          Volver al Panel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBack }: { profiles: UserProfile[], onUpdateProfile: (p: UserProfile) => void, onDeleteProfile: (id: string) => void, onBack: () => void }) {
   const nurses = profiles.filter(p => p.role === 'Enfermero');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isAddingNurse, setIsAddingNurse] = useState(false);
+  const [newNurseData, setNewNurseData] = useState({
+    fullName: '',
+    username: '',
+    password: '',
+    email: '',
+    phone: '',
+    license: '',
+    specialty: ''
+  });
+  const [createdCredentials, setCreatedCredentials] = useState<{username: string, password: string} | null>(null);
+
+  const handleAddNurse = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newNurse: UserProfile = {
+      id: `nurse-${Date.now()}`,
+      role: 'Enfermero',
+      fullName: newNurseData.fullName,
+      username: newNurseData.username,
+      password: newNurseData.password,
+      email: newNurseData.email,
+      phone: newNurseData.phone,
+      license: newNurseData.license,
+      specialty: newNurseData.specialty,
+      status: 'active'
+    };
+    onUpdateProfile(newNurse);
+    setCreatedCredentials({ username: newNurseData.username, password: newNurseData.password });
+    setIsAddingNurse(false);
+    setNewNurseData({
+      fullName: '',
+      username: '',
+      password: '',
+      email: '',
+      phone: '',
+      license: '',
+      specialty: ''
+    });
+  };
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -1981,7 +2077,150 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Enfermeros</h2>
           <p className="text-slate-500 font-medium">Administra el acceso y perfiles del personal operativo.</p>
         </div>
+        <button 
+          onClick={() => setIsAddingNurse(true)}
+          className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all flex items-center gap-3"
+        >
+          <UserPlus className="w-5 h-5" />
+          Registrar Enfermero
+        </button>
       </header>
+
+      {createdCredentials && (
+        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-[2rem] p-8 animate-in slide-in-from-top duration-500">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h4 className="text-lg font-black text-emerald-900">¡Enfermero registrado con éxito!</h4>
+            </div>
+            <button onClick={() => setCreatedCredentials(null)} className="text-emerald-400 hover:text-emerald-600">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          <p className="text-emerald-700 font-medium mb-6">Comparte estas credenciales con el nuevo integrante del equipo:</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-emerald-100">
+              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Usuario</p>
+              <p className="text-lg font-black text-slate-900 select-all">{createdCredentials.username}</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-emerald-100">
+              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Contraseña</p>
+              <p className="text-lg font-black text-slate-900 select-all">{createdCredentials.password}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAddingNurse && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-2xl font-black tracking-tighter text-slate-900">Nuevo Registro</h3>
+                <p className="text-slate-500 text-sm font-medium">Completa los datos para el nuevo enfermero.</p>
+              </div>
+              <button onClick={() => setIsAddingNurse(false)} className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleAddNurse} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre Completo</label>
+                  <input 
+                    required
+                    type="text"
+                    value={newNurseData.fullName}
+                    onChange={e => setNewNurseData({...newNurseData, fullName: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="Ej. Juan Pérez"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
+                  <input 
+                    required
+                    type="email"
+                    value={newNurseData.email}
+                    onChange={e => setNewNurseData({...newNurseData, email: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="correo@ejemplo.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre de Usuario</label>
+                  <input 
+                    required
+                    type="text"
+                    value={newNurseData.username}
+                    onChange={e => setNewNurseData({...newNurseData, username: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="usuario123"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña</label>
+                  <input 
+                    required
+                    type="text"
+                    value={newNurseData.password}
+                    onChange={e => setNewNurseData({...newNurseData, password: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="Clave de acceso"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
+                  <input 
+                    type="tel"
+                    value={newNurseData.phone}
+                    onChange={e => setNewNurseData({...newNurseData, phone: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="55 1234 5678"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula Profesional</label>
+                  <input 
+                    type="text"
+                    value={newNurseData.license}
+                    onChange={e => setNewNurseData({...newNurseData, license: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="Número de cédula"
+                  />
+                </div>
+                <div className="col-span-full space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Especialidad / Área</label>
+                  <input 
+                    type="text"
+                    value={newNurseData.specialty}
+                    onChange={e => setNewNurseData({...newNurseData, specialty: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                    placeholder="Ej. Heridas y Estomas"
+                  />
+                </div>
+              </div>
+              <div className="pt-6 flex gap-4">
+                <button 
+                  type="button"
+                  onClick={() => setIsAddingNurse(false)}
+                  className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-primary text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all"
+                >
+                  Guardar Registro
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {nurses.map(nurse => (
@@ -2111,6 +2350,13 @@ function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotif
           <p className="text-slate-500 font-medium">Bienvenido de nuevo, <span className="text-primary">{profile?.fullName || 'Harold Anguiano'}</span>.</p>
         </div>
         <div className="flex gap-3">
+          <button 
+            onClick={() => navigateTo('ecommerce')}
+            className="flex items-center justify-center gap-2 bg-emerald-500 text-white px-6 py-3 rounded-xl font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20"
+          >
+            <ShoppingBag className="w-5 h-5" />
+            E-commerce
+          </button>
           <button 
             onClick={() => navigateTo('new-patient')}
             className="flex items-center justify-center gap-2 bg-secondary text-white px-6 py-3 rounded-xl font-black hover:bg-secondary-dark transition-all shadow-xl shadow-secondary/20"
@@ -6007,7 +6253,7 @@ function NurseDashboard({ navigateTo, patients, wounds, treatments, profile }: {
   );
 }
 
-function RegisterNurseView({ onLogin, onBack, onRegister }: { onLogin: (role: Role) => void, onBack: () => void, onRegister: (profile: UserProfile) => void }) {
+function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { onLogin: (role: Role) => void, onBack: () => void, onRegister: (profile: UserProfile) => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -6031,6 +6277,15 @@ function RegisterNurseView({ onLogin, onBack, onRegister }: { onLogin: (role: Ro
     };
 
     onRegister(newProfile);
+    
+    // Notificar al administrador
+    await sendNotification(
+      'Nuevo Registro de Enfermería',
+      `${formData.fullName} se ha registrado en el sistema.`,
+      `Atención Administrador: Un nuevo enfermero, ${formData.fullName}, se ha registrado en el sistema.`,
+      'Administrador'
+    );
+
     toast.success('Registro exitoso. Bienvenido al equipo ViMedical.');
     onLogin('Enfermero');
   };
