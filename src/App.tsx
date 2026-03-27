@@ -42,6 +42,44 @@ interface UserProfile {
   status?: 'active' | 'suspended';
 }
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+          <AlertCircle className="w-20 h-20 text-red-500 mb-6" />
+          <h1 className="text-3xl font-black text-white mb-4">Algo salió mal</h1>
+          <p className="text-slate-400 mb-8 max-w-md">La aplicación encontró un error inesperado. Por favor, intenta recargar la página.</p>
+          <button 
+            onClick={() => {
+              localStorage.clear();
+              window.location.reload();
+            }}
+            className="bg-primary text-white px-8 py-4 rounded-2xl font-bold hover:bg-primary/90 transition-all shadow-xl shadow-primary/20"
+          >
+            Reiniciar y Recargar
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function LoginView({ onLogin, profiles }: { onLogin: (role: Role) => void, profiles: UserProfile[] }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -228,8 +266,20 @@ function PWAInstallPrompt() {
 }
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('isLoggedIn') === 'true');
-  const [currentRole, setCurrentRole] = useState<Role>(() => (localStorage.getItem('currentRole') as Role) || 'Enfermero');
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      return localStorage.getItem('isLoggedIn') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+  const [currentRole, setCurrentRole] = useState<Role>(() => {
+    try {
+      return (localStorage.getItem('currentRole') as Role) || 'Enfermero';
+    } catch (e) {
+      return 'Enfermero';
+    }
+  });
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
@@ -258,8 +308,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('isLoggedIn', isLoggedIn.toString());
-    localStorage.setItem('currentRole', currentRole);
+    if (isLoggedIn) {
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('currentRole', currentRole);
+    } else {
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('currentRole');
+    }
   }, [isLoggedIn, currentRole]);
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -369,7 +424,15 @@ export default function App() {
           maritalStatus: p.marital_status,
           occupation: p.occupation,
           address: p.address,
-          initialWoundPhoto: p.initial_wound_photo
+          initialWoundPhoto: p.initial_wound_photo,
+          privacyNoticeSigned: p.privacy_notice_signed,
+          privacyNoticeSignature: p.privacy_notice_signature,
+          privacyNoticeDate: p.privacy_notice_date,
+          privacyNoticeType: p.privacy_notice_type,
+          consentFormSigned: p.consent_form_signed,
+          consentFormSignature: p.consent_form_signature,
+          consentFormDate: p.consent_form_date,
+          consentFormType: p.consent_form_type
         }));
         const finalPatients = [...formattedPatients];
         setPatients(finalPatients);
@@ -635,7 +698,15 @@ export default function App() {
       occupation: updatedPatient.occupation,
       address: updatedPatient.address,
       initial_wound_photo: updatedPatient.initialWoundPhoto,
-      clinical_comments: updatedPatient.clinicalComments
+      clinical_comments: updatedPatient.clinicalComments,
+      privacy_notice_signed: updatedPatient.privacyNoticeSigned,
+      privacy_notice_signature: updatedPatient.privacyNoticeSignature,
+      privacy_notice_date: updatedPatient.privacyNoticeDate,
+      privacy_notice_type: updatedPatient.privacyNoticeType,
+      consent_form_signed: updatedPatient.consentFormSigned,
+      consent_form_signature: updatedPatient.consentFormSignature,
+      consent_form_date: updatedPatient.consentFormDate,
+      consent_form_type: updatedPatient.consentFormType
     });
     
     if (navigator.onLine) {
@@ -773,25 +844,34 @@ export default function App() {
 
   if (!isLoggedIn) {
     if (currentView === 'register-nurse') {
-      return <RegisterNurseView 
-        onLogin={(role) => {
+      return (
+        <ErrorBoundary>
+          <RegisterNurseView 
+            onLogin={(role) => {
+              setCurrentRole(role);
+              setIsLoggedIn(true);
+              setCurrentView('dashboard');
+            }} 
+            onBack={() => setCurrentView('dashboard')}
+            onRegister={handleUpdateProfile}
+          />
+        </ErrorBoundary>
+      );
+    }
+    return (
+      <ErrorBoundary>
+        <LoginView onLogin={(role) => {
           setCurrentRole(role);
           setIsLoggedIn(true);
           setCurrentView('dashboard');
-        }} 
-        onBack={() => setCurrentView('dashboard')}
-        onRegister={handleUpdateProfile}
-      />;
-    }
-    return <LoginView onLogin={(role) => {
-      setCurrentRole(role);
-      setIsLoggedIn(true);
-      setCurrentView('dashboard');
-    }} profiles={profiles} />;
+        }} profiles={profiles} />
+      </ErrorBoundary>
+    );
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+    <ErrorBoundary>
+      <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <Toaster />
       <PWAInstallPrompt />
       
@@ -1221,6 +1301,7 @@ export default function App() {
         </div>
       </main>
     </div>
+    </ErrorBoundary>
   );
 }
 
@@ -4473,6 +4554,14 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
     maritalStatus: '',
     occupation: '',
     address: '',
+    privacyNoticeSigned: false,
+    privacyNoticeSignature: '',
+    privacyNoticeDate: '',
+    privacyNoticeType: 'casa',
+    consentFormSigned: false,
+    consentFormSignature: '',
+    consentFormDate: '',
+    consentFormType: 'casa',
     pathologicalHistoryDetails: {
       endocrino: { diabetes: false, hipertiroidismo: false, hipotiroidismo: false, tiempo: '', tratamiento: '' },
       cardiovascular: { hipertension: false, palpitaciones: false, fiebreReumatica: false, varices: false, tiempo: '', tratamiento: '' },
@@ -4549,7 +4638,15 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       gyneco_obstetric_history: formData.gynecoObstetricHistory,
       current_condition: formData.currentCondition,
       physical_exploration: formData.physicalExploration,
-      regions_segments: formData.regionsSegments
+      regions_segments: formData.regionsSegments,
+      privacy_notice_signed: formData.privacyNoticeSigned || false,
+      privacy_notice_signature: formData.privacyNoticeSignature || '',
+      privacy_notice_date: formData.privacyNoticeDate || '',
+      privacy_notice_type: formData.privacyNoticeType || 'casa',
+      consent_form_signed: formData.consentFormSigned || false,
+      consent_form_signature: formData.consentFormSignature || '',
+      consent_form_date: formData.consentFormDate || '',
+      consent_form_type: formData.consentFormType || 'casa'
     };
 
     if (!navigator.onLine) {
@@ -4568,7 +4665,15 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         gender: patientData.gender,
         maritalStatus: patientData.marital_status,
         occupation: patientData.occupation,
-        address: patientData.address
+        address: patientData.address,
+        privacyNoticeSigned: patientData.privacy_notice_signed,
+        privacyNoticeSignature: patientData.privacy_notice_signature,
+        privacyNoticeDate: patientData.privacy_notice_date,
+        privacyNoticeType: patientData.privacy_notice_type,
+        consentFormSigned: patientData.consent_form_signed,
+        consentFormSignature: patientData.consent_form_signature,
+        consentFormDate: patientData.consent_form_date,
+        consentFormType: patientData.consent_form_type
       };
       
       syncService.addToQueue('patients', 'INSERT', patientData);
@@ -4624,7 +4729,15 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         gynecoObstetricHistory: data.gyneco_obstetric_history,
         currentCondition: data.current_condition,
         physicalExploration: data.physical_exploration,
-        regionsSegments: data.regions_segments
+        regionsSegments: data.regions_segments,
+        privacyNoticeSigned: data.privacy_notice_signed,
+        privacyNoticeSignature: data.privacy_notice_signature,
+        privacyNoticeDate: data.privacy_notice_date,
+        privacyNoticeType: data.privacy_notice_type,
+        consentFormSigned: data.consent_form_signed,
+        consentFormSignature: data.consent_form_signature,
+        consentFormDate: data.consent_form_date,
+        consentFormType: data.consent_form_type
       };
       onSave(newPatient);
       
