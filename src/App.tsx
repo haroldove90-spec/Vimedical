@@ -267,6 +267,7 @@ export default function App() {
   const [selectedWoundId, setSelectedWoundId] = useState<string | null>(null);
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
   const [wounds, setWounds] = useState<Wound[]>(MOCK_WOUNDS);
+  const [treatmentLogs, setTreatmentLogs] = useState<TreatmentLog[]>(MOCK_TREATMENTS);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [certificates, setCertificates] = useState<MedicalCertificate[]>([]);
   const [proposals, setProposals] = useState<TreatmentProposal[]>(MOCK_PROPOSALS);
@@ -310,6 +311,15 @@ export default function App() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'wounds' },
         () => fetchWounds()
+      )
+      .subscribe();
+
+    const treatmentsChannel = supabase
+      .channel('treatments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'treatment_logs' },
+        () => fetchTreatmentLogs()
       )
       .subscribe();
 
@@ -418,8 +428,50 @@ export default function App() {
       }
     };
 
+    const fetchTreatmentLogs = async () => {
+      const cachedLogs = syncService.getCache('treatment_logs');
+      if (cachedLogs) {
+        setTreatmentLogs(cachedLogs);
+      }
+
+      if (!navigator.onLine) return;
+
+      const { data, error } = await supabase
+        .from('treatment_logs')
+        .select('*')
+        .order('evaluation_date', { ascending: false });
+      
+      if (data) {
+        const formattedLogs: TreatmentLog[] = data.map(t => ({
+          id: t.id,
+          woundId: t.wound_id,
+          evaluationDate: t.evaluation_date,
+          width: t.width,
+          length: t.length,
+          fluidLeakage: t.fluid_leakage,
+          foreignMaterial: t.foreign_material,
+          sloughPresence: t.slough_presence,
+          peripheralTractsMeasurements: t.peripheral_tracts_measurements,
+          prognosis: t.prognosis,
+          photos: t.photos || [],
+          prontosanSolution: t.prontosan_solution,
+          prontosanGel: t.prontosan_gel,
+          kerlix: t.kerlix,
+          telfa: t.telfa,
+          avintraAdministered: t.avintra_administered,
+          notes: t.notes,
+          patientSignature: t.patient_signature,
+          nurseId: t.nurse_id,
+          cost: t.cost
+        }));
+        setTreatmentLogs(formattedLogs);
+        syncService.setCache('treatment_logs', formattedLogs);
+      }
+    };
+
     fetchPatients();
     fetchWounds();
+    fetchTreatmentLogs();
     fetchQuotations();
     fetchCertificates();
 
@@ -427,6 +479,7 @@ export default function App() {
       window.removeEventListener('online', handleOnline);
       supabase.removeChannel(patientsChannel);
       supabase.removeChannel(woundsChannel);
+      supabase.removeChannel(treatmentsChannel);
       supabase.removeChannel(notificationsChannel);
     };
   }, [currentRole]);
@@ -530,7 +583,7 @@ export default function App() {
     const updatedPatients = [newPatient, ...patients];
     setPatients(updatedPatients);
     syncService.setCache('patients', updatedPatients);
-    navigateTo('patient-detail', newPatient.id);
+    // Removed navigateTo to allow NewPatientFormView to show success screen
   };
 
   const handleSaveQuotation = (newQuotation: Quotation) => {
@@ -961,12 +1014,13 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
         <div className="max-w-[1600px] mx-auto">
-          {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={MOCK_TREATMENTS} profile={currentProfile} />}
+          {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} />}
           {currentView === 'dashboard' && currentRole === 'Administrador' && (
             <AdminDashboard 
               navigateTo={navigateTo} 
               patients={patients} 
               wounds={wounds} 
+              treatmentLogs={treatmentLogs}
               sendNotification={sendNotification} 
               onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
@@ -977,6 +1031,7 @@ export default function App() {
               navigateTo={navigateTo} 
               patients={patients} 
               wounds={wounds} 
+              treatmentLogs={treatmentLogs}
               sendNotification={sendNotification} 
               onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
@@ -990,6 +1045,7 @@ export default function App() {
               navigateTo={navigateTo} 
               patients={patients}
               wounds={wounds}
+              treatmentLogs={treatmentLogs}
             />
           )}
           {currentView === 'wound-detail' && selectedWoundId && (
@@ -998,6 +1054,7 @@ export default function App() {
               navigateTo={navigateTo} 
               patients={patients}
               wounds={wounds}
+              treatmentLogs={treatmentLogs}
             />
           )}
           {currentView === 'new-assessment' && selectedPatientId && (
@@ -1027,6 +1084,8 @@ export default function App() {
               patients={patients} 
               onUpdate={handleUpdatePatient}
               currentRole={currentRole}
+              wounds={wounds}
+              treatmentLogs={treatmentLogs}
             />
           )}
           {currentView === 'quotations' && (
@@ -1351,13 +1410,17 @@ function ClinicalHistoryDetailView({
   navigateTo, 
   patients, 
   onUpdate,
-  currentRole
+  currentRole,
+  wounds,
+  treatmentLogs
 }: { 
   patientId: string, 
   navigateTo: (view: View, pId?: string, wId?: string) => void, 
   patients: Patient[], 
   onUpdate: (p: Patient) => void,
-  currentRole: Role
+  currentRole: Role,
+  wounds: Wound[],
+  treatmentLogs: TreatmentLog[]
 }) {
   const patient = patients.find(p => p.id === patientId);
   if (!patient) return <div>Paciente no encontrado</div>;
@@ -1399,8 +1462,8 @@ function ClinicalHistoryDetailView({
   };
 
   const handleExportPDF = () => {
-    const patientWounds = MOCK_WOUNDS.filter(w => w.patientId === patient.id);
-    const patientTreatments = MOCK_TREATMENTS.filter(t => patientWounds.some(w => w.id === t.woundId));
+    const patientWounds = wounds.filter(w => w.patientId === patient.id);
+    const patientTreatments = treatmentLogs.filter(t => patientWounds.some(w => w.id === t.woundId));
     
     generateClinicalHistoryPDF(patient, patientWounds, patientTreatments);
     toast.success('Generando historial clínico completo en PDF...');
@@ -1941,7 +2004,7 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
   );
 }
 
-function AdminDashboard({ navigateTo, patients, wounds, sendNotification, onUpdateWoundStatus, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status']) => void, profile: UserProfile | null }) {
+function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotification, onUpdateWoundStatus, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status']) => void, profile: UserProfile | null }) {
   const pendingAdmin = wounds.filter(w => w.status === 'pending_admin');
   const recentPatients = patients.slice(0, 5);
 
@@ -2108,7 +2171,7 @@ function AdminDashboard({ navigateTo, patients, wounds, sendNotification, onUpda
   );
 }
 
-function DoctorDashboard({ navigateTo, patients, wounds, sendNotification, onUpdateWoundStatus, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status'], comments?: string) => void, profile: UserProfile | null }) {
+function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotification, onUpdateWoundStatus, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status'], comments?: string) => void, profile: UserProfile | null }) {
   const pendingDoctor = wounds.filter(w => w.status === 'pending_doctor');
   const recentPatients = patients.slice(0, 5);
   const [comments, setComments] = useState('');
@@ -2539,7 +2602,7 @@ function PatientsView({ navigateTo, patients }: { navigateTo: (view: View, pId?:
   );
 }
 
-function PatientDetailView({ patientId, navigateTo, patients, wounds }: { patientId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[] }) {
+function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentLogs }: { patientId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[] }) {
   const patient = patients.find(p => p.id === patientId);
   const patientWounds = wounds.filter(w => w.patientId === patientId);
   const [activeTab, setActiveTab] = useState<'wounds' | 'history' | 'charts'>('wounds');
@@ -2548,7 +2611,7 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds }: { patien
 
   // Datos para la gráfica de progreso (ejemplo basado en el área de las heridas)
   const chartData = patientWounds.flatMap(w => 
-    MOCK_TREATMENTS.filter(t => t.woundId === w.id).map(log => ({
+    treatmentLogs.filter(t => t.woundId === w.id).map(log => ({
       date: new Date(log.evaluationDate).toLocaleDateString(),
       area: (Number(log.length) || 0) * (Number(log.width) || 0),
       location: w.location
@@ -2670,14 +2733,14 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds }: { patien
                     <div className="text-center">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Curaciones</p>
                       <p className="font-black text-slate-900">
-                        {MOCK_TREATMENTS.filter(t => t.woundId === wound.id).length}
+                        {treatmentLogs.filter(t => t.woundId === wound.id).length}
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Última</p>
                       <p className="font-black text-slate-900">
                         {(() => {
-                          const woundTreatments = MOCK_TREATMENTS.filter(t => t.woundId === wound.id);
+                          const woundTreatments = treatmentLogs.filter(t => t.woundId === wound.id);
                           return woundTreatments.length 
                             ? new Date(woundTreatments.sort((a, b) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime())[0].evaluationDate).toLocaleDateString() 
                             : 'N/A';
@@ -2969,14 +3032,14 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
     const notificationData = [
       {
         title: 'Nueva Valoración Inicial',
-        body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}.`,
+        body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando autorización.`,
         voice_text: `Atención Administrador: Se ha recibido una nueva valoración inicial para el paciente ${patient?.fullName}. Por favor, revise y valide el registro.`,
         target_role: 'Administrador'
       },
       {
         title: 'Nueva Valoración Inicial',
-        body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}.`,
-        voice_text: `Atención Doctor: Se ha registrado una nueva valoración inicial para su paciente ${patient?.fullName}.`,
+        body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando su autorización para seguir el procedimiento.`,
+        voice_text: `Atención Doctor: Se ha registrado una nueva valoración inicial para su paciente ${patient?.fullName}. El paciente está esperando su autorización para seguir el procedimiento.`,
         target_role: 'Doctor'
       }
     ];
@@ -3037,55 +3100,55 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Peso (kg) *</label>
-              <input name="weight" required type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Peso (kg)</label>
+              <input name="weight" type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Talla (m) *</label>
-              <input name="height" required type="number" step="0.01" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Talla (m)</label>
+              <input name="height" type="number" step="0.01" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Temp. (°C) *</label>
-              <input name="temp" required type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Temp. (°C)</label>
+              <input name="temp" type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Pulso *</label>
-              <input name="pulse" required type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Pulso</label>
+              <input name="pulse" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F.C. *</label>
-              <input name="heartRate" required type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F.C.</label>
+              <input name="heartRate" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F.R. *</label>
-              <input name="respiratoryRate" required type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F.R.</label>
+              <input name="respiratoryRate" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Oxigenación (%) *</label>
-              <input name="oxygenation" required type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Oxigenación (%)</label>
+              <input name="oxygenation" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             
             <div className="col-span-2 md:col-span-2 lg:col-span-3 grid grid-cols-2 gap-4 border border-slate-100 p-6 rounded-[2rem] bg-slate-50/50">
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Tensión Arterial *</div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Tensión Arterial</div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Sistólica</label>
-                <input name="bloodPressureSystolic" required type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="bloodPressureSystolic" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Diastólica</label>
-                <input name="bloodPressureDiastolic" required type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="bloodPressureDiastolic" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
             </div>
 
             <div className="col-span-2 md:col-span-2 lg:col-span-2 grid grid-cols-2 gap-4 border border-slate-100 p-6 rounded-[2rem] bg-slate-50/50">
-              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Glicemia *</div>
+              <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Glicemia</div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Ayuno</label>
-                <input name="glycemiaFasting" required type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="glycemiaFasting" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Posprandial</label>
-                <input name="glycemiaPostprandial" required type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="glycemiaPostprandial" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
             </div>
           </div>
@@ -3259,7 +3322,7 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                 <Camera className="w-4 h-4" />
               </div>
-              5. Fotos Iniciales (Mínimo 1) *
+              5. Fotos Iniciales
             </h3>
             <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full uppercase tracking-widest">{photos.length}/5 fotos</span>
           </div>
@@ -3327,14 +3390,14 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
           </h3>
           <div className="space-y-8">
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Diagnóstico / Ubicación *</label>
-              <input name="location" required type="text" placeholder="Ej. Dehiscencia de herida quirúrgica abdominal" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Diagnóstico / Ubicación</label>
+              <input name="location" type="text" placeholder="Ej. Dehiscencia de herida quirúrgica abdominal" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Pronóstico *</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Pronóstico</label>
               <div className="relative">
-                <select name="prognosis" required className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none pr-12">
+                <select name="prognosis" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none pr-12">
                   <option value="">Seleccionar...</option>
                   <option value="Favorable">Favorable</option>
                   <option value="Reservado">Reservado</option>
@@ -3347,8 +3410,8 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Plan Terapéutico Propuesto *</label>
-              <textarea name="proposed_plan" required rows={5} placeholder="Ej. Prontosan solución (lavado)&#10;Prontosan gel&#10;Empaquetar con Kerlix&#10;Cubrir con Telfa&#10;Avintra 1 diario&#10;Curación c/ 24 horas." className="w-full border border-slate-200 rounded-[2rem] p-6 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Plan Terapéutico Propuesto</label>
+              <textarea name="proposed_plan" rows={5} placeholder="Ej. Prontosan solución (lavado)&#10;Prontosan gel&#10;Empaquetar con Kerlix&#10;Cubrir con Telfa&#10;Avintra 1 diario&#10;Curación c/ 24 horas." className="w-full border border-slate-200 rounded-[2rem] p-6 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
             </div>
           </div>
         </section>
@@ -3374,9 +3437,9 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
 
 // --- M5: Informe Final en PDF & Detalle de Herida ---
 
-function WoundDetailView({ woundId, navigateTo, patients, wounds }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[] }) {
+function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[] }) {
   const wound = wounds.find(w => w.id === woundId);
-  const treatments = MOCK_TREATMENTS.filter(t => t.woundId === woundId).sort((a, b) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime());
+  const treatments = treatmentLogs.filter(t => t.woundId === woundId).sort((a, b) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime());
 
   if (!wound) return <div>Herida no encontrada</div>;
 
@@ -3531,6 +3594,7 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds }: { woundId:
 
     if (!navigator.onLine) {
       syncService.addToQueue('treatment_logs', 'INSERT', treatmentData);
+      syncService.addToQueue('wounds', 'UPDATE', { id: wound.id, visit_count: (wound.visitCount || 0) + 1 });
       syncService.addToQueue('notifications', 'INSERT', notificationData);
     } else {
       await supabase.from('treatment_logs').insert([treatmentData]);
@@ -4568,14 +4632,14 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       await supabase.from('notifications').insert([
         {
           title: 'Nuevo Paciente Registrado',
-          body: `Se ha dado de alta a ${newPatient.fullName}.`,
-          voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}.`,
+          body: `Se ha dado de alta a ${newPatient.fullName}. Esperando valoración y autorización.`,
+          voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}. El paciente está esperando valoración y autorización.`,
           target_role: 'Administrador'
         },
         {
           title: 'Nuevo Paciente Registrado',
-          body: `Se ha dado de alta a ${newPatient.fullName}.`,
-          voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
+          body: `Se ha dado de alta a ${newPatient.fullName}. Esperando autorización para seguir el procedimiento.`,
+          voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}. Está esperando su autorización para seguir el procedimiento.`,
           target_role: 'Doctor'
         }
       ]);
@@ -4595,13 +4659,22 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           El nuevo paciente ha sido dado de alta exitosamente en el sistema.
         </p>
         <div className="mt-8 flex flex-col items-center gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <button 
             onClick={() => navigateTo('new-assessment', createdPatientId || undefined)}
-            className="bg-primary text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+            className="bg-primary text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-105 transition-all"
           >
             <PlusCircle className="w-5 h-5" />
             Añadir Valoración de Herida
           </button>
+          <button 
+            onClick={() => navigateTo('patient-detail', createdPatientId || undefined)}
+            className="bg-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-slate-300 transition-all"
+          >
+            <FileText className="w-5 h-5" />
+            Ir al Expediente
+          </button>
+        </div>
           <div className="flex items-center gap-2 text-slate-400 font-bold text-sm">
             <Clock className="w-4 h-4 animate-spin-slow" />
             Abriendo expediente...
@@ -4639,18 +4712,18 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Nombre Completo *</label>
-                <input required type="text" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Nombre Completo</label>
+                <input type="text" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
               
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento *</label>
-                <input required type="date" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento</label>
+                <input type="date" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
               
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Teléfono *</label>
-                <input required type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Teléfono</label>
+                <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
 
               <div>
@@ -5047,34 +5120,49 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           </section>
         )}
 
-        <div className="flex justify-between gap-4">
-          {step > 1 ? (
-            <button 
-              type="button"
-              onClick={() => setStep(step - 1)}
-              className="bg-slate-100 text-slate-600 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
-            >
-              Anterior
-            </button>
-          ) : <div />}
+        <div className="flex flex-wrap justify-between gap-4">
+          <div className="flex gap-4">
+            {step > 1 && (
+              <button 
+                type="button"
+                onClick={() => setStep(step - 1)}
+                className="bg-slate-100 text-slate-600 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
+              >
+                Anterior
+              </button>
+            )}
+          </div>
           
-          {step < 4 ? (
-            <button 
-              type="button"
-              onClick={() => setStep(step + 1)}
-              className="bg-primary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-primary/30 hover:bg-primary-dark transition-all"
-            >
-              Siguiente
-            </button>
-          ) : (
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? 'Guardando...' : 'Finalizar Registro'}
-            </button>
-          )}
+          <div className="flex gap-4">
+            {step < 4 && (
+              <button 
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="bg-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-300 transition-all"
+              >
+                Guardar y Finalizar
+              </button>
+            )}
+            
+            {step < 4 ? (
+              <button 
+                type="button"
+                onClick={() => setStep(step + 1)}
+                className="bg-primary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-primary/30 hover:bg-primary-dark transition-all"
+              >
+                Siguiente
+              </button>
+            ) : (
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className="bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Guardando...' : 'Finalizar Registro'}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </div>
