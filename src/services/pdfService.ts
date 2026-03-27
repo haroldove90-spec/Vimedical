@@ -124,6 +124,21 @@ export const generateClinicalHistoryPDF = (patient: Patient, wounds: Wound[] = [
 
   let currentY = (doc as any).lastAutoTable.finalY + 15;
 
+  // Initial Wound Photo
+  if (patient.initialWoundPhoto) {
+    if (currentY > 210) { doc.addPage(); currentY = 20; }
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Foto Inicial de la Herida', 20, currentY);
+    try {
+      doc.addImage(patient.initialWoundPhoto, 'JPEG', 20, currentY + 5, 80, 60);
+      currentY += 75;
+    } catch (e) {
+      console.error('Error adding initial wound photo to PDF', e);
+      currentY += 15;
+    }
+  }
+
   // Wounds Summary
   if (wounds.length > 0) {
     doc.setFontSize(14);
@@ -302,14 +317,29 @@ export const generateFinalReport = (patient: Patient, wound?: Wound, treatments:
     currentY += 20;
   }
 
-  // Photos Section (Placeholder for logic to add images)
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Evidencia Fotográfica', 20, currentY);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'italic');
-  doc.text('(Las fotos se incluyen en el expediente digital adjunto)', 20, currentY + 10);
+  // Photos Section
+  if (patient.initialWoundPhoto) {
+    if (currentY > 210) { doc.addPage(); currentY = 20; }
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Evidencia Fotográfica Inicial', 20, currentY);
+    try {
+      doc.addImage(patient.initialWoundPhoto, 'JPEG', 20, currentY + 5, 80, 60);
+      currentY += 75;
+    } catch (e) {
+      console.error('Error adding initial wound photo to final report', e);
+      currentY += 15;
+    }
+  } else {
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Evidencia Fotográfica', 20, currentY);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.text('(Las fotos se incluyen en el expediente digital adjunto)', 20, currentY + 10);
+    currentY += 20;
+  }
 
   // Signature Placeholders
   const footerY = doc.internal.pageSize.getHeight() - 40;
