@@ -1604,7 +1604,7 @@ function ClinicalHistoryDetailView({
                   {currentRole === 'Enfermero' && (
                     <label className="absolute bottom-4 right-4 bg-white/90 p-3 rounded-full shadow-lg cursor-pointer hover:bg-white transition-colors">
                       <Camera className="w-5 h-5 text-primary" />
-                      <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                      <input type="file" className="hidden" accept="image/*" capture="environment" onChange={handlePhotoUpload} />
                     </label>
                   )}
                 </div>
@@ -1616,8 +1616,8 @@ function ClinicalHistoryDetailView({
                   <p className="text-slate-500 font-medium text-sm mb-4">No hay foto registrada</p>
                   {currentRole === 'Enfermero' && (
                     <label className="bg-primary text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-all cursor-pointer shadow-lg shadow-primary/20">
-                      Subir Primera Foto
-                      <input type="file" className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                      Tomar o Subir Foto
+                      <input type="file" className="hidden" accept="image/*" capture="environment" onChange={handlePhotoUpload} />
                     </label>
                   )}
                 </div>
