@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Users, User, Activity, AlertTriangle, PlusCircle, Clock, 
   ChevronRight, Camera, CheckSquare, Square, FileText, CheckCircle, XCircle, UserCircle, Menu, X, Download,
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
-  BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus
+  BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
+  Lock, LogOut, Wifi, WifiOff, RefreshCw
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -23,7 +24,6 @@ import { supabase } from './lib/supabase';
 import { generateFinalReport, generateQuotationPDF, generateClinicalHistoryPDF } from './services/pdfService';
 import { requestNotificationPermission, triggerFullNotification, playNotificationSound, speakMessage } from './services/notificationService';
 import { syncService } from './services/syncService';
-import { Lock, LogOut, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 type View = 'dashboard' | 'patients' | 'patient-detail' | 'wound-detail' | 'new-assessment' | 'new-treatment' | 'new-patient' | 'settings' | 'clinical-history' | 'clinical-history-detail' | 'quotations' | 'new-quotation' | 'quotation-detail' | 'privacy-notice' | 'consent-form' | 'certificates' | 'new-certificate' | 'certificate-detail' | 'treatment-proposals' | 'new-treatment-proposal' | 'treatment-proposal-detail' | 'register-nurse' | 'diagnostics' | 'new-diagnostic' | 'diagnostic-detail' | 'profile' | 'nurses-management' | 'ecommerce';
 
@@ -269,17 +269,22 @@ function PWAInstallPrompt() {
 }
 
 export default function App() {
+  console.log('App: Component starting');
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
+      console.log('App: Initializing isLoggedIn');
       return localStorage.getItem('isLoggedIn') === 'true';
     } catch (e) {
+      console.error('App: Error reading localStorage', e);
       return false;
     }
   });
   const [currentRole, setCurrentRole] = useState<Role>(() => {
     try {
+      console.log('App: Initializing currentRole');
       return (localStorage.getItem('currentRole') as Role) || 'Enfermero';
     } catch (e) {
+      console.error('App: Error reading currentRole from localStorage', e);
       return 'Enfermero';
     }
   });

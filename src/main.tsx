@@ -2,7 +2,6 @@ import {StrictMode, Component, ReactNode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { AlertCircle } from 'lucide-react';
 
 class GlobalErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: { children: ReactNode }) {
@@ -21,13 +20,24 @@ class GlobalErrorBoundary extends Component<{ children: ReactNode }, { hasError:
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
-          <AlertCircle className="w-20 h-20 text-red-500 mb-6" />
-          <h1 className="text-3xl font-black text-white mb-4">Error de Inicialización</h1>
-          <p className="text-slate-400 mb-8 max-w-md">
+        <div style={{
+          minHeight: '100vh',
+          backgroundColor: '#0f172a',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          textAlign: 'center',
+          color: 'white',
+          fontFamily: 'sans-serif'
+        }}>
+          <div style={{ fontSize: '64px', marginBottom: '24px' }}>⚠️</div>
+          <h1 style={{ fontSize: '30px', fontWeight: '900', marginBottom: '16px' }}>Error de Inicialización</h1>
+          <p style={{ color: '#94a3b8', marginBottom: '32px', maxWidth: '448px' }}>
             La aplicación no pudo iniciar correctamente. 
             <br />
-            <span className="text-xs text-red-400/50 mt-2 block">
+            <span style={{ fontSize: '12px', color: '#f87171', marginTop: '8px', display: 'block' }}>
               {this.state.error?.message || 'Error desconocido'}
             </span>
           </p>
@@ -36,7 +46,16 @@ class GlobalErrorBoundary extends Component<{ children: ReactNode }, { hasError:
               localStorage.clear();
               window.location.reload();
             }}
-            className="bg-[#3C6B94] text-white px-8 py-4 rounded-2xl font-bold hover:bg-[#3C6B94]/90 transition-all shadow-xl shadow-[#3C6B94]/20"
+            style={{
+              backgroundColor: '#3C6B94',
+              color: 'white',
+              padding: '16px 32px',
+              borderRadius: '16px',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 10px 15px -3px rgba(60, 107, 148, 0.2)'
+            }}
           >
             Limpiar Caché y Reintentar
           </button>
@@ -49,18 +68,46 @@ class GlobalErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 }
 
 // Register Service Worker for PWA
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
   });
 }
 
-const rootElement = document.getElementById('root')!;
+window.onerror = function(message, source, lineno, colno, error) {
+  console.error('Global Error Caught:', { message, source, lineno, colno, error });
+  const root = document.getElementById('root');
+  if (root && root.innerHTML === '') {
+    root.innerHTML = `
+      <div style="padding: 20px; color: red; font-family: sans-serif;">
+        <h2>Error de Carga</h2>
+        <p>${message}</p>
+        <button onclick="localStorage.clear(); location.reload();">Limpiar y Reintentar</button>
+      </div>
+    `;
+  }
+  return false;
+};
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <GlobalErrorBoundary>
-      <App />
-    </GlobalErrorBoundary>
-  </StrictMode>,
-);
+console.log('Main.tsx: Starting execution');
+
+const rootElement = document.getElementById('root');
+console.log('Main.tsx: Root element found:', !!rootElement);
+
+if (rootElement) {
+  try {
+    console.log('Main.tsx: Attempting to render App');
+    createRoot(rootElement).render(
+      <StrictMode>
+        <GlobalErrorBoundary>
+          <App />
+        </GlobalErrorBoundary>
+      </StrictMode>,
+    );
+    console.log('Main.tsx: Render call completed');
+  } catch (err) {
+    console.error('Main.tsx: Render failed:', err);
+  }
+} else {
+  console.error('Main.tsx: Root element NOT found in DOM');
+}
