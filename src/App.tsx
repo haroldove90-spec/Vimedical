@@ -80,7 +80,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-function LoginView({ onLogin, profiles }: { onLogin: (role: Role) => void, profiles: UserProfile[] }) {
+function LoginView({ onLogin, profiles }: { onLogin: (role: Role, profile?: UserProfile) => void, profiles: UserProfile[] }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -91,23 +91,26 @@ function LoginView({ onLogin, profiles }: { onLogin: (role: Role) => void, profi
     setError('');
 
     // Primero buscar en los perfiles dinámicos
-    const profile = profiles.find(p => p.username === username && p.password === password);
+    const profile = profiles.find(p => 
+      p.username?.toLowerCase() === username.toLowerCase() && 
+      p.password === password
+    );
     
     if (profile) {
       if (profile.status === 'suspended') {
         setError('Tu cuenta ha sido suspendida. Contacta al administrador.');
         return;
       }
-      onLogin(profile.role);
+      onLogin(profile.role, profile);
       return;
     }
 
     // Fallback para usuarios iniciales si no están en la lista (aunque deberían estarlo por el useEffect)
-    if (username === 'enfermero' && password === '123prueba') {
+    if (username.toLowerCase() === 'enfermero' && password === '123prueba') {
       onLogin('Enfermero');
-    } else if (username === 'doctor' && password === '123prueba') {
+    } else if (username.toLowerCase() === 'doctor' && password === '123prueba') {
       onLogin('Doctor');
-    } else if (username === 'admin' && password === '123prueba') {
+    } else if (username.toLowerCase() === 'admin' && password === '123prueba') {
       onLogin('Administrador');
     } else {
       setError('Usuario o clave incorrectos');
@@ -739,25 +742,41 @@ export default function App() {
   useEffect(() => {
     const fetchProfiles = async () => {
       setLoadingProfiles(true);
-      const { data, error } = await supabase.from('profiles').select('*');
-      if (data && data.length > 0) {
-        const mappedProfiles: UserProfile[] = data.map(p => ({
-          id: p.id,
-          role: p.role as Role,
-          fullName: p.full_name,
-          email: p.email,
-          username: p.username,
-          password: p.password,
-          phone: p.phone,
-          license: p.license,
-          specialty: p.specialty,
-          photoUrl: p.photo_url,
-          bio: p.bio,
-          status: p.status as 'active' | 'suspended'
-        }));
-        setProfiles(mappedProfiles);
+      try {
+        const { data, error } = await supabase.from('profiles').select('*');
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          const mappedProfiles: UserProfile[] = data.map(p => {
+            // Normalizar el rol para evitar problemas de mayúsculas/minúsculas
+            let normalizedRole: Role = 'Enfermero';
+            const dbRole = p.role?.toLowerCase();
+            if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
+            else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+            else normalizedRole = 'Enfermero';
+
+            return {
+              id: p.id,
+              role: normalizedRole,
+              fullName: p.full_name,
+              email: p.email,
+              username: p.username,
+              password: p.password,
+              phone: p.phone,
+              license: p.license,
+              specialty: p.specialty,
+              photoUrl: p.photo_url,
+              bio: p.bio,
+              status: p.status as 'active' | 'suspended'
+            };
+          });
+          setProfiles(mappedProfiles);
+        }
+      } catch (err) {
+        console.error('Error fetching profiles:', err);
+      } finally {
+        setLoadingProfiles(false);
       }
-      setLoadingProfiles(false);
     };
     fetchProfiles();
   }, []);
@@ -860,8 +879,9 @@ export default function App() {
       return (
         <ErrorBoundary>
           <RegisterNurseView 
-            onLogin={(role) => {
+            onLogin={(role, profile) => {
               setCurrentRole(role);
+              if (profile) setCurrentProfileData(profile);
               setIsLoggedIn(true);
               setCurrentView('dashboard');
             }} 
@@ -874,8 +894,9 @@ export default function App() {
     }
     return (
       <ErrorBoundary>
-        <LoginView onLogin={(role) => {
+        <LoginView onLogin={(role, profile) => {
           setCurrentRole(role);
+          if (profile) setCurrentProfileData(profile);
           setIsLoggedIn(true);
           setCurrentView('dashboard');
         }} profiles={profiles} />
@@ -6006,8 +6027,8 @@ function CertificateDetailView({ certificateId, navigateTo, certificates }: { ce
 }
 
 function NurseDashboard({ navigateTo, patients, wounds, treatments, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatments: TreatmentLog[], profile: UserProfile | null }) {
-  const myPatients = patients.filter(p => p.registeredBy === 'n1' || !p.registeredBy); // Mocking 'n1' as current nurse
-  const myTreatments = treatments.filter(t => t.nurseId === 'n1');
+  const myPatients = patients.filter(p => p.registeredBy === profile?.id || !p.registeredBy);
+  const myTreatments = treatments.filter(t => t.nurseId === profile?.id);
   const approvedWounds = wounds.filter(w => w.status === 'approved');
 
   // Metrics calculations
@@ -6253,7 +6274,7 @@ function NurseDashboard({ navigateTo, patients, wounds, treatments, profile }: {
   );
 }
 
-function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { onLogin: (role: Role) => void, onBack: () => void, onRegister: (profile: UserProfile) => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
+function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { onLogin: (role: Role, profile?: UserProfile) => void, onBack: () => void, onRegister: (profile: UserProfile) => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -6287,7 +6308,7 @@ function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { 
     );
 
     toast.success('Registro exitoso. Bienvenido al equipo ViMedical.');
-    onLogin('Enfermero');
+    onLogin('Enfermero', newProfile);
   };
 
   return (
