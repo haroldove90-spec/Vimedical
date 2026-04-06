@@ -1,10 +1,5 @@
 import express from "express";
 import path from "path";
-import { fileURLToPath } from "url";
-
-// Polyfill for __dirname in ESM, but bundled CJS will have it natively
-const _filename = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
-const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(_filename);
 
 async function startServer() {
   const app = express();
@@ -25,12 +20,16 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files from the 'dist' directory in production
-    // Use process.cwd() to ensure we find the dist folder correctly on Vercel
-    const distPath = path.join(process.cwd(), "dist");
+    // Use path.resolve("dist") which is robust in bundled environments
+    const distPath = path.resolve("dist");
     app.use(express.static(distPath));
 
     // Handle SPA routing: serve index.html for all non-API routes
     app.get("*", (req, res) => {
+      // Prevent infinite loops or serving index.html for missing assets
+      if (req.path.startsWith('/assets/')) {
+        return res.status(404).send('Asset not found');
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
