@@ -2,8 +2,9 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Polyfill for __dirname in ESM, but bundled CJS will have it natively
+const _filename = typeof __filename !== 'undefined' ? __filename : fileURLToPath(import.meta.url);
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(_filename);
 
 async function startServer() {
   const app = express();
@@ -24,6 +25,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Serve static files from the 'dist' directory in production
+    // Use process.cwd() to ensure we find the dist folder correctly on Vercel
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
 
