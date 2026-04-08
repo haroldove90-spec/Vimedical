@@ -69,7 +69,7 @@ export const generateQuotationPDF = (quotation: Quotation) => {
   doc.save(`Cotizacion_${quotation.patientName.replace(/\s+/g, '_')}.pdf`);
 };
 
-export const generateClinicalHistoryPDF = (patient: Patient, wounds: Wound[] = [], treatments: TreatmentLog[] = []) => {
+export const generateClinicalHistoryPDF = (patient: Patient, wounds: Wound[] = [], treatments: TreatmentLog[] = [], doctorSignature?: string) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -224,10 +224,24 @@ export const generateClinicalHistoryPDF = (patient: Patient, wounds: Wound[] = [
     }
   }
 
+  // Doctor Signature
+  if (doctorSignature) {
+    if (currentY > 250) { doc.addPage(); currentY = 20; }
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, currentY + 20, 80, currentY + 20);
+    doc.setFontSize(8);
+    doc.text('Firma del Profesional', 50, currentY + 25, { align: 'center' });
+    try {
+      doc.addImage(doctorSignature, 'PNG', 25, currentY, 50, 20);
+    } catch (e) {
+      console.error('Error adding doctor signature to PDF', e);
+    }
+  }
+
   doc.save(`Historial_${patient.fullName.replace(/\s+/g, '_')}.pdf`);
 };
 
-export const generateFinalReport = (patient: Patient, wound?: Wound, treatments: TreatmentLog[] = []) => {
+export const generateFinalReport = (patient: Patient, wound?: Wound, treatments: TreatmentLog[] = [], doctorSignature?: string) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -351,6 +365,15 @@ export const generateFinalReport = (patient: Patient, wound?: Wound, treatments:
   doc.setFont('helvetica', 'normal');
   doc.text('Firma del Profesional', 50, footerY + 5, { align: 'center' });
   doc.text('Firma del Paciente', pageWidth - 50, footerY + 5, { align: 'center' });
+  
+  // Add doctor signature if available
+  if (doctorSignature) {
+    try {
+      doc.addImage(doctorSignature, 'PNG', 25, footerY - 25, 50, 20);
+    } catch (e) {
+      console.error('Error adding doctor signature to report', e);
+    }
+  }
 
   // Add patient signature if available (from last treatment)
   const lastTreatmentWithSignature = [...treatments].reverse().find(t => t.patientSignature);

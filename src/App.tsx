@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 import {
   LayoutDashboard, Users, User, Activity, AlertTriangle, PlusCircle, Clock, 
   ChevronRight, Camera, CheckSquare, Square, FileText, CheckCircle, XCircle, UserCircle, Menu, X, Download,
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
-  Lock, LogOut, Wifi, WifiOff, RefreshCw
+  Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -19,6 +20,7 @@ import {
 } from 'recharts';
 import SignatureCanvas from 'react-signature-canvas';
 import { jsPDF } from 'jspdf';
+import { storageService } from './services/storageService';
 import { Role, Patient, Wound, TreatmentLog, ClinicalComment, Quotation, QuotationItem, MedicalCertificate, TreatmentProposal, Diagnostic, MOCK_PATIENTS, MOCK_WOUNDS, MOCK_TREATMENTS, MOCK_CERTIFICATES, MOCK_PROPOSALS, MOCK_DIAGNOSTICS } from './mockData';
 import { supabase } from './lib/supabase';
 import { generateFinalReport, generateQuotationPDF, generateClinicalHistoryPDF } from './services/pdfService';
@@ -29,6 +31,7 @@ type View = 'dashboard' | 'patients' | 'patient-detail' | 'wound-detail' | 'new-
 
 interface UserProfile {
   id: string;
+  user_id?: string;
   role: Role;
   fullName: string;
   email: string;
@@ -38,8 +41,39 @@ interface UserProfile {
   license?: string;
   specialty?: string;
   photoUrl?: string;
+  signatureUrl?: string;
   bio?: string;
   status?: 'active' | 'suspended';
+}
+
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  imageUrl: string;
+  category: string;
+}
+
+interface Order {
+  id: string;
+  userId: string;
+  totalAmount: number;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  shippingAddress: string;
+  createdAt: string;
+  items: OrderItem[];
+}
+
+interface OrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
 }
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -80,40 +114,64 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-function LoginView({ onLogin, profiles }: { onLogin: (role: Role, profile?: UserProfile) => void, profiles: UserProfile[] }) {
-  const [username, setUsername] = useState('');
+function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) => void }) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('LoginView: handleSubmit called', { email });
     setError('');
+    setIsSubmitting(true);
 
-    // Primero buscar en los perfiles dinámicos
-    const profile = profiles.find(p => 
-      p.username?.toLowerCase() === username.toLowerCase() && 
-      p.password === password
-    );
-    
-    if (profile) {
-      if (profile.status === 'suspended') {
-        setError('Tu cuenta ha sido suspendida. Contacta al administrador.');
+    // Timeout de seguridad de 15 segundos
+    const timeoutId = setTimeout(() => {
+      setIsSubmitting(current => {
+        if (current) {
+          console.warn('LoginView: Login timeout reached');
+          setError('La verificación está tardando demasiado. Por favor, intenta de nuevo o verifica tu conexión.');
+          return false;
+        }
+        return current;
+      });
+    }, 15000);
+
+    try {
+      console.log('LoginView: Calling signInWithPassword');
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      clearTimeout(timeoutId);
+      console.log('LoginView: signInWithPassword result', { user: data.user?.id, error: authError?.message });
+
+      if (authError) {
+        if (authError.message.includes('Invalid login credentials')) {
+          setError('Correo o clave incorrectos');
+        } else if (authError.message.includes('Email not confirmed')) {
+          setError('Por favor, confirma tu correo electrónico antes de ingresar.');
+        } else {
+          setError(authError.message);
+        }
         return;
       }
-      onLogin(profile.role, profile);
-      return;
-    }
 
-    // Fallback para usuarios iniciales si no están en la lista (aunque deberían estarlo por el useEffect)
-    if (username.toLowerCase() === 'enfermero' && password === '123prueba') {
-      onLogin('Enfermero');
-    } else if (username.toLowerCase() === 'doctor' && password === '123prueba') {
-      onLogin('Doctor');
-    } else if (username.toLowerCase() === 'admin' && password === '123prueba') {
-      onLogin('Administrador');
-    } else {
-      setError('Usuario o clave incorrectos');
+      if (data.user) {
+        console.log('LoginView: Login successful, waiting for profile fetch in App.tsx');
+        toast.success('Bienvenido de nuevo');
+        // El listener en App.tsx se encargará de cambiarLoggedIn a true
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      console.error('LoginView: Unexpected error during login', err);
+      setError('Error al conectar con el servidor: ' + (err.message || 'Error desconocido'));
+    } finally {
+      console.log('LoginView: Setting isSubmitting to false');
+      setIsSubmitting(false);
     }
   };
 
@@ -132,13 +190,13 @@ function LoginView({ onLogin, profiles }: { onLogin: (role: Role, profile?: User
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 ml-1">Usuario</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 ml-1">Correo Electrónico</label>
             <input 
-              type="text" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
-              placeholder="nombre de usuario"
+              placeholder="correo@ejemplo.com"
               required
             />
           </div>
@@ -173,9 +231,10 @@ function LoginView({ onLogin, profiles }: { onLogin: (role: Role, profile?: User
 
           <button 
             type="submit"
-            className="w-full bg-[#3C6B94] text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-[#3C6B94]/20 hover:bg-[#CBB882] transition-all scale-100 active:scale-95 flex items-center justify-center gap-3"
+            disabled={isSubmitting}
+            className="w-full bg-[#3C6B94] text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-[#3C6B94]/20 hover:bg-[#CBB882] transition-all scale-100 active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
           >
-            Entrar al Panel
+            {isSubmitting ? 'Verificando...' : 'Entrar al Panel'}
             <ChevronRight className="w-5 h-5" />
           </button>
 
@@ -291,6 +350,81 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
+
+  useEffect(() => {
+    // Escuchar cambios en la autenticación de Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('App: Auth event triggered:', event, session?.user?.id);
+      
+      if (session?.user) {
+        console.log('App: User session found, fetching profile...');
+        // Buscar el perfil del usuario en la tabla profiles
+        try {
+          const { data: profileData, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (error) {
+            console.error('App: Error fetching profile:', error);
+            // Si no hay perfil, el usuario está en un estado inconsistente
+            if (event === 'SIGNED_IN') {
+              toast.error('No se encontró un perfil asociado a esta cuenta.');
+            }
+            return;
+          }
+
+          if (profileData) {
+            console.log('App: Profile found:', profileData.full_name);
+            let normalizedRole: Role = 'Enfermero';
+            const dbRole = profileData.role?.toLowerCase();
+            if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
+            else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+            
+            const profile: UserProfile = {
+              id: profileData.id,
+              role: normalizedRole,
+              fullName: profileData.full_name,
+              email: profileData.email,
+              phone: profileData.phone,
+              license: profileData.license,
+              specialty: profileData.specialty,
+              photoUrl: profileData.photo_url,
+              bio: profileData.bio,
+              status: profileData.status as 'active' | 'suspended'
+            };
+
+            setCurrentRole(normalizedRole);
+            setCurrentProfileData(profile);
+            setIsLoggedIn(true);
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('currentRole', normalizedRole);
+            localStorage.setItem('currentProfile', JSON.stringify(profile));
+            console.log('App: Login state updated successfully');
+          } else {
+            console.warn('App: No profile data returned for user', session.user.id);
+            if (event === 'SIGNED_IN') {
+              toast.error('Tu cuenta no tiene un perfil configurado.');
+            }
+          }
+        } catch (profileErr) {
+          console.error('App: Unexpected error fetching profile:', profileErr);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log('App: User signed out');
+        setIsLoggedIn(false);
+        setCurrentProfileData(null);
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('currentRole');
+        localStorage.removeItem('currentProfile');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const updateOnlineStatus = () => {
@@ -662,6 +796,18 @@ export default function App() {
     (window as any).navigateToRegister = () => navigateTo('register-nurse');
   }, [navigateTo]);
 
+  const handleAddWound = (newWound: Wound) => {
+    const updatedWounds = [newWound, ...wounds];
+    setWounds(updatedWounds);
+    syncService.setCache('wounds', updatedWounds);
+  };
+
+  const handleAddTreatment = (newTreatment: TreatmentLog) => {
+    const updatedLogs = [newTreatment, ...treatmentLogs];
+    setTreatmentLogs(updatedLogs);
+    syncService.setCache('treatment_logs', updatedLogs);
+  };
+
   const handleAddPatient = (newPatient: Patient) => {
     const updatedPatients = [newPatient, ...patients];
     setPatients(updatedPatients);
@@ -697,14 +843,44 @@ export default function App() {
     navigateTo('diagnostics');
   };
 
-  const handleUpdatePatient = (updatedPatient: Patient) => {
+  const handleDeleteQuotation = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta cotización?')) return;
+    setQuotations(prev => prev.filter(q => q.id !== id));
+    syncService.setCache('quotations', quotations.filter(q => q.id !== id));
+    if (navigator.onLine) await supabase.from('quotations').delete().eq('id', id);
+    toast.success('Cotización eliminada');
+  };
+
+  const handleDeleteCertificate = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este certificado?')) return;
+    setCertificates(prev => prev.filter(c => c.id !== id));
+    syncService.setCache('certificates', certificates.filter(c => c.id !== id));
+    if (navigator.onLine) await supabase.from('medical_certificates').delete().eq('id', id);
+    toast.success('Certificado eliminado');
+  };
+
+  const handleDeleteProposal = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta propuesta?')) return;
+    setProposals(prev => prev.filter(p => p.id !== id));
+    syncService.setCache('proposals', proposals.filter(p => p.id !== id));
+    if (navigator.onLine) await supabase.from('treatment_proposals').delete().eq('id', id);
+    toast.success('Propuesta eliminada');
+  };
+
+  const handleDeleteDiagnostic = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este diagnóstico?')) return;
+    setDiagnostics(prev => prev.filter(d => d.id !== id));
+    syncService.setCache('diagnostics', diagnostics.filter(d => d.id !== id));
+    if (navigator.onLine) await supabase.from('diagnostics').delete().eq('id', id);
+    toast.success('Diagnóstico eliminado');
+  };
+
+  const handleUpdatePatient = async (updatedPatient: Patient) => {
     const updatedPatients = patients.map(p => p.id === updatedPatient.id ? updatedPatient : p);
     setPatients(updatedPatients);
     syncService.setCache('patients', updatedPatients);
     
-    // Sincronizar con Supabase
-    syncService.addToQueue('patients', 'UPDATE', {
-      id: updatedPatient.id,
+    const supabaseData = {
       full_name: updatedPatient.fullName,
       date_of_birth: updatedPatient.dateOfBirth,
       phone: updatedPatient.phone,
@@ -727,10 +903,24 @@ export default function App() {
       consent_form_signature: updatedPatient.consentFormSignature,
       consent_form_date: updatedPatient.consentFormDate,
       consent_form_type: updatedPatient.consentFormType
-    });
-    
-    if (navigator.onLine) {
-      syncService.processQueue();
+    };
+
+    if (!navigator.onLine) {
+      syncService.addToQueue('patients', 'UPDATE', { id: updatedPatient.id, ...supabaseData });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('patients')
+        .update(supabaseData)
+        .eq('id', updatedPatient.id);
+      
+      if (error) throw error;
+      toast.success('Paciente actualizado correctamente');
+    } catch (err) {
+      console.error("Error updating patient:", err);
+      toast.error('Error al sincronizar con la base de datos');
     }
   };
 
@@ -742,6 +932,36 @@ export default function App() {
       syncService.setCache('wounds', updated);
       return updated;
     });
+  };
+
+  const handleDeletePatient = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este paciente? Esta acción no se puede deshacer.')) return;
+    
+    setPatients(prev => prev.filter(p => p.id !== id));
+    syncService.setCache('patients', patients.filter(p => p.id !== id));
+    
+    if (navigator.onLine) {
+      await supabase.from('patients').delete().eq('id', id);
+      toast.success('Paciente eliminado');
+    } else {
+      syncService.addToQueue('patients', 'DELETE', { id });
+      toast.success('Paciente marcado para eliminar (offline)');
+    }
+  };
+
+  const handleDeleteWound = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta herida?')) return;
+    
+    setWounds(prev => prev.filter(w => w.id !== id));
+    syncService.setCache('wounds', wounds.filter(w => w.id !== id));
+    
+    if (navigator.onLine) {
+      await supabase.from('wounds').delete().eq('id', id);
+      toast.success('Herida eliminada');
+    } else {
+      syncService.addToQueue('wounds', 'DELETE', { id });
+      toast.success('Herida marcada para eliminar (offline)');
+    }
   };
 
   useEffect(() => {
@@ -824,43 +1044,75 @@ export default function App() {
       return [...prev, updatedProfile];
     });
 
-    const supabaseData = {
+    const supabaseData: any = {
       role: updatedProfile.role,
       full_name: updatedProfile.fullName,
       email: updatedProfile.email,
-      username: updatedProfile.username,
-      password: updatedProfile.password,
       phone: updatedProfile.phone,
       license: updatedProfile.license,
       specialty: updatedProfile.specialty,
       photo_url: updatedProfile.photoUrl,
+      signature_url: updatedProfile.signatureUrl,
       bio: updatedProfile.bio,
-      status: updatedProfile.status
+      status: updatedProfile.status,
+      user_id: updatedProfile.user_id
     };
 
     try {
-      if (updatedProfile.id.length > 20) { // Likely a UUID
+      // Si tenemos user_id, intentamos upsert basado en user_id para evitar duplicados
+      if (updatedProfile.user_id) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .upsert([{ ...supabaseData }], { onConflict: 'user_id' })
+          .select()
+          .single();
+          
+        if (error) throw error;
+        
+        if (data) {
+          const profileWithId = { ...updatedProfile, id: data.id };
+          setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? profileWithId : p));
+          if (currentProfile?.id === updatedProfile.id) {
+            setCurrentProfileData(profileWithId);
+          }
+        }
+      } else if (updatedProfile.id.length > 20) { // Likely a UUID
         await supabase.from('profiles').upsert([{ id: updatedProfile.id, ...supabaseData }]);
       } else {
-        const { data } = await supabase.from('profiles').insert([supabaseData]).select();
-        if (data && data[0]) {
-          const profileWithNewId = { ...updatedProfile, id: data[0].id };
+        const { data, error } = await supabase.from('profiles').insert([supabaseData]).select().single();
+        if (error) throw error;
+        if (data) {
+          const profileWithNewId = { ...updatedProfile, id: data.id };
           setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? profileWithNewId : p));
-          setCurrentProfileData(prev => prev?.id === updatedProfile.id ? profileWithNewId : prev);
+          if (currentProfile?.id === updatedProfile.id) {
+            setCurrentProfileData(profileWithNewId);
+          }
         }
       }
     } catch (err) {
       console.error("Error saving profile:", err);
+      toast.error("Error al guardar el perfil en la base de datos");
     }
     
     toast.success('Perfil actualizado correctamente');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    console.log('App: handleLogout called');
     setIsLoggedIn(false);
+    setCurrentProfileData(null);
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentRole');
+    localStorage.removeItem('currentProfile');
     setCurrentView('dashboard');
+    setIsSidebarOpen(false);
+    
+    try {
+      await supabase.auth.signOut();
+      toast.success('Sesión cerrada');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
   };
 
   const sendNotification = async (title: string, body: string, voiceText: string, targetRole: Role) => {
@@ -879,44 +1131,29 @@ export default function App() {
     };
   }, []);
 
-  if (!isLoggedIn) {
-    if (currentView === 'register-nurse') {
-      return (
-        <ErrorBoundary>
-          <RegisterNurseView 
-            onLogin={(role, profile) => {
-              setCurrentRole(role);
-              if (profile) setCurrentProfileData(profile);
-              setIsLoggedIn(true);
-              setCurrentView('dashboard');
-            }} 
-            onBack={() => setCurrentView('dashboard')}
-            onRegister={handleUpdateProfile}
-            sendNotification={sendNotification}
-          />
-        </ErrorBoundary>
-      );
-    }
-    return (
-      <ErrorBoundary>
-        <LoginView onLogin={(role, profile) => {
-          setCurrentRole(role);
-          if (profile) setCurrentProfileData(profile);
-          setIsLoggedIn(true);
-          setCurrentView('dashboard');
-        }} profiles={profiles} />
-      </ErrorBoundary>
-    );
-  }
-
   return (
     <ErrorBoundary>
-      <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
       <Toaster />
-      <PWAInstallPrompt />
-      
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-primary flex items-center justify-between px-6 z-40 shadow-md">
+      {!isLoggedIn ? (
+        currentView === 'register-nurse' ? (
+          <RegisterNurseView 
+            onBack={() => setCurrentView('dashboard')}
+            sendNotification={sendNotification}
+          />
+        ) : (
+          <LoginView onLogin={(role, profile) => {
+            setCurrentRole(role);
+            if (profile) setCurrentProfileData(profile);
+            setIsLoggedIn(true);
+            setCurrentView('dashboard');
+          }} />
+        )
+      ) : (
+        <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+          <PWAInstallPrompt />
+          
+          {/* Mobile Header */}
+          <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-primary flex items-center justify-between px-6 z-40 shadow-md">
         <div className="flex items-center gap-2">
           <img src="https://appdesign.appdesignproyectos.com/vimedical.png" alt="ViMedical" className="h-8 w-auto mix-blend-multiply" />
           <span className="text-white font-bold tracking-tight">ViMedical</span>
@@ -1172,7 +1409,7 @@ export default function App() {
             />
           )}
           
-          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} />}
+          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} onDelete={handleDeletePatient} />}
           {currentView === 'patient-detail' && selectedPatientId && (
             <PatientDetailView 
               patientId={selectedPatientId} 
@@ -1189,6 +1426,7 @@ export default function App() {
               patients={patients}
               wounds={wounds}
               treatmentLogs={treatmentLogs}
+              currentProfile={currentProfile}
             />
           )}
           {currentView === 'new-assessment' && selectedPatientId && (
@@ -1196,6 +1434,7 @@ export default function App() {
               patientId={selectedPatientId} 
               navigateTo={navigateTo} 
               patients={patients}
+              onSave={handleAddWound}
             />
           )}
           {currentView === 'new-treatment' && selectedWoundId && (
@@ -1204,6 +1443,7 @@ export default function App() {
               navigateTo={navigateTo} 
               patients={patients}
               wounds={wounds}
+              onSave={handleAddTreatment}
             />
           )}
           {currentView === 'new-patient' && (
@@ -1220,6 +1460,7 @@ export default function App() {
               currentRole={currentRole}
               wounds={wounds}
               treatmentLogs={treatmentLogs}
+              currentProfile={currentProfile}
             />
           )}
           {currentView === 'quotations' && (
@@ -1227,6 +1468,7 @@ export default function App() {
               navigateTo={navigateTo} 
               quotations={quotations} 
               currentRole={currentRole} 
+              onDelete={handleDeleteQuotation}
             />
           )}
           {currentView === 'new-quotation' && (
@@ -1265,6 +1507,7 @@ export default function App() {
               navigateTo={navigateTo} 
               certificates={certificates} 
               currentRole={currentRole} 
+              onDelete={handleDeleteCertificate}
             />
           )}
           {currentView === 'new-certificate' && (
@@ -1287,6 +1530,7 @@ export default function App() {
               navigateTo={navigateTo} 
               proposals={proposals} 
               currentRole={currentRole} 
+              onDelete={handleDeleteProposal}
             />
           )}
           {currentView === 'new-treatment-proposal' && (
@@ -1308,6 +1552,7 @@ export default function App() {
               navigateTo={navigateTo} 
               diagnostics={diagnostics} 
               currentRole={currentRole} 
+              onDelete={handleDeleteDiagnostic}
             />
           )}
           {currentView === 'new-diagnostic' && (
@@ -1332,7 +1577,7 @@ export default function App() {
             />
           )}
           {currentView === 'ecommerce' && (
-            <EcommerceView onBack={() => navigateTo('dashboard')} />
+            <EcommerceView onBack={() => navigateTo('dashboard')} userProfile={currentProfile} />
           )}
           {currentView === 'nurses-management' && (
             <NursesManagementView 
@@ -1345,20 +1590,10 @@ export default function App() {
               onBack={() => navigateTo('dashboard')} 
             />
           )}
-          {currentView === 'register-nurse' && (
-            <RegisterNurseView 
-              onLogin={(role) => {
-                setCurrentRole(role);
-                setIsLoggedIn(true);
-              }} 
-              onBack={() => setCurrentView('dashboard')} 
-              onRegister={handleUpdateProfile}
-              sendNotification={sendNotification}
-            />
-          )}
         </div>
       </main>
     </div>
+    )}
     </ErrorBoundary>
   );
 }
@@ -1551,7 +1786,8 @@ function ClinicalHistoryDetailView({
   onUpdate,
   currentRole,
   wounds,
-  treatmentLogs
+  treatmentLogs,
+  currentProfile
 }: { 
   patientId: string, 
   navigateTo: (view: View, pId?: string, wId?: string) => void, 
@@ -1559,7 +1795,8 @@ function ClinicalHistoryDetailView({
   onUpdate: (p: Patient) => void,
   currentRole: Role,
   wounds: Wound[],
-  treatmentLogs: TreatmentLog[]
+  treatmentLogs: TreatmentLog[],
+  currentProfile: UserProfile | null
 }) {
   const patient = patients.find(p => p.id === patientId);
   if (!patient) return <div>Paciente no encontrado</div>;
@@ -1604,20 +1841,27 @@ function ClinicalHistoryDetailView({
     const patientWounds = wounds.filter(w => w.patientId === patient.id);
     const patientTreatments = treatmentLogs.filter(t => patientWounds.some(w => w.id === t.woundId));
     
-    generateClinicalHistoryPDF(patient, patientWounds, patientTreatments);
+    generateClinicalHistoryPDF(patient, patientWounds, patientTreatments, currentProfile?.signatureUrl);
     toast.success('Generando historial clínico completo en PDF...');
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const updatedPatient = { ...patient, initialWoundPhoto: reader.result as string };
-        onUpdate(updatedPatient);
-        toast.success('Foto de la herida subida correctamente.');
-      };
-      reader.readAsDataURL(file);
+      toast.loading('Subiendo foto...', { id: 'photo-upload' });
+      try {
+        const fileName = `wounds/${patient.id}_initial_${Date.now()}.png`;
+        const url = await storageService.uploadFile('wounds', fileName, file);
+        if (url) {
+          const updatedPatient = { ...patient, initialWoundPhoto: url };
+          onUpdate(updatedPatient);
+          toast.success('Foto de la herida subida correctamente.', { id: 'photo-upload' });
+        } else {
+          throw new Error('No se pudo obtener la URL de la imagen');
+        }
+      } catch (error) {
+        toast.error('Error al subir la foto', { id: 'photo-upload' });
+      }
     }
   };
 
@@ -1842,20 +2086,53 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
   const [formData, setFormData] = useState<UserProfile>({ ...profile });
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const sigCanvas = React.useRef<SignatureCanvas>(null);
 
-  const handleSave = () => {
-    onUpdate(formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    setIsUploading(true);
+    try {
+      // Guardar firma si se editó
+      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
+        const sigData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+        const fileName = `signatures/${formData.user_id || formData.id}.png`;
+        const url = await storageService.uploadBase64('photos', fileName, sigData);
+        if (url) {
+          formData.signatureUrl = url;
+        }
+      }
+      onUpdate(formData);
+      setIsEditing(false);
+      toast.success('Perfil actualizado correctamente');
+    } catch (error) {
+      toast.error('Error al guardar los cambios');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, photoUrl: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      setIsUploading(true);
+      try {
+        const fileName = `profiles/${formData.user_id || formData.id}_${Date.now()}.png`;
+        const url = await storageService.uploadFile('photos', fileName, file);
+        if (url) {
+          setFormData({ ...formData, photoUrl: url });
+          toast.success('Foto actualizada');
+        }
+      } catch (error) {
+        toast.error('Error al subir la foto');
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  const clearSignature = () => {
+    if (sigCanvas.current) {
+      sigCanvas.current.clear();
     }
   };
 
@@ -1875,9 +2152,11 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
           </div>
         </div>
         <button 
+          disabled={isUploading}
           onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-          className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all"
+          className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
         >
+          {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
           {isEditing ? 'Guardar Cambios' : 'Editar Perfil'}
         </button>
       </header>
@@ -1919,6 +2198,40 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Firma Digital */}
+          <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50">
+            <div className="flex items-center justify-between mb-6">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Firma Digital</label>
+              {isEditing && (
+                <button onClick={clearSignature} className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">
+                  Limpiar
+                </button>
+              )}
+            </div>
+            
+            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden aspect-[3/2] flex items-center justify-center relative">
+              {isEditing ? (
+                <SignatureCanvas 
+                  ref={sigCanvas}
+                  penColor="#0F172A"
+                  canvasProps={{ className: 'w-full h-full cursor-crosshair' }}
+                />
+              ) : (
+                formData.signatureUrl ? (
+                  <img src={formData.signatureUrl} alt="Firma" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <div className="text-center p-4">
+                    <PenTool className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Sin firma registrada</p>
+                  </div>
+                )
+              )}
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium mt-4 italic">
+              Esta firma se utilizará automáticamente en certificados e informes médicos.
+            </p>
           </div>
         </div>
 
@@ -2025,27 +2338,235 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
   );
 }
 
-function EcommerceView({ onBack }: { onBack: () => void }) {
+function EcommerceView({ onBack, userProfile }: { onBack: () => void, userProfile: UserProfile | null }) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
+  const [showCart, setShowCart] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('name');
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          setProducts(data.map(p => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            stock: p.stock,
+            imageUrl: p.image_url,
+            category: p.category
+          })));
+        } else {
+          // Mock data if DB is empty
+          setProducts([
+            { id: 'p1', name: 'Prontosan Solución 350ml', description: 'Solución para el lavado de heridas.', price: 450, stock: 20, category: 'Lavado', imageUrl: 'https://picsum.photos/seed/prontosan/400/400' },
+            { id: 'p2', name: 'Prontosan Gel 30ml', description: 'Gel para el desbridamiento autolítico.', price: 380, stock: 15, category: 'Gel', imageUrl: 'https://picsum.photos/seed/gel/400/400' },
+            { id: 'p3', name: 'Apósito de Plata 10x10', description: 'Apósito antimicrobiano.', price: 120, stock: 50, category: 'Apósitos', imageUrl: 'https://picsum.photos/seed/silver/400/400' },
+            { id: 'p4', name: 'Gasa Estéril 10x10', description: 'Paquete con 5 gasas.', price: 25, stock: 100, category: 'Consumibles', imageUrl: 'https://picsum.photos/seed/gauze/400/400' },
+          ]);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        return prev.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { product, quantity: 1 }];
+    });
+    toast.success(`${product.name} añadido al carrito`);
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const total = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+
+  const handleCheckout = async () => {
+    if (!userProfile) return;
+    setIsCheckingOut(true);
+    try {
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert([{
+          user_id: userProfile.user_id,
+          total_amount: total,
+          status: 'pending',
+          shipping_address: 'Dirección de la clínica'
+        }])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      const orderItems = cart.map(item => ({
+        order_id: orderData.id,
+        product_id: item.product.id,
+        quantity: item.quantity,
+        unit_price: item.product.price,
+        total: item.product.price * item.quantity
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      setCart([]);
+      setShowCart(false);
+      toast.success('Pedido realizado con éxito');
+    } catch (error) {
+      console.error('Error during checkout:', error);
+      toast.error('Error al procesar el pedido');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center p-8">
-      <div className="max-w-md w-full bg-white border border-slate-200 rounded-[3rem] p-12 text-center shadow-2xl shadow-slate-200/50 animate-in fade-in zoom-in duration-500">
-        <div className="w-24 h-24 bg-primary/10 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-          <ShoppingBag className="w-12 h-12 text-primary animate-pulse" />
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <button onClick={onBack} className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-primary flex items-center gap-2 mb-6 transition-colors">
+            <ChevronRight className="w-4 h-4 rotate-180" /> Volver al Panel
+          </button>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Tienda de Insumos</h2>
+          <p className="text-slate-500 font-medium">Adquiere los mejores productos para el cuidado de heridas.</p>
         </div>
-        <h2 className="text-4xl font-black tracking-tighter text-slate-900 mb-4">E-commerce</h2>
-        <div className="inline-block px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest mb-8">
-          Próximamente
-        </div>
-        <p className="text-slate-500 font-medium leading-relaxed mb-10">
-          Estamos trabajando en un módulo de tienda en línea para que puedas gestionar insumos y productos médicos directamente desde ViMedical.
-        </p>
+        
         <button 
-          onClick={onBack}
-          className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-slate-900/20 hover:bg-primary transition-all active:scale-95"
+          onClick={() => setShowCart(true)}
+          className="relative bg-white border border-slate-200 p-4 rounded-2xl shadow-xl shadow-slate-200/50 hover:border-primary transition-all group"
         >
-          Volver al Panel
+          <ShoppingBag className="w-6 h-6 text-slate-400 group-hover:text-primary" />
+          {cart.length > 0 && (
+            <span className="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg">
+              {cart.reduce((sum, item) => sum + item.quantity, 0)}
+            </span>
+          )}
         </button>
-      </div>
+      </header>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <RefreshCw className="w-12 h-12 text-primary animate-spin mb-4" />
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Cargando productos...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {products.map(product => (
+            <div key={product.id} className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-xl shadow-slate-200/50 group hover:border-primary transition-all">
+              <div className="aspect-square bg-slate-50 relative overflow-hidden">
+                <img 
+                  src={product.imageUrl} 
+                  alt={product.name} 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute top-4 left-4">
+                  <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-black text-primary uppercase tracking-widest shadow-sm">
+                    {product.category}
+                  </span>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <h3 className="font-black text-slate-900 leading-tight mb-1">{product.name}</h3>
+                  <p className="text-xs text-slate-500 line-clamp-2">{product.description}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xl font-black text-primary">${product.price.toLocaleString()}</span>
+                  <button 
+                    onClick={() => addToCart(product)}
+                    className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-primary transition-all active:scale-90"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Carrito Lateral */}
+      {showCart && (
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowCart(false)} />
+          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-2xl font-black tracking-tighter text-slate-900">Tu Carrito</h3>
+              <button onClick={() => setShowCart(false)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              {cart.length === 0 ? (
+                <div className="text-center py-20">
+                  <ShoppingBag className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">El carrito está vacío</p>
+                </div>
+              ) : (
+                cart.map(item => (
+                  <div key={item.product.id} className="flex gap-4">
+                    <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0">
+                      <img src={item.product.imageUrl} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-black text-slate-900 text-sm leading-tight mb-1">{item.product.name}</h4>
+                      <p className="text-xs text-slate-500 mb-2">{item.quantity} x ${item.product.price.toLocaleString()}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-primary">${(item.product.price * item.quantity).toLocaleString()}</span>
+                        <button onClick={() => removeFromCart(item.product.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="p-8 bg-slate-50 border-t border-slate-100 space-y-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 font-bold uppercase tracking-widest text-xs">Total a pagar</span>
+                  <span className="text-3xl font-black text-slate-900">${total.toLocaleString()}</span>
+                </div>
+                <button 
+                  disabled={isCheckingOut}
+                  onClick={handleCheckout}
+                  className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
+                >
+                  {isCheckingOut ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Receipt className="w-5 h-5" />}
+                  Finalizar Pedido
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2056,41 +2577,76 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
   const [isAddingNurse, setIsAddingNurse] = useState(false);
   const [newNurseData, setNewNurseData] = useState({
     fullName: '',
-    username: '',
     password: '',
     email: '',
     phone: '',
     license: '',
     specialty: ''
   });
-  const [createdCredentials, setCreatedCredentials] = useState<{username: string, password: string} | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [createdCredentials, setCreatedCredentials] = useState<{email: string, password: string} | null>(null);
 
-  const handleAddNurse = (e: React.FormEvent) => {
+  const handleAddNurse = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newNurse: UserProfile = {
-      id: `nurse-${Date.now()}`,
-      role: 'Enfermero',
-      fullName: newNurseData.fullName,
-      username: newNurseData.username,
-      password: newNurseData.password,
-      email: newNurseData.email,
-      phone: newNurseData.phone,
-      license: newNurseData.license,
-      specialty: newNurseData.specialty,
-      status: 'active'
-    };
-    onUpdateProfile(newNurse);
-    setCreatedCredentials({ username: newNurseData.username, password: newNurseData.password });
-    setIsAddingNurse(false);
-    setNewNurseData({
-      fullName: '',
-      username: '',
-      password: '',
-      email: '',
-      phone: '',
-      license: '',
-      specialty: ''
-    });
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: newNurseData.email,
+          password: newNurseData.password,
+          fullName: newNurseData.fullName,
+          role: 'Enfermero',
+          license: newNurseData.license,
+          phone: newNurseData.phone,
+          specialty: newNurseData.specialty
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al crear el enfermero');
+      }
+
+      const profileData = result.profile;
+      const newNurse: UserProfile = {
+        id: profileData.id,
+        user_id: profileData.user_id,
+        role: 'Enfermero',
+        fullName: profileData.full_name,
+        email: profileData.email,
+        phone: profileData.phone,
+        license: profileData.license,
+        specialty: profileData.specialty,
+        status: 'active'
+      };
+
+      // Actualizar estado local
+      onUpdateProfile(newNurse);
+      
+      setCreatedCredentials({ email: newNurseData.email, password: newNurseData.password });
+      setIsAddingNurse(false);
+      setNewNurseData({
+        fullName: '',
+        password: '',
+        email: '',
+        phone: '',
+        license: '',
+        specialty: ''
+      });
+      toast.success('Enfermero registrado correctamente');
+    } catch (err: any) {
+      console.error('Error adding nurse:', err);
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -2128,8 +2684,8 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
           <p className="text-emerald-700 font-medium mb-6">Comparte estas credenciales con el nuevo integrante del equipo:</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white p-4 rounded-xl border border-emerald-100">
-              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Usuario</p>
-              <p className="text-lg font-black text-slate-900 select-all">{createdCredentials.username}</p>
+              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Email / Usuario</p>
+              <p className="text-lg font-black text-slate-900 select-all">{createdCredentials.email}</p>
             </div>
             <div className="bg-white p-4 rounded-xl border border-emerald-100">
               <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Contraseña</p>
@@ -2173,17 +2729,6 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
                     onChange={e => setNewNurseData({...newNurseData, email: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
                     placeholder="correo@ejemplo.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre de Usuario</label>
-                  <input 
-                    required
-                    type="text"
-                    value={newNurseData.username}
-                    onChange={e => setNewNurseData({...newNurseData, username: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
-                    placeholder="usuario123"
                   />
                 </div>
                 <div className="space-y-2">
@@ -2898,7 +3443,50 @@ function SignaturePad({ onSave, onCancel, title }: { onSave: (signature: string)
 
 // --- M1: Gestión de Pacientes ---
 
-function PatientsView({ navigateTo, patients }: { navigateTo: (view: View, pId?: string) => void, patients: Patient[] }) {
+function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: View, pId?: string) => void, patients: Patient[], onDelete: (id: string) => void }) {
+  const exportToExcel = () => {
+    const data = patients.map(p => ({
+      Nombre: p.fullName,
+      Fecha_Nacimiento: p.dateOfBirth,
+      Telefono: p.phone,
+      Ocupacion: p.occupation,
+      Genero: p.gender,
+      Direccion: p.address
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pacientes");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pacientes");
+    XLSX.writeFile(workbook, "Pacientes_ViMedical.xlsx");
+    toast.success('Excel exportado correctamente');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Listado de Pacientes - ViMedical", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    
+    const tableData = patients.map(p => [
+      p.fullName,
+      p.dateOfBirth,
+      p.phone,
+      p.occupation || 'N/A'
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Nombre', 'Fecha Nac.', 'Teléfono', 'Ocupación']],
+      body: tableData,
+      startY: 30,
+      theme: 'grid',
+      headStyles: { fillStyle: [15, 23, 42] }
+    });
+
+    doc.save("Pacientes_ViMedical.pdf");
+    toast.success('PDF exportado correctamente');
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -2906,46 +3494,82 @@ function PatientsView({ navigateTo, patients }: { navigateTo: (view: View, pId?:
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Pacientes</h2>
           <p className="text-slate-500 font-medium">Registro y búsqueda de pacientes.</p>
         </div>
-        <button 
-          onClick={() => navigateTo('new-patient')}
-          className="bg-secondary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-secondary/20 hover:bg-secondary-dark transition-all scale-100 active:scale-95"
-        >
-          <PlusCircle className="w-5 h-5" />
-          Nuevo Paciente
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            Excel
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" />
+            PDF
+          </button>
+          <button 
+            onClick={() => navigateTo('new-patient')}
+            className="bg-secondary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-secondary/20 hover:bg-secondary-dark transition-all scale-100 active:scale-95"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Nuevo Paciente
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {patients.map(patient => (
           <div 
             key={patient.id} 
-            onClick={() => navigateTo('patient-detail', patient.id)}
             className="bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-slate-200/50 transition-all cursor-pointer group relative overflow-hidden"
           >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-            
-            <div className="flex items-center gap-5 mb-6 relative">
-              <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-primary/20">
-                {patient.fullName.charAt(0)}
+            <div onClick={() => navigateTo('patient-detail', patient.id)}>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
+              
+              <div className="flex items-center gap-5 mb-6 relative">
+                <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-primary/20">
+                  {patient.fullName.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-black text-xl text-slate-900 group-hover:text-primary transition-colors">{patient.fullName}</h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{patient.occupation || 'Paciente'}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-black text-xl text-slate-900 group-hover:text-primary transition-colors">{patient.fullName}</h3>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{patient.occupation || 'Paciente'}</p>
+
+              <div className="space-y-4 relative">
+                <div className="flex items-center gap-3 text-slate-500">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm font-bold">{patient.dateOfBirth}</span>
+                </div>
+                <div className="flex items-center gap-3 text-slate-500">
+                  <Activity className="w-4 h-4" />
+                  <span className="text-sm font-bold">{patient.phone}</span>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-4 relative">
-              <div className="flex items-center gap-3 text-slate-500">
-                <Clock className="w-4 h-4" />
-                <span className="text-sm font-bold">{patient.dateOfBirth}</span>
+            <div className="pt-4 mt-4 flex justify-between items-center border-t border-slate-100 relative z-10">
+              <div className="flex gap-2">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); navigateTo('clinical-history-detail', patient.id); }}
+                  className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                  title="Editar"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(patient.id); }}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded-lg transition-all"
+                  title="Eliminar"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
               </div>
-              <div className="flex items-center gap-3 text-slate-500">
-                <Activity className="w-4 h-4" />
-                <span className="text-sm font-bold">{patient.phone}</span>
-              </div>
-              <div className="pt-4 flex justify-between items-center border-t border-slate-100">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Ver Expediente</span>
-                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              <div onClick={() => navigateTo('patient-detail', patient.id)} className="flex items-center gap-1 cursor-pointer group/link">
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest group-hover/link:text-primary transition-colors">Ver Expediente</span>
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover/link:text-primary group-hover/link:translate-x-1 transition-all" />
               </div>
             </div>
           </div>
@@ -3271,8 +3895,9 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
 
 // --- M2: Formulario de Valoración Guiado ---
 
-function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: string, navigateTo: (view: View, pId?: string) => void, patients: Patient[] }) {
+function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patientId: string, navigateTo: (view: View, pId?: string) => void, patients: Patient[], onSave: (w: Wound) => void }) {
   const patient = patients.find(p => p.id === patientId);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -3282,9 +3907,11 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const newPhotos = Array.from(files).map((file: File) => URL.createObjectURL(file));
-      const totalPhotos = [...photos, ...newPhotos].slice(0, 5);
-      setPhotos(totalPhotos);
+      const newFiles = Array.from(files);
+      const newPhotos = newFiles.map((file: File) => URL.createObjectURL(file));
+      
+      setPhotoFiles(prev => [...prev, ...newFiles].slice(0, 5));
+      setPhotos(prev => [...prev, ...newPhotos].slice(0, 5));
     }
   };
 
@@ -3295,123 +3922,166 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
       return;
     }
     setIsSubmitting(true);
+    toast.loading('Subiendo fotos y guardando valoración...', { id: 'assessment-save' });
 
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-
-    const woundData: Partial<Wound> = {
-      patientId: patientId,
-      location: formData.get('location') as string || 'No especificada',
-      description: formData.get('description') as string || '',
-      proposedPlan: formData.get('proposed_plan') as string || '',
-      status: 'pending_doctor',
-      initialPhotos: photos,
-      weight: formData.get('weight') as string,
-      height: formData.get('height') as string,
-      temp: formData.get('temp') as string,
-      bloodPressureSystolic: formData.get('bloodPressureSystolic') as string,
-      bloodPressureDiastolic: formData.get('bloodPressureDiastolic') as string,
-      pulse: formData.get('pulse') as string,
-      heartRate: formData.get('heartRate') as string,
-      respiratoryRate: formData.get('respiratoryRate') as string,
-      oxygenation: formData.get('oxygenation') as string,
-      glycemiaFasting: formData.get('glycemiaFasting') as string,
-      glycemiaPostprandial: formData.get('glycemiaPostprandial') as string,
-      // Nuevos campos de valoración detallada
-      width: formData.get('width') as string,
-      length: formData.get('length') as string,
-      depth: formData.get('depth') as string,
-      tunneling: formData.get('tunneling') as string,
-      sinusTract: formData.get('sinusTract') as string,
-      undermining: formData.get('undermining') as string,
-      painLevel: parseInt(formData.get('painLevel') as string) || 0,
-      shape: formData.get('shape') as Wound['shape'],
-      tissueType: {
-        escara: formData.get('tissueType_escara') as string || '',
-        necrosis: formData.get('tissueType_necrosis') as string || '',
-        esfacelo: formData.get('tissueType_esfacelo') as string || '',
-        granulacion: formData.get('tissueType_granulacion') as string || '',
-        fibrina: formData.get('tissueType_fibrina') as string || '',
-        hiperqueratosis: formData.get('tissueType_hiperqueratosis') as string || '',
-        hipergranulacion: formData.get('tissueType_hipergranulacion') as string || '',
-        subcutaneo: formData.get('tissueType_subcutaneo') as string || '',
-        muscular: formData.get('tissueType_muscular') as string || '',
-        tendon: formData.get('tissueType_tendon') as string || '',
-        hueso: formData.get('tissueType_hueso') as string || '',
-        capsula: formData.get('tissueType_capsula') as string || '',
-        frictena: formData.get('tissueType_frictena') as string || '',
-      },
-      etiology: {
-        porPresion: formData.get('etiology_porPresion') === 'on',
-        venosa: formData.get('etiology_venosa') === 'on',
-        arterial: formData.get('etiology_arterial') === 'on',
-        mixta: formData.get('etiology_mixta') === 'on',
-        diabetica: formData.get('etiology_diabetica') === 'on',
-        quemadura: formData.get('etiology_quemadura') === 'on',
-        quirurgica: formData.get('etiology_quirurgica') === 'on',
-        neoplasica: formData.get('etiology_neoplasica') === 'on',
-      },
-      classification: {
-        estadio: formData.get('classification_estadio') as string || '',
-        martorell: formData.get('classification_martorell') === 'on',
-        calcifilaxis: formData.get('classification_calcifilaxis') === 'on',
-        mixta: formData.get('classification_mixta') === 'on',
-        sinbad: {
-          s: formData.get('sinbad_s') === 'on',
-          i: formData.get('sinbad_i') === 'on',
-          n: formData.get('sinbad_n') === 'on',
-          b: formData.get('sinbad_b') === 'on',
-          a: formData.get('sinbad_a') === 'on',
-          d: formData.get('sinbad_d') === 'on',
-        },
-        thickness: formData.get('classification_thickness') as Wound['classification']['thickness'],
-      },
-      characteristics: {
-        borders: formData.get('characteristics_borders') as Wound['characteristics']['borders'],
-        perilesionalSkin: formData.get('characteristics_perilesionalSkin') as Wound['characteristics']['perilesionalSkin'],
-        exudateType: formData.get('characteristics_exudateType') as Wound['characteristics']['exudateType'],
-        exudateAmount: formData.get('characteristics_exudateAmount') as Wound['characteristics']['exudateAmount'],
-        contaminationGrade: formData.get('characteristics_contaminationGrade') as Wound['characteristics']['contaminationGrade'],
-      },
-      abiArm: formData.get('abiArm') as string,
-      abiLeftToe: formData.get('abiLeftToe') as string,
-      abiLeftPedal: formData.get('abiLeftPedal') as string,
-      abiLeftPostTibial: formData.get('abiLeftPostTibial') as string,
-      abiRightToe: formData.get('abiRightToe') as string,
-      abiRightPedal: formData.get('abiRightPedal') as string,
-      abiRightPostTibial: formData.get('abiRightPostTibial') as string,
-    };
-    
-    const notificationData = [
-      {
-        title: 'Nueva Valoración Inicial',
-        body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando autorización.`,
-        voice_text: `Atención Administrador: Se ha recibido una nueva valoración inicial para el paciente ${patient?.fullName}. Por favor, revise y valide el registro.`,
-        target_role: 'Administrador'
-      },
-      {
-        title: 'Nueva Valoración Inicial',
-        body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando su autorización para seguir el procedimiento.`,
-        voice_text: `Atención Doctor: Se ha registrado una nueva valoración inicial para su paciente ${patient?.fullName}. El paciente está esperando su autorización para seguir el procedimiento.`,
-        target_role: 'Doctor'
+    try {
+      const uploadedPhotoUrls: string[] = [];
+      for (const file of photoFiles) {
+        const fileName = `wounds/${patientId}_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
+        const url = await storageService.uploadFile('wounds', fileName, file);
+        if (url) uploadedPhotoUrls.push(url);
       }
-    ];
 
-    if (!navigator.onLine) {
-      syncService.addToQueue('wounds', 'INSERT', woundData);
-      syncService.addToQueue('notifications', 'INSERT', notificationData);
-    } else {
-      await supabase.from('wounds').insert([woundData]);
-      await supabase.from('notifications').insert(notificationData);
-    }
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+      const woundData: any = {
+        patient_id: patientId,
+        location: formData.get('location') as string || 'No especificada',
+        description: formData.get('description') as string || '',
+        proposed_plan: formData.get('proposed_plan') as string || '',
+        status: 'pending_doctor',
+        initial_photos: uploadedPhotoUrls,
+        weight: formData.get('weight') as string,
+        height: formData.get('height') as string,
+        temp: formData.get('temp') as string,
+        blood_pressure_systolic: formData.get('bloodPressureSystolic') as string,
+        blood_pressure_diastolic: formData.get('bloodPressureDiastolic') as string,
+        pulse: formData.get('pulse') as string,
+        heart_rate: formData.get('heartRate') as string,
+        respiratory_rate: formData.get('respiratoryRate') as string,
+        oxygenation: formData.get('oxygenation') as string,
+        glycemia_fasting: formData.get('glycemiaFasting') as string,
+        glycemia_postprandial: formData.get('glycemiaPostprandial') as string,
+        width: formData.get('width') as string,
+        length: formData.get('length') as string,
+        depth: formData.get('depth') as string,
+        tunneling: formData.get('tunneling') as string,
+        sinus_tract: formData.get('sinusTract') as string,
+        undermining: formData.get('undermining') as string,
+        pain_level: parseInt(formData.get('painLevel') as string) || 0,
+        shape: formData.get('shape') as Wound['shape'],
+        tissue_type: {
+          escara: formData.get('tissueType_escara') as string || '',
+          necrosis: formData.get('tissueType_necrosis') as string || '',
+          esfacelo: formData.get('tissueType_esfacelo') as string || '',
+          granulacion: formData.get('tissueType_granulacion') as string || '',
+          fibrina: formData.get('tissueType_fibrina') as string || '',
+          hiperqueratosis: formData.get('tissueType_hiperqueratosis') as string || '',
+          hipergranulacion: formData.get('tissueType_hipergranulacion') as string || '',
+          subcutaneo: formData.get('tissueType_subcutaneo') as string || '',
+          muscular: formData.get('tissueType_muscular') as string || '',
+          tendon: formData.get('tissueType_tendon') as string || '',
+          hueso: formData.get('tissueType_hueso') as string || '',
+          capsula: formData.get('tissueType_capsula') as string || '',
+          frictena: formData.get('tissueType_frictena') as string || '',
+        },
+        etiology: {
+          porPresion: formData.get('etiology_porPresion') === 'on',
+          venosa: formData.get('etiology_venosa') === 'on',
+          arterial: formData.get('etiology_arterial') === 'on',
+          mixta: formData.get('etiology_mixta') === 'on',
+          diabetica: formData.get('etiology_diabetica') === 'on',
+          quemadura: formData.get('etiology_quemadura') === 'on',
+          quirurgica: formData.get('etiology_quirurgica') === 'on',
+          neoplasica: formData.get('etiology_neoplasica') === 'on',
+        },
+        classification: {
+          estadio: formData.get('classification_estadio') as string || '',
+          martorell: formData.get('classification_martorell') === 'on',
+          calcifilaxis: formData.get('classification_calcifilaxis') === 'on',
+          mixta: formData.get('classification_mixta') === 'on',
+          sinbad: {
+            s: formData.get('sinbad_s') === 'on',
+            i: formData.get('sinbad_i') === 'on',
+            n: formData.get('sinbad_n') === 'on',
+            b: formData.get('sinbad_b') === 'on',
+            a: formData.get('sinbad_a') === 'on',
+            d: formData.get('sinbad_d') === 'on',
+          },
+          thickness: formData.get('classification_thickness') as Wound['classification']['thickness'],
+        },
+        characteristics: {
+          borders: formData.get('characteristics_borders') as Wound['characteristics']['borders'],
+          perilesionalSkin: formData.get('characteristics_perilesionalSkin') as Wound['characteristics']['perilesionalSkin'],
+          exudateType: formData.get('characteristics_exudateType') as Wound['characteristics']['exudateType'],
+          exudateAmount: formData.get('characteristics_exudateAmount') as Wound['characteristics']['exudateAmount'],
+          contaminationGrade: formData.get('characteristics_contaminationGrade') as Wound['characteristics']['contaminationGrade'],
+        },
+        abi_arm: formData.get('abiArm') as string,
+        abi_left_toe: formData.get('abiLeftToe') as string,
+        abi_left_pedal: formData.get('abiLeftPedal') as string,
+        abi_left_post_tibial: formData.get('abiLeftPostTibial') as string,
+        abi_right_toe: formData.get('abiRightToe') as string,
+        abi_right_pedal: formData.get('abiRightPedal') as string,
+        abi_right_post_tibial: formData.get('abiRightPostTibial') as string,
+      };
+      
+      const notificationData = [
+        {
+          title: 'Nueva Valoración Inicial',
+          body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando autorización.`,
+          voice_text: `Atención Administrador: Se ha recibido una nueva valoración inicial para el paciente ${patient?.fullName}. Por favor, revise y valide el registro.`,
+          target_role: 'Administrador'
+        },
+        {
+          title: 'Nueva Valoración Inicial',
+          body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando su autorización para seguir el procedimiento.`,
+          voice_text: `Atención Doctor: Se ha registrado una nueva valoración inicial para su paciente ${patient?.fullName}. El paciente está esperando su autorización para seguir el procedimiento.`,
+          target_role: 'Doctor'
+        }
+      ];
+
+      if (!navigator.onLine) {
+        const tempId = crypto.randomUUID();
+        const newWound: Wound = {
+          id: tempId,
+          patientId: patientId,
+          location: woundData.location,
+          description: woundData.description,
+          proposedPlan: woundData.proposed_plan,
+          status: 'pending_doctor',
+          initialPhotos: uploadedPhotoUrls,
+          createdAt: new Date().toISOString(),
+          visitCount: 0,
+          targetVisits: 10
+        } as Wound;
+        
+        syncService.addToQueue('wounds', 'INSERT', woundData);
+        syncService.addToQueue('notifications', 'INSERT', notificationData);
+        onSave(newWound);
+      } else {
+        const { data, error } = await supabase.from('wounds').insert([woundData]).select().single();
+        if (error) throw error;
+        if (data) {
+          const newWound: Wound = {
+            id: data.id,
+            patientId: data.patient_id,
+            location: data.location,
+            description: data.description,
+            proposedPlan: data.proposed_plan,
+            status: data.status,
+            initialPhotos: data.initial_photos,
+            createdAt: data.created_at,
+            visitCount: 0,
+            targetVisits: 10
+          } as Wound;
+          onSave(newWound);
+        }
+        await supabase.from('notifications').insert(notificationData);
+      }
+
+      toast.success('Valoración guardada correctamente', { id: 'assessment-save' });
       setIsSuccess(true);
       setTimeout(() => {
         navigateTo('patient-detail', patientId);
       }, 2000);
-    }, 1500);
+    } catch (error) {
+      console.error('Error saving assessment:', error);
+      toast.error('Error al guardar la valoración', { id: 'assessment-save' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {
@@ -3790,7 +4460,7 @@ function AssessmentFormView({ patientId, navigateTo, patients }: { patientId: st
 
 // --- M5: Informe Final en PDF & Detalle de Herida ---
 
-function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[] }) {
+function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs, currentProfile }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], currentProfile: UserProfile | null }) {
   const wound = wounds.find(w => w.id === woundId);
   const treatments = treatmentLogs.filter(t => t.woundId === woundId).sort((a, b) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime());
 
@@ -3879,8 +4549,9 @@ function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs 
 
 // --- M4: Registro de Visitas y Curaciones ---
 
-function TreatmentFormView({ woundId, navigateTo, patients, wounds }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[] }) {
+function TreatmentFormView({ woundId, navigateTo, patients, wounds, onSave }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], onSave: (t: TreatmentLog) => void }) {
   const wound = wounds.find(w => w.id === woundId);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -3895,9 +4566,10 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds }: { woundId:
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const newPhotos = Array.from(files).map((file: File) => URL.createObjectURL(file));
-      const totalPhotos = [...photos, ...newPhotos].slice(0, 5);
-      setPhotos(totalPhotos);
+      const newFiles = Array.from(files);
+      const newPhotos = newFiles.map((file: File) => URL.createObjectURL(file));
+      setPhotoFiles(prev => [...prev, ...newFiles].slice(0, 5));
+      setPhotos(prev => [...prev, ...newPhotos].slice(0, 5));
     }
   };
 
@@ -3908,61 +4580,126 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds }: { woundId:
       return;
     }
     setIsSubmitting(true);
+    toast.loading('Subiendo fotos y guardando visita...', { id: 'treatment-save' });
 
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-
-    const treatmentData = {
-      wound_id: woundId,
-      evaluation_date: new Date().toISOString(),
-      fluid_leakage: formData.get('fluidLeakage') === 'on',
-      foreign_material: formData.get('foreignMaterial') === 'on',
-      slough_presence: formData.get('sloughPresence') === 'on',
-      peripheral_tracts_measurements: formData.get('peripheralTractsMeasurements') as string || '',
-      prognosis: formData.get('prognosis') as string || 'Reservado',
-      photos: photos,
-      prontosan_solution: formData.get('prontosanSolution') === 'on',
-      prontosan_gel: formData.get('prontosanGel') === 'on',
-      kerlix: formData.get('kerlix') === 'on',
-      telfa: formData.get('telfa') === 'on',
-      avintra_administered: formData.get('avintraAdministered') === 'on',
-      notes: formData.get('notes') as string || '',
-      patient_signature: patientSignature
-    };
-    
-    const notificationData = [
-      {
-        title: 'Nueva Curación Registrada',
-        body: `Se ha registrado una visita de curación para ${patient?.fullName}.`,
-        voice_text: `Atención: El enfermero ha registrado una nueva curación para el paciente ${patient?.fullName} con ${photos.length} fotos de seguimiento.`,
-        target_role: 'Administrador'
-      },
-      {
-        title: 'Nueva Curación Registrada',
-        body: `Se ha registrado una visita de curación para ${patient?.fullName}.`,
-        voice_text: `Atención Doctor: Se ha registrado una nueva curación para su paciente ${patient?.fullName}.`,
-        target_role: 'Doctor'
+    try {
+      // 1. Subir fotos a Storage
+      const uploadedPhotoUrls: string[] = [];
+      for (const file of photoFiles) {
+        const fileName = `wounds/${woundId}_treatment_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
+        const url = await storageService.uploadFile('wounds', fileName, file);
+        if (url) uploadedPhotoUrls.push(url);
       }
-    ];
 
-    if (!navigator.onLine) {
-      syncService.addToQueue('treatment_logs', 'INSERT', treatmentData);
-      syncService.addToQueue('wounds', 'UPDATE', { id: wound.id, visit_count: (wound.visitCount || 0) + 1 });
-      syncService.addToQueue('notifications', 'INSERT', notificationData);
-    } else {
-      await supabase.from('treatment_logs').insert([treatmentData]);
-      // Actualizar contador de visitas en la herida
-      await supabase.from('wounds').update({ visit_count: (wound.visitCount || 0) + 1 }).eq('id', wound.id);
-      await supabase.from('notifications').insert(notificationData);
-    }
+      // 2. Subir firma a Storage
+      let signatureUrl = patientSignature;
+      if (patientSignature.startsWith('data:image')) {
+        const signatureFileName = `signatures/patient_${wound.patientId}_${Date.now()}.png`;
+        const uploadedUrl = await storageService.uploadBase64('signatures', signatureFileName, patientSignature);
+        if (uploadedUrl) signatureUrl = uploadedUrl;
+      }
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
+
+      const treatmentData = {
+        wound_id: woundId,
+        evaluation_date: new Date().toISOString(),
+        fluid_leakage: formData.get('fluidLeakage') === 'on',
+        foreign_material: formData.get('foreignMaterial') === 'on',
+        slough_presence: formData.get('sloughPresence') === 'on',
+        peripheral_tracts_measurements: formData.get('peripheralTractsMeasurements') as string || '',
+        prognosis: formData.get('prognosis') as string || 'Reservado',
+        photos: uploadedPhotoUrls,
+        prontosan_solution: formData.get('prontosanSolution') === 'on',
+        prontosan_gel: formData.get('prontosanGel') === 'on',
+        kerlix: formData.get('kerlix') === 'on',
+        telfa: formData.get('telfa') === 'on',
+        avintra_administered: formData.get('avintraAdministered') === 'on',
+        notes: formData.get('notes') as string || '',
+        patient_signature: signatureUrl
+      };
+      
+      const notificationData = [
+        {
+          title: 'Nueva Curación Registrada',
+          body: `Se ha registrado una visita de curación para ${patient?.fullName}.`,
+          voice_text: `Atención: El enfermero ha registrado una nueva curación para el paciente ${patient?.fullName} con ${uploadedPhotoUrls.length} fotos de seguimiento.`,
+          target_role: 'Administrador'
+        },
+        {
+          title: 'Nueva Curación Registrada',
+          body: `Se ha registrado una visita de curación para ${patient?.fullName}.`,
+          voice_text: `Atención Doctor: Se ha registrado una nueva curación para su paciente ${patient?.fullName}.`,
+          target_role: 'Doctor'
+        }
+      ];
+
+      if (!navigator.onLine) {
+        const tempId = crypto.randomUUID();
+        const newTreatment: TreatmentLog = {
+          id: tempId,
+          woundId: treatmentData.wound_id,
+          evaluationDate: treatmentData.evaluation_date,
+          fluidLeakage: treatmentData.fluid_leakage,
+          foreignMaterial: treatmentData.foreign_material,
+          sloughPresence: treatmentData.slough_presence,
+          peripheralTractsMeasurements: treatmentData.peripheral_tracts_measurements,
+          prognosis: treatmentData.prognosis as 'Favorable' | 'Reservado' | 'Malo',
+          photos: treatmentData.photos,
+          prontosanSolution: treatmentData.prontosan_solution,
+          prontosanGel: treatmentData.prontosan_gel,
+          kerlix: treatmentData.kerlix,
+          telfa: treatmentData.telfa,
+          avintraAdministered: treatmentData.avintra_administered,
+          notes: treatmentData.notes,
+          patientSignature: treatmentData.patient_signature
+        };
+        
+        syncService.addToQueue('treatment_logs', 'INSERT', treatmentData);
+        syncService.addToQueue('wounds', 'UPDATE', { id: wound.id, visit_count: (wound.visitCount || 0) + 1 });
+        syncService.addToQueue('notifications', 'INSERT', notificationData);
+        onSave(newTreatment);
+      } else {
+        const { data, error } = await supabase.from('treatment_logs').insert([treatmentData]).select().single();
+        if (error) throw error;
+        if (data) {
+          const newTreatment: TreatmentLog = {
+            id: data.id,
+            woundId: data.wound_id,
+            evaluationDate: data.evaluation_date,
+            fluidLeakage: data.fluid_leakage,
+            foreignMaterial: data.foreign_material,
+            sloughPresence: data.slough_presence,
+            peripheralTractsMeasurements: data.peripheral_tracts_measurements,
+            prognosis: data.prognosis,
+            photos: data.photos,
+            prontosanSolution: data.prontosan_solution,
+            prontosanGel: data.prontosan_gel,
+            kerlix: data.kerlix,
+            telfa: data.telfa,
+            avintraAdministered: data.avintra_administered,
+            notes: data.notes,
+            patientSignature: data.patient_signature
+          };
+          onSave(newTreatment);
+        }
+        // Actualizar contador de visitas en la herida
+        await supabase.from('wounds').update({ visit_count: (wound.visitCount || 0) + 1 }).eq('id', wound.id);
+        await supabase.from('notifications').insert(notificationData);
+      }
+
+      toast.success('Visita guardada correctamente', { id: 'treatment-save' });
       setIsSuccess(true);
       setTimeout(() => {
         navigateTo('wound-detail', wound.patientId, wound.id);
       }, 2000);
-    }, 1500);
+    } catch (error) {
+      console.error('Error saving treatment:', error);
+      toast.error('Error al guardar la visita', { id: 'treatment-save' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {
@@ -4158,7 +4895,7 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds }: { woundId:
 
 // --- M6: Cotizaciones ---
 
-function QuotationListView({ navigateTo, quotations, currentRole }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string) => void, quotations: Quotation[], currentRole: Role }) {
+function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string) => void, quotations: Quotation[], currentRole: Role, onDelete: (id: string) => void }) {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -4181,29 +4918,42 @@ function QuotationListView({ navigateTo, quotations, currentRole }: { navigateTo
         {quotations.map(quotation => (
           <div 
             key={quotation.id} 
-            onClick={() => navigateTo('quotation-detail', undefined, undefined, quotation.id)}
             className="bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-slate-200/50 transition-all cursor-pointer group relative overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                <Receipt className="w-6 h-6" />
+            <div onClick={() => navigateTo('quotation-detail', undefined, undefined, quotation.id)}>
+              <div className="flex items-center justify-between mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                  quotation.status === 'sent' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {quotation.status === 'sent' ? 'Enviada' : 'Pendiente'}
+                </span>
               </div>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                quotation.status === 'sent' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'
-              }`}>
-                {quotation.status === 'sent' ? 'Enviada' : 'Pendiente'}
-              </span>
-            </div>
-            
-            <h3 className="font-black text-xl text-slate-900 mb-1">{quotation.patientName}</h3>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
-              {new Date(quotation.createdAt).toLocaleDateString()}
-            </p>
+              
+              <h3 className="font-black text-xl text-slate-900 mb-1">{quotation.patientName}</h3>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+                {new Date(quotation.createdAt).toLocaleDateString()}
+              </p>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <span className="text-slate-500 font-bold text-sm">Total:</span>
-              <span className="text-primary font-black text-xl">${quotation.totalAmount.toLocaleString()}</span>
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-slate-500 font-bold text-sm">Total:</span>
+                <span className="text-primary font-black text-xl">${quotation.totalAmount.toLocaleString()}</span>
+              </div>
             </div>
+
+            {currentRole === 'Administrador' && (
+              <div className="mt-4 pt-4 border-t border-slate-50 flex justify-end">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(quotation.id); }}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Eliminar"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {quotations.length === 0 && (
@@ -4970,67 +5720,76 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       return;
     }
 
-    const { data, error } = await supabase
-      .from('patients')
-      .insert([patientData])
-      .select()
-      .single();
+    toast.loading('Guardando paciente...', { id: 'patient-save' });
+    try {
+      // Subir firmas a Storage si existen
+      if (patientData.privacy_notice_signature && patientData.privacy_notice_signature.startsWith('data:image')) {
+        const url = await storageService.uploadBase64('signatures', `privacy_${Date.now()}.png`, patientData.privacy_notice_signature);
+        if (url) patientData.privacy_notice_signature = url;
+      }
+      if (patientData.consent_form_signature && patientData.consent_form_signature.startsWith('data:image')) {
+        const url = await storageService.uploadBase64('signatures', `consent_${Date.now()}.png`, patientData.consent_form_signature);
+        if (url) patientData.consent_form_signature = url;
+      }
 
-    setIsSubmitting(false);
-
-    if (error) {
-      console.error('Error guardando paciente:', error);
-      toast.error('Hubo un error al guardar el paciente. Por favor, intenta de nuevo.');
-    } else if (data) {
-      const newPatient: Patient = {
-        id: data.id,
-        fullName: data.full_name,
-        dateOfBirth: data.date_of_birth,
-        phone: data.phone,
-        religion: data.religion,
-        educationLevel: data.education_level,
-        familyHistory: data.family_history,
-        pathologicalHistory: data.pathological_history,
-        nonPathologicalHistory: data.non_pathological_history,
-        gender: data.gender,
-        maritalStatus: data.marital_status,
-        occupation: data.occupation,
-        address: data.address,
-        pathologicalHistoryDetails: data.pathological_history_details,
-        nonPathologicalHistoryDetails: data.non_path_history_details,
-        gynecoObstetricHistory: data.gyneco_obstetric_history,
-        currentCondition: data.current_condition,
-        physicalExploration: data.physical_exploration,
-        regionsSegments: data.regions_segments,
-        privacyNoticeSigned: data.privacy_notice_signed,
-        privacyNoticeSignature: data.privacy_notice_signature,
-        privacyNoticeDate: data.privacy_notice_date,
-        privacyNoticeType: data.privacy_notice_type,
-        consentFormSigned: data.consent_form_signed,
-        consentFormSignature: data.consent_form_signature,
-        consentFormDate: data.consent_form_date,
-        consentFormType: data.consent_form_type
-      };
-      onSave(newPatient);
+      const { data, error } = await supabase
+        .from('patients')
+        .insert([patientData])
+        .select()
+        .single();
       
-      // Notificar al Administrador y al Doctor vía Supabase
-      await supabase.from('notifications').insert([
-        {
-          title: 'Nuevo Paciente Registrado',
-          body: `Se ha dado de alta a ${newPatient.fullName}. Esperando valoración y autorización.`,
-          voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}. El paciente está esperando valoración y autorización.`,
-          target_role: 'Administrador'
-        },
-        {
-          title: 'Nuevo Paciente Registrado',
-          body: `Se ha dado de alta a ${newPatient.fullName}. Esperando autorización para seguir el procedimiento.`,
-          voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}. Está esperando su autorización para seguir el procedimiento.`,
-          target_role: 'Doctor'
-        }
-      ]);
+      if (error) throw error;
 
-      setCreatedPatientId(newPatient.id);
-      setIsSuccess(true);
+      if (data) {
+        const newPatient: Patient = {
+          id: data.id,
+          fullName: data.full_name,
+          dateOfBirth: data.date_of_birth || '',
+          phone: data.phone,
+          religion: data.religion,
+          educationLevel: data.education_level,
+          familyHistory: data.family_history,
+          pathologicalHistory: data.pathological_history,
+          nonPathologicalHistory: data.non_pathological_history,
+          gender: data.gender,
+          maritalStatus: data.marital_status,
+          occupation: data.occupation,
+          address: data.address,
+          privacyNoticeSigned: data.privacy_notice_signed,
+          privacyNoticeSignature: data.privacy_notice_signature,
+          privacyNoticeDate: data.privacy_notice_date,
+          privacyNoticeType: data.privacy_notice_type,
+          consentFormSigned: data.consent_form_signed,
+          consentFormSignature: data.consent_form_signature,
+          consentFormDate: data.consent_form_date,
+          consentFormType: data.consent_form_type
+        };
+        
+        await supabase.from('notifications').insert([
+          {
+            title: 'Nuevo Paciente Registrado',
+            body: `Se ha dado de alta a ${newPatient.fullName}.`,
+            voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}.`,
+            target_role: 'Administrador'
+          },
+          {
+            title: 'Nuevo Paciente Registrado',
+            body: `Se ha dado de alta a ${newPatient.fullName}.`,
+            voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
+            target_role: 'Doctor'
+          }
+        ]);
+
+        setCreatedPatientId(data.id);
+        onSave(newPatient);
+        toast.success('Paciente registrado correctamente', { id: 'patient-save' });
+        setIsSuccess(true);
+      }
+    } catch (error) {
+      console.error('Error saving patient:', error);
+      toast.error('Error al registrar el paciente', { id: 'patient-save' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   if (isSuccess) {
@@ -5554,7 +6313,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
   );
 }
 
-function CertificatesListView({ navigateTo, certificates, currentRole }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string) => void, certificates: MedicalCertificate[], currentRole: Role }) {
+function CertificatesListView({ navigateTo, certificates, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string) => void, certificates: MedicalCertificate[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
 
   const filteredCertificates = certificates.filter(c => 
@@ -5595,29 +6354,39 @@ function CertificatesListView({ navigateTo, certificates, currentRole }: { navig
         {filteredCertificates.map(cert => (
           <div 
             key={cert.id} 
-            onClick={() => navigateTo('certificate-detail', undefined, undefined, undefined, cert.id)}
             className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-all cursor-pointer group"
           >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center">
-                <FileCheck className="w-7 h-7" />
+            <div onClick={() => navigateTo('certificate-detail', undefined, undefined, undefined, cert.id)}>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-primary flex items-center justify-center">
+                  <FileCheck className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-slate-900">{cert.patientName}</h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{cert.date}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-black text-lg text-slate-900">{cert.patientName}</h3>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{cert.date}</p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <UserCircle className="w-4 h-4" />
+                  <span className="truncate">Dr. {cert.doctorName}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl text-xs font-medium text-slate-600 line-clamp-2 italic">
+                  "{cert.conclusions}"
+                </div>
               </div>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <UserCircle className="w-4 h-4" />
-                <span className="truncate">Dr. {cert.doctorName}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl text-xs font-medium text-slate-600 line-clamp-2 italic">
-                "{cert.conclusions}"
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
+            <div className="mt-6 flex justify-between items-center">
+              {currentRole === 'Administrador' && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(cert.id); }}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Eliminar"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              )}
+              <div onClick={() => navigateTo('certificate-detail', undefined, undefined, undefined, cert.id)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
                 <ChevronRight className="w-5 h-5" />
               </div>
             </div>
@@ -6279,41 +7048,68 @@ function NurseDashboard({ navigateTo, patients, wounds, treatments, profile }: {
   );
 }
 
-function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { onLogin: (role: Role, profile?: UserProfile) => void, onBack: () => void, onRegister: (profile: UserProfile) => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
+function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    username: '',
     password: '',
     license: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
     
-    const newProfile: UserProfile = {
-      id: `nurse-${Date.now()}`,
-      role: 'Enfermero',
-      fullName: formData.fullName,
-      email: formData.email,
-      username: formData.username,
-      password: formData.password,
-      license: formData.license,
-      status: 'active'
-    };
+    try {
+      // 1. Registrar en Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+            role: 'Enfermero',
+          }
+        }
+      });
 
-    onRegister(newProfile);
-    
-    // Notificar al administrador
-    await sendNotification(
-      'Nuevo Registro de Enfermería',
-      `${formData.fullName} se ha registrado en el sistema.`,
-      `Atención Administrador: Un nuevo enfermero, ${formData.fullName}, se ha registrado en el sistema.`,
-      'Administrador'
-    );
+      if (authError) throw authError;
 
-    toast.success('Registro exitoso. Bienvenido al equipo ViMedical.');
-    onLogin('Enfermero', newProfile);
+      if (authData.user) {
+        // 2. Crear el perfil en la tabla profiles
+        const { error: profileError } = await supabase.from('profiles').insert([
+          {
+            user_id: authData.user.id,
+            role: 'Enfermero',
+            full_name: formData.fullName,
+            email: formData.email,
+            license: formData.license,
+            status: 'active'
+          }
+        ]);
+
+        if (profileError) throw profileError;
+
+        // Notificar al administrador
+        await sendNotification(
+          'Nuevo Registro de Enfermería',
+          `${formData.fullName} se ha registrado en el sistema.`,
+          `Atención Administrador: Un nuevo enfermero, ${formData.fullName}, se ha registrado en el sistema.`,
+          'Administrador'
+        );
+
+        toast.success('Registro exitoso. Bienvenido al equipo ViMedical.');
+        onBack();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al registrarse');
+      toast.error('Error en el registro');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -6330,6 +7126,13 @@ function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-500 p-4 rounded-xl text-xs font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Nombre Completo</label>
@@ -6367,52 +7170,42 @@ function RegisterNurseView({ onLogin, onBack, onRegister, sendNotification }: { 
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Usuario</label>
-              <input 
-                type="text" 
-                required
-                value={formData.username}
-                onChange={(e) => setFormData({...formData, username: e.target.value})}
-                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
-                placeholder="usuario123"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Contraseña</label>
-              <input 
-                type="password" 
-                required
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
-                placeholder="••••••••"
-              />
-            </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Contraseña</label>
+            <input 
+              type="password" 
+              required
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
+              placeholder="Mínimo 6 caracteres"
+              minLength={6}
+            />
           </div>
 
-          <button 
-            type="submit"
-            className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all mt-4"
-          >
-            Completar Registro
-          </button>
-
-          <button 
-            type="button"
-            onClick={onBack}
-            className="w-full py-4 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-colors"
-          >
-            Volver al Inicio
-          </button>
+          <div className="pt-4 flex gap-4">
+            <button 
+              type="button"
+              onClick={onBack}
+              className="flex-1 bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-[2] bg-primary text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? 'Registrando...' : 'Completar Registro'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
 
-function TreatmentProposalsListView({ navigateTo, proposals, currentRole }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string, propId?: string) => void, proposals: TreatmentProposal[], currentRole: Role }) {
+function TreatmentProposalsListView({ navigateTo, proposals, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string, propId?: string) => void, proposals: TreatmentProposal[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
 
   const filteredProposals = proposals.filter(p => 
@@ -6450,44 +7243,54 @@ function TreatmentProposalsListView({ navigateTo, proposals, currentRole }: { na
         {filteredProposals.map(proposal => (
           <div 
             key={proposal.id} 
-            onClick={() => navigateTo('treatment-proposal-detail', undefined, undefined, undefined, undefined, proposal.id)}
             className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-all cursor-pointer group"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-primary flex items-center justify-center font-black">
-                  {proposal.patientName[0]}
+            <div onClick={() => navigateTo('treatment-proposal-detail', undefined, undefined, undefined, undefined, proposal.id)}>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-primary flex items-center justify-center font-black">
+                    {proposal.patientName[0]}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900">{proposal.patientName}</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{proposal.date}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-black text-slate-900">{proposal.patientName}</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{proposal.date}</p>
+                <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                  proposal.status === 'accepted' ? 'bg-emerald-100 text-emerald-600' : 
+                  proposal.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+                }`}>
+                  {proposal.status}
                 </div>
               </div>
-              <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                proposal.status === 'accepted' ? 'bg-emerald-100 text-emerald-600' : 
-                proposal.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
-              }`}>
-                {proposal.status}
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500 font-medium">Programa</span>
-                <span className="font-bold text-slate-900">{proposal.program}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500 font-medium">Curaciones</span>
-                <span className="font-bold text-slate-900">{proposal.numCurations}</span>
-              </div>
-              <div className="flex justify-between items-center text-lg pt-4 border-t border-slate-100">
-                <span className="text-slate-500 font-black uppercase tracking-widest text-xs">Inversión</span>
-                <span className="font-black text-primary">${proposal.investment}</span>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-medium">Programa</span>
+                  <span className="font-bold text-slate-900">{proposal.program}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-slate-500 font-medium">Curaciones</span>
+                  <span className="font-bold text-slate-900">{proposal.numCurations}</span>
+                </div>
+                <div className="flex justify-between items-center text-lg pt-4 border-t border-slate-100">
+                  <span className="text-slate-500 font-black uppercase tracking-widest text-xs">Inversión</span>
+                  <span className="font-black text-primary">${proposal.investment}</span>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 flex justify-end">
-              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
+            <div className="mt-8 flex justify-between items-center">
+              {currentRole === 'Administrador' && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(proposal.id); }}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Eliminar"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              )}
+              <div onClick={() => navigateTo('treatment-proposal-detail', undefined, undefined, undefined, undefined, proposal.id)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
                 <ChevronRight className="w-5 h-5" />
               </div>
             </div>
@@ -6829,7 +7632,7 @@ function TreatmentProposalDetailView({ proposalId, navigateTo, proposals }: { pr
   );
 }
 
-function DiagnosticsListView({ navigateTo, diagnostics, currentRole }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string, propId?: string, diagId?: string) => void, diagnostics: Diagnostic[], currentRole: Role }) {
+function DiagnosticsListView({ navigateTo, diagnostics, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string, propId?: string, diagId?: string) => void, diagnostics: Diagnostic[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
 
   const filteredDiagnostics = diagnostics.filter(d => 
@@ -6868,34 +7671,44 @@ function DiagnosticsListView({ navigateTo, diagnostics, currentRole }: { navigat
         {filteredDiagnostics.map(diagnostic => (
           <div 
             key={diagnostic.id} 
-            onClick={() => navigateTo('diagnostic-detail', undefined, undefined, undefined, undefined, undefined, diagnostic.id)}
             className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 hover:scale-[1.02] transition-all cursor-pointer group"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-primary flex items-center justify-center font-black">
-                  {diagnostic.patientName[0]}
+            <div onClick={() => navigateTo('diagnostic-detail', undefined, undefined, undefined, undefined, undefined, diagnostic.id)}>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-primary flex items-center justify-center font-black">
+                    {diagnostic.patientName[0]}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900">{diagnostic.patientName}</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{diagnostic.date}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Diagnóstico</p>
+                  <p className="text-sm font-bold text-slate-900 line-clamp-2">{diagnostic.diagnosis}</p>
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900">{diagnostic.patientName}</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{diagnostic.date}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Médico</p>
+                  <p className="text-xs font-medium text-slate-600">{diagnostic.doctorName}</p>
                 </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Diagnóstico</p>
-                <p className="text-sm font-bold text-slate-900 line-clamp-2">{diagnostic.diagnosis}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Médico</p>
-                <p className="text-xs font-medium text-slate-600">{diagnostic.doctorName}</p>
               </div>
             </div>
 
-            <div className="mt-8 flex justify-end">
-              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
+            <div className="mt-8 flex justify-between items-center">
+              {currentRole === 'Administrador' && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onDelete(diagnostic.id); }}
+                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Eliminar"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              )}
+              <div onClick={() => navigateTo('diagnostic-detail', undefined, undefined, undefined, undefined, undefined, diagnostic.id)} className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-all">
                 <ChevronRight className="w-5 h-5" />
               </div>
             </div>
