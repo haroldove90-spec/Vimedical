@@ -411,8 +411,18 @@ export default function App() {
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showLoadingHelp, setShowLoadingHelp] = useState(false);
 
   // 2. Efectos de Autenticación
+  useEffect(() => {
+    if (isAuthChecking) {
+      const timer = setTimeout(() => setShowLoadingHelp(true), 10000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowLoadingHelp(false);
+    }
+  }, [isAuthChecking]);
+
   useEffect(() => {
     // Safety timeout for initial auth check (reducido a 3s para mayor agilidad)
     const authTimeout = setTimeout(() => {
@@ -451,11 +461,12 @@ export default function App() {
           setIsAuthChecking(true);
         }
         
-        // Timeout para la búsqueda de perfil (aumentado a 30s)
+        // Timeout para la búsqueda de perfil (aumentado a 45s)
         const profileTimeout = setTimeout(() => {
           console.error('App: Profile fetch timeout reached for', session.user.id);
+          toast.error('La verificación de perfil está tardando demasiado. Por favor, intenta reintentar o cerrar sesión.');
           setIsAuthChecking(false);
-        }, 30000);
+        }, 45000);
 
         console.time(`profile_fetch_${session.user.id}`);
         // Buscar el perfil del usuario en la tabla profiles
@@ -1223,6 +1234,30 @@ export default function App() {
           <RefreshCw className="w-8 h-8 text-primary animate-spin mb-4" />
           <h2 className="text-xl font-black text-white tracking-tight">Verificando sesión</h2>
           <p className="text-slate-400 mt-2 text-sm font-medium">Por favor espera un momento...</p>
+
+          {showLoadingHelp && (
+            <div className="mt-12 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="h-px w-12 bg-slate-800 mx-auto" />
+              <div className="space-y-2">
+                <p className="text-amber-400 text-[10px] font-black uppercase tracking-[0.2em]">¿Tienes problemas para entrar?</p>
+                <p className="text-slate-500 text-xs max-w-xs mx-auto">La conexión con el servidor está tardando más de lo habitual.</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-white/5 hover:bg-white/10 text-white px-8 py-4 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-3 border border-white/5"
+                >
+                  <RefreshCw className="w-4 h-4" /> Reintentar
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-8 py-4 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-3 border border-red-500/10"
+                >
+                  <LogOut className="w-4 h-4" /> Cerrar Sesión
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : !isLoggedIn ? (
         currentView === 'register-nurse' ? (
