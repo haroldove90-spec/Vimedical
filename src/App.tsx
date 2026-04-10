@@ -1731,11 +1731,17 @@ export default function App() {
 }
 
 function SettingsView() {
-  const [permissionStatus, setPermissionStatus] = useState(Notification.permission);
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
 
   const handleRequestPermission = async () => {
+    if (typeof Notification === 'undefined') {
+      toast.error('Tu navegador no soporta notificaciones de escritorio.');
+      return;
+    }
     const granted = await requestNotificationPermission();
-    setPermissionStatus(Notification.permission);
+    setPermissionStatus(typeof Notification !== 'undefined' ? Notification.permission : 'denied');
     if (granted) {
       triggerFullNotification('Notificaciones Activadas', 'Ahora recibirás alertas sonoras y visuales en este dispositivo.');
     }
@@ -3125,7 +3131,7 @@ function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotif
         </div>
       </section>
 
-      {Notification.permission !== 'granted' && (
+      {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3 text-amber-800">
             <AlertTriangle className="w-5 h-5" />
@@ -3314,7 +3320,7 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
           </button>
         </div>
       )}
-      {Notification.permission !== 'granted' && (
+      {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3 text-amber-800">
             <AlertTriangle className="w-5 h-5" />

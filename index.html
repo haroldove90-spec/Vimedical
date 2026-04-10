@@ -9,6 +9,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Fallback for blank screen detection
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        if (root && root.innerHTML === '') {
+          root.innerHTML = '<div style="padding: 40px; text-align: center; font-family: sans-serif; color: #334155;">' +
+            '<h2 style="color: #0f172a;">Error de Carga</h2>' +
+            '<p>La aplicación no pudo iniciarse en este navegador.</p>' +
+            '<p style="font-size: 14px; color: #64748b;">Esto puede deberse a una versión antigua del navegador o a extensiones que bloquean el contenido.</p>' +
+            '<button onclick="location.reload()" style="background: #3C6B94; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Reintentar</button>' +
+            '</div>';
+        }
+      }, 5000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

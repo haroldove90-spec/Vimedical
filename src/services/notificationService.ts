@@ -47,7 +47,7 @@ export const speakMessage = (message: string) => {
 };
 
 export const showNotification = (title: string, body: string) => {
-  if (Notification.permission === "granted") {
+  if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
     new Notification(title, {
       body,
       icon: "/favicon.ico", // Or a specific medical icon
