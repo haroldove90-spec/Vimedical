@@ -6,7 +6,7 @@ import {
   ChevronRight, Camera, CheckSquare, Square, FileText, CheckCircle, XCircle, UserCircle, Menu, X, Download,
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
-  Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash
+  Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -238,7 +238,17 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
             <ChevronRight className="w-5 h-5" />
           </button>
 
-          <div className="text-center mt-6">
+          {isSubmitting && (
+            <button 
+              type="button"
+              onClick={() => setIsSubmitting(false)}
+              className="w-full text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-2 hover:text-slate-600 transition-colors"
+            >
+              ¿Atascado? Haz clic aquí para reintentar
+            </button>
+          )}
+
+          <div className="text-center mt-6 space-y-4">
             <p className="text-slate-500 text-xs font-medium">
               ¿Eres enfermero y no tienes cuenta?{' '}
               <button 
@@ -249,6 +259,20 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
                 Regístrate aquí
               </button>
             </p>
+            
+            <div className="pt-4 border-t border-slate-100">
+              <button 
+                type="button"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  localStorage.clear();
+                  window.location.reload();
+                }}
+                className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors"
+              >
+                Limpiar sesión y reintentar
+              </button>
+            </div>
           </div>
         </form>
 
@@ -338,6 +362,7 @@ export default function App() {
       return false;
     }
   });
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [currentRole, setCurrentRole] = useState<Role>(() => {
     try {
       console.log('App: Initializing currentRole');
@@ -352,28 +377,85 @@ export default function App() {
   const [pendingOps, setPendingOps] = useState(0);
 
   useEffect(() => {
+    // Verificar sesión inicial de forma proactiva
+    const checkInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('App: Initial session check error:', error);
+          if (error.message.includes('refresh_token') || error.message.includes('token')) {
+            console.warn('App: Invalid token detected on startup, clearing...');
+            await supabase.auth.signOut();
+            localStorage.clear();
+          }
+        }
+      } catch (e) {
+        console.error('App: Unexpected error checking initial session:', e);
+      }
+    };
+    
+    checkInitialSession();
+
     // Escuchar cambios en la autenticación de Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('App: Auth event triggered:', event, session?.user?.id);
       
+      // Manejar errores de token inválido que pueden causar bucles
+      if (event === 'SIGNED_OUT' || (event as any) === 'USER_DELETED') {
+        console.log('App: User signed out or deleted, clearing state');
+        setIsLoggedIn(false);
+        setCurrentProfileData(null);
+        setIsAuthChecking(false);
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('currentRole');
+        localStorage.removeItem('currentProfile');
+        return;
+      }
+
       if (session?.user) {
-        console.log('App: User session found, fetching profile...');
+        console.log('App: User session found, fetching profile for', session.user.id);
+        setIsAuthChecking(true);
+        
+        // Timeout para la búsqueda de perfil (aumentado a 30s)
+        const profileTimeout = setTimeout(() => {
+          console.error('App: Profile fetch timeout reached for', session.user.id);
+          toast.error('La carga del perfil está tardando demasiado. Por favor, usa el botón "Limpiar sesión" si el problema persiste.');
+          setIsAuthChecking(false);
+        }, 30000);
+
+        console.time(`profile_fetch_${session.user.id}`);
         // Buscar el perfil del usuario en la tabla profiles
         try {
-          const { data: profileData, error } = await supabase
+          // Usar select con limit(1) es más robusto que single() o maybeSingle() si hay inconsistencias
+          const { data: profiles, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('user_id', session.user.id)
-            .single();
+            .limit(1);
+
+          console.timeEnd(`profile_fetch_${session.user.id}`);
+          clearTimeout(profileTimeout);
 
           if (error) {
             console.error('App: Error fetching profile:', error);
-            // Si no hay perfil, el usuario está en un estado inconsistente
-            if (event === 'SIGNED_IN') {
-              toast.error('No se encontró un perfil asociado a esta cuenta.');
+            
+            // Si el error es de autenticación (token inválido), forzar cierre de sesión
+            if (error.message.includes('JWT') || error.message.includes('token') || error.message.includes('refresh_token')) {
+              console.warn('App: Auth token error detected, signing out...');
+              await supabase.auth.signOut();
+              localStorage.clear();
+              window.location.reload();
+              return;
             }
+
+            if (event === 'SIGNED_IN') {
+              toast.error('Error al obtener tu perfil: ' + error.message);
+            }
+            setIsAuthChecking(false);
             return;
           }
+
+          const profileData = profiles && profiles.length > 0 ? profiles[0] : null;
 
           if (profileData) {
             console.log('App: Profile found:', profileData.full_name);
@@ -410,14 +492,12 @@ export default function App() {
           }
         } catch (profileErr) {
           console.error('App: Unexpected error fetching profile:', profileErr);
+        } finally {
+          setIsAuthChecking(false);
         }
-      } else if (event === 'SIGNED_OUT') {
-        console.log('App: User signed out');
-        setIsLoggedIn(false);
-        setCurrentProfileData(null);
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('currentRole');
-        localStorage.removeItem('currentProfile');
+      } else {
+        // No hay sesión activa
+        setIsAuthChecking(false);
       }
     });
 
@@ -1134,7 +1214,16 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Toaster />
-      {!isLoggedIn ? (
+      {isAuthChecking ? (
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-20 h-20 bg-primary rounded-3xl flex items-center justify-center mb-8 animate-pulse shadow-xl shadow-primary/20">
+            <img src="https://appdesign.appdesignproyectos.com/vimedical.png" alt="ViMedical" className="w-12 h-12 object-contain mix-blend-multiply" />
+          </div>
+          <RefreshCw className="w-8 h-8 text-primary animate-spin mb-4" />
+          <h2 className="text-xl font-black text-white tracking-tight">Verificando sesión</h2>
+          <p className="text-slate-400 mt-2 text-sm font-medium">Por favor espera un momento...</p>
+        </div>
+      ) : !isLoggedIn ? (
         currentView === 'register-nurse' ? (
           <RegisterNurseView 
             onBack={() => setCurrentView('dashboard')}
@@ -1189,6 +1278,33 @@ export default function App() {
         </div>
         
         <nav className="flex-1 px-4 space-y-2">
+          {currentProfile?.role === 'Administrador' && (
+            <div className="px-6 py-4 mb-4 bg-white/10 rounded-2xl border border-white/20">
+              <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Shield className="w-3 h-3" /> Modo de Vista (Admin)
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['Enfermero', 'Doctor', 'Administrador'] as Role[]).map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => {
+                      setCurrentRole(role);
+                      setCurrentView('dashboard');
+                      toast.success(`Vista cambiada a: ${role}`);
+                    }}
+                    className={`text-[10px] font-bold py-2 rounded-lg transition-all ${
+                      currentRole === role 
+                        ? 'bg-secondary text-primary shadow-lg shadow-secondary/20' 
+                        : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {role === 'Administrador' ? 'Admin' : role}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button
             onClick={() => navigateTo('dashboard')}
             className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
@@ -1365,7 +1481,9 @@ export default function App() {
               <p className="text-sm font-bold text-white truncate">{currentProfile?.fullName || currentRole}</p>
               <div className="flex items-center gap-1.5">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">En línea</p>
+                <p className="text-[10px] font-medium text-white/50 uppercase tracking-wider">
+                  {currentProfile?.role === 'Administrador' ? `Modo: ${currentRole}` : 'En línea'}
+                </p>
               </div>
             </div>
           </div>
@@ -1383,9 +1501,9 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 lg:pt-0">
         <div className="max-w-[1600px] mx-auto">
-          {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} />}
+          {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} onSwitchRole={setCurrentRole} />}
           {currentView === 'dashboard' && currentRole === 'Administrador' && (
             <AdminDashboard 
               navigateTo={navigateTo} 
@@ -1395,6 +1513,7 @@ export default function App() {
               sendNotification={sendNotification} 
               onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
+              onSwitchRole={setCurrentRole}
             />
           )}
           {currentView === 'dashboard' && currentRole === 'Doctor' && (
@@ -1406,6 +1525,7 @@ export default function App() {
               sendNotification={sendNotification} 
               onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
+              onSwitchRole={setCurrentRole}
             />
           )}
           
@@ -1583,7 +1703,25 @@ export default function App() {
             <NursesManagementView 
               profiles={profiles} 
               onUpdateProfile={handleUpdateProfile}
-              onDeleteProfile={(id) => {
+              onDeleteProfile={async (id) => {
+                const profileToDelete = profiles.find(p => p.id === id);
+                if (profileToDelete?.user_id) {
+                  try {
+                    const response = await fetch(`/api/delete-user/${profileToDelete.user_id}`, {
+                      method: 'DELETE'
+                    });
+                    if (!response.ok) throw new Error('Error al eliminar el usuario de autenticación');
+                  } catch (err) {
+                    console.error('Error deleting user from auth:', err);
+                  }
+                }
+                
+                const { error } = await supabase.from('profiles').delete().eq('id', id);
+                if (error) {
+                  toast.error('Error al eliminar el perfil');
+                  return;
+                }
+                
                 setProfiles(prev => prev.filter(p => p.id !== id));
                 toast.success('Enfermero eliminado correctamente');
               }}
@@ -1717,6 +1855,43 @@ function SettingsView() {
 function ClinicalHistoryListView({ navigateTo, patients }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[] }) {
   const [search, setSearch] = useState('');
 
+  const exportToExcel = () => {
+    const data = patients.map(p => ({
+      Nombre: p.fullName,
+      Telefono: p.phone,
+      Nacimiento: p.dateOfBirth,
+      Antecedentes: p.pathologicalHistory || 'N/A'
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Historiales");
+    XLSX.writeFile(workbook, "Historial_Clinico_ViMedical.xlsx");
+    toast.success('Excel exportado correctamente');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Historial Clínico - ViMedical", 14, 22);
+    
+    const tableData = patients.map(p => [
+      p.fullName,
+      p.phone,
+      p.dateOfBirth,
+      p.pathologicalHistory?.substring(0, 50) || 'N/A'
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Nombre', 'Teléfono', 'Nacimiento', 'Antecedentes']],
+      body: tableData,
+      startY: 30,
+      theme: 'grid'
+    });
+
+    doc.save("Historial_Clinico_ViMedical.pdf");
+    toast.success('PDF exportado correctamente');
+  };
+
   const filteredPatients = patients.filter(p => 
     p.fullName.toLowerCase().includes(search.toLowerCase()) ||
     p.phone.includes(search)
@@ -1724,10 +1899,24 @@ function ClinicalHistoryListView({ navigateTo, patients }: { navigateTo: (view: 
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Historial Clínico</h2>
           <p className="text-slate-500 font-medium">Consulta y gestión de antecedentes de pacientes.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+          >
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
         </div>
       </header>
 
@@ -2895,12 +3084,47 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
   );
 }
 
-function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotification, onUpdateWoundStatus, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status']) => void, profile: UserProfile | null }) {
+function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotification, onUpdateWoundStatus, profile, onSwitchRole }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status']) => void, profile: UserProfile | null, onSwitchRole: (role: Role) => void }) {
   const pendingAdmin = wounds.filter(w => w.status === 'pending_admin');
   const recentPatients = patients.slice(0, 5);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {/* Quick Role Switcher for Admin */}
+      <section className="bg-primary rounded-[2.5rem] p-8 text-white shadow-2xl shadow-primary/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h3 className="text-2xl font-black tracking-tight mb-2 flex items-center gap-2">
+              <Shield className="w-6 h-6 text-secondary" />
+              Accesos Rápidos por Rol
+            </h3>
+            <p className="text-white/70 font-medium">Como Administrador, puedes visualizar la plataforma como otros roles:</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button 
+              onClick={() => {
+                onSwitchRole('Doctor');
+                toast.success('Cambiado a vista de Médico');
+              }}
+              className="flex-1 sm:flex-none bg-white/10 hover:bg-white/20 text-white px-6 py-4 rounded-2xl font-black transition-all border border-white/10 flex items-center justify-center gap-3 group"
+            >
+              <Stethoscope className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
+              Vista Médico
+            </button>
+            <button 
+              onClick={() => {
+                onSwitchRole('Enfermero');
+                toast.success('Cambiado a vista de Enfermero');
+              }}
+              className="flex-1 sm:flex-none bg-white/10 hover:bg-white/20 text-white px-6 py-4 rounded-2xl font-black transition-all border border-white/10 flex items-center justify-center gap-3 group"
+            >
+              <UserCircle className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform" />
+              Vista Enfermero
+            </button>
+          </div>
+        </div>
+      </section>
+
       {Notification.permission !== 'granted' && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3 text-amber-800">
@@ -2920,24 +3144,24 @@ function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotif
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Panel de Administración</h2>
           <p className="text-slate-500 font-medium">Bienvenido de nuevo, <span className="text-primary">{profile?.fullName || 'Harold Anguiano'}</span>.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button 
             onClick={() => navigateTo('ecommerce')}
-            className="flex items-center justify-center gap-2 bg-emerald-500 text-white px-6 py-3 rounded-xl font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-500 text-white px-6 py-3 rounded-xl font-black hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20"
           >
             <ShoppingBag className="w-5 h-5" />
             E-commerce
           </button>
           <button 
             onClick={() => navigateTo('new-patient')}
-            className="flex items-center justify-center gap-2 bg-secondary text-white px-6 py-3 rounded-xl font-black hover:bg-secondary-dark transition-all shadow-xl shadow-secondary/20"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-secondary text-white px-6 py-3 rounded-xl font-black hover:bg-secondary-dark transition-all shadow-xl shadow-secondary/20"
           >
             <PlusCircle className="w-5 h-5" />
             Nuevo Paciente
           </button>
           <button 
             onClick={() => navigateTo('new-quotation')}
-            className="flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-primary/20"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-primary/20"
           >
             <Receipt className="w-5 h-5" />
             Nueva Cotización
@@ -3069,13 +3293,27 @@ function AdminDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotif
   );
 }
 
-function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotification, onUpdateWoundStatus, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status'], comments?: string) => void, profile: UserProfile | null }) {
+function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNotification, onUpdateWoundStatus, profile, onSwitchRole }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onUpdateWoundStatus: (id: string, status: Wound['status'], comments?: string) => void, profile: UserProfile | null, onSwitchRole?: (role: Role) => void }) {
   const pendingDoctor = wounds.filter(w => w.status === 'pending_doctor');
   const recentPatients = patients.slice(0, 5);
   const [comments, setComments] = useState('');
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {profile?.role === 'Administrador' && onSwitchRole && (
+        <div className="bg-primary rounded-[2rem] p-4 flex items-center justify-between text-white shadow-lg border border-white/10">
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-secondary" />
+            <p className="text-sm font-bold">Estás viendo la plataforma como <span className="text-secondary">Médico</span></p>
+          </div>
+          <button 
+            onClick={() => onSwitchRole('Administrador')}
+            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+          >
+            Volver a Admin
+          </button>
+        </div>
+      )}
       {Notification.permission !== 'granted' && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between animate-pulse">
           <div className="flex items-center gap-3 text-amber-800">
@@ -3095,13 +3333,15 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Panel Médico</h2>
           <p className="text-slate-500 font-medium">Bienvenido, <span className="text-primary">{profile?.fullName || 'Dr. Especialista'}</span>.</p>
         </div>
-        <button 
-          onClick={() => navigateTo('new-patient')}
-          className="flex items-center justify-center gap-2 bg-secondary text-white px-8 py-4 rounded-2xl font-black hover:bg-secondary-dark transition-all shadow-xl shadow-secondary/20 scale-100 active:scale-95"
-        >
-          <PlusCircle className="w-5 h-5" />
-          Nuevo Paciente
-        </button>
+        <div className="w-full md:w-auto">
+          <button 
+            onClick={() => navigateTo('new-patient')}
+            className="w-full flex items-center justify-center gap-2 bg-secondary text-white px-8 py-4 rounded-2xl font-black hover:bg-secondary-dark transition-all shadow-xl shadow-secondary/20 scale-100 active:scale-95"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Nuevo Paciente
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -3455,7 +3695,6 @@ function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: V
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Pacientes");
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pacientes");
     XLSX.writeFile(workbook, "Pacientes_ViMedical.xlsx");
     toast.success('Excel exportado correctamente');
@@ -4896,6 +5135,52 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds, onSave }: { 
 // --- M6: Cotizaciones ---
 
 function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string) => void, quotations: Quotation[], currentRole: Role, onDelete: (id: string) => void }) {
+  const [search, setSearch] = useState('');
+
+  const exportToExcel = () => {
+    const data = quotations.map(q => ({
+      Folio: q.id.substring(0, 8),
+      Paciente: q.patientName,
+      Fecha: new Date(q.createdAt).toLocaleDateString(),
+      Total: q.totalAmount,
+      Estado: q.status === 'sent' ? 'Enviada' : 'Pendiente'
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Cotizaciones");
+    XLSX.writeFile(workbook, "Cotizaciones_ViMedical.xlsx");
+    toast.success('Excel exportado correctamente');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Listado de Cotizaciones - ViMedical", 14, 22);
+    
+    const tableData = quotations.map(q => [
+      q.id.substring(0, 8),
+      q.patientName,
+      new Date(q.createdAt).toLocaleDateString(),
+      `$${q.totalAmount.toLocaleString()}`,
+      q.status === 'sent' ? 'Enviada' : 'Pendiente'
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Folio', 'Paciente', 'Fecha', 'Total', 'Estado']],
+      body: tableData,
+      startY: 30,
+      theme: 'grid'
+    });
+
+    doc.save("Cotizaciones_ViMedical.pdf");
+    toast.success('PDF exportado correctamente');
+  };
+
+  const filteredQuotations = quotations.filter(q => 
+    q.patientName.toLowerCase().includes(search.toLowerCase()) ||
+    q.id.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -4903,15 +5188,28 @@ function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { 
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Cotizaciones</h2>
           <p className="text-slate-500 font-medium">Gestión de presupuestos de tratamiento.</p>
         </div>
-        {currentRole === 'Administrador' && (
+        <div className="flex flex-wrap gap-3">
           <button 
-            onClick={() => navigateTo('new-quotation')}
-            className="bg-secondary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-secondary/20 hover:bg-secondary-dark transition-all scale-100 active:scale-95"
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
           >
-            <PlusCircle className="w-5 h-5" />
-            Nueva Cotización
+            <Download className="w-4 h-4" /> Excel
           </button>
-        )}
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
+          {currentRole === 'Administrador' && (
+            <button 
+              onClick={() => navigateTo('new-quotation')}
+              className="bg-secondary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-secondary/20 hover:bg-secondary-dark transition-all"
+            >
+              <PlusCircle className="w-4 h-4" /> Nueva Cotización
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -6316,6 +6614,45 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
 function CertificatesListView({ navigateTo, certificates, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string) => void, certificates: MedicalCertificate[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
 
+  const exportToExcel = () => {
+    const data = certificates.map(c => ({
+      Folio: c.id.substring(0, 8),
+      Paciente: c.patientName,
+      Medico: c.doctorName,
+      Fecha: c.date,
+      Estado_Fisico: c.physicalState
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Certificados");
+    XLSX.writeFile(workbook, "Certificados_ViMedical.xlsx");
+    toast.success('Excel exportado correctamente');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Listado de Certificados - ViMedical", 14, 22);
+    
+    const tableData = certificates.map(c => [
+      c.id.substring(0, 8),
+      c.patientName,
+      c.doctorName,
+      c.date,
+      c.physicalState.substring(0, 30) + '...'
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Folio', 'Paciente', 'Médico', 'Fecha', 'Estado Físico']],
+      body: tableData,
+      startY: 30,
+      theme: 'grid'
+    });
+
+    doc.save("Certificados_ViMedical.pdf");
+    toast.success('PDF exportado correctamente');
+  };
+
   const filteredCertificates = certificates.filter(c => 
     c.patientName.toLowerCase().includes(search.toLowerCase()) ||
     c.doctorName.toLowerCase().includes(search.toLowerCase())
@@ -6323,20 +6660,33 @@ function CertificatesListView({ navigateTo, certificates, currentRole, onDelete 
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Certificados Médicos</h2>
           <p className="text-slate-500 font-medium">Gestión de certificados emitidos por el personal médico.</p>
         </div>
-        {(currentRole === 'Administrador' || currentRole === 'Doctor') && (
+        <div className="flex flex-wrap gap-3">
           <button 
-            onClick={() => navigateTo('new-certificate')}
-            className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all flex items-center gap-3"
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
           >
-            <PlusCircle className="w-5 h-5" />
-            Nuevo Certificado
+            <Download className="w-4 h-4" /> Excel
           </button>
-        )}
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
+          {(currentRole === 'Administrador' || currentRole === 'Doctor') && (
+            <button 
+              onClick={() => navigateTo('new-certificate')}
+              className="bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
+            >
+              <PlusCircle className="w-4 h-4" /> Nuevo Certificado
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-4">
@@ -6800,7 +7150,7 @@ function CertificateDetailView({ certificateId, navigateTo, certificates }: { ce
   );
 }
 
-function NurseDashboard({ navigateTo, patients, wounds, treatments, profile }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatments: TreatmentLog[], profile: UserProfile | null }) {
+function NurseDashboard({ navigateTo, patients, wounds, treatments, profile, onSwitchRole }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatments: TreatmentLog[], profile: UserProfile | null, onSwitchRole?: (role: Role) => void }) {
   const myPatients = patients.filter(p => p.registeredBy === profile?.id || !p.registeredBy);
   const myTreatments = treatments.filter(t => t.nurseId === profile?.id);
   const approvedWounds = wounds.filter(w => w.status === 'approved');
@@ -6835,15 +7185,29 @@ function NurseDashboard({ navigateTo, patients, wounds, treatments, profile }: {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
+      {profile?.role === 'Administrador' && onSwitchRole && (
+        <div className="bg-primary rounded-[2rem] p-4 flex items-center justify-between text-white shadow-lg border border-white/10">
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-secondary" />
+            <p className="text-sm font-bold">Estás viendo la plataforma como <span className="text-secondary">Enfermero</span></p>
+          </div>
+          <button 
+            onClick={() => onSwitchRole('Administrador')}
+            className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+          >
+            Volver a Admin
+          </button>
+        </div>
+      )}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Panel de Enfermería</h2>
           <h3 className="text-xl font-bold text-slate-600 uppercase tracking-widest mt-1">{profile?.fullName || 'Enf. Operativo'}</h3>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 w-full md:w-auto">
           <button 
             onClick={() => navigateTo('new-patient')}
-            className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-primary/20 scale-100 active:scale-95"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-primary/20 scale-100 active:scale-95"
           >
             <PlusCircle className="w-5 h-5" />
             Nuevo Paciente
@@ -7057,6 +7421,7 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -7064,50 +7429,73 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
     setIsSubmitting(true);
     
     try {
-      // 1. Registrar en Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-            role: 'Enfermero',
-          }
-        }
+      console.log('RegisterNurseView: Starting registration for', formData.email);
+      console.log('RegisterNurseView: Form data:', { ...formData, password: '***' });
+      
+      // Timeout de seguridad para la petición (aumentado a 25s)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.error('RegisterNurseView: Request timeout reached');
+        controller.abort();
+      }, 25000);
+
+      console.log('RegisterNurseView: Sending POST request to /api/create-user...');
+      // Usar el endpoint de la API para crear el usuario y el perfil de forma segura
+      const response = await fetch('/api/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          role: 'Enfermero',
+          license: formData.license
+        }),
+        signal: controller.signal
       });
 
-      if (authError) throw authError;
+      console.log('RegisterNurseView: Response received, status:', response.status);
+      clearTimeout(timeoutId);
+      
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonErr) {
+        console.error('RegisterNurseView: Failed to parse JSON response', jsonErr);
+        throw new Error('El servidor respondió con un formato inesperado. Por favor, intenta de nuevo.');
+      }
 
-      if (authData.user) {
-        // 2. Crear el perfil en la tabla profiles
-        const { error: profileError } = await supabase.from('profiles').insert([
-          {
-            user_id: authData.user.id,
-            role: 'Enfermero',
-            full_name: formData.fullName,
-            email: formData.email,
-            license: formData.license,
-            status: 'active'
-          }
-        ]);
+      if (!response.ok) {
+        console.error('RegisterNurseView: API error:', result.error);
+        throw new Error(result.error || 'Error al registrarse');
+      }
 
-        if (profileError) throw profileError;
+      console.log('RegisterNurseView: User and profile created successfully');
 
-        // Notificar al administrador
+      // Notificar al administrador
+      try {
         await sendNotification(
           'Nuevo Registro de Enfermería',
           `${formData.fullName} se ha registrado en el sistema.`,
           `Atención Administrador: Un nuevo enfermero, ${formData.fullName}, se ha registrado en el sistema.`,
           'Administrador'
         );
-
-        toast.success('Registro exitoso. Bienvenido al equipo ViMedical.');
-        onBack();
+      } catch (notifyErr) {
+        console.warn('RegisterNurseView: Could not send notification:', notifyErr);
       }
+
+      toast.success('Registro exitoso. Ahora puedes iniciar sesión.');
+      onBack();
     } catch (err: any) {
-      setError(err.message || 'Error al registrarse');
-      toast.error('Error en el registro');
+      console.error('RegisterNurseView: Registration failed:', err);
+      if (err.name === 'AbortError') {
+        setError('La petición tardó demasiado. Por favor, verifica tu conexión e intenta de nuevo.');
+      } else {
+        setError(err.message || 'Error al registrarse');
+      }
+      toast.error(err.message || 'Error en el registro');
     } finally {
+      console.log('RegisterNurseView: Setting isSubmitting to false');
       setIsSubmitting(false);
     }
   };
@@ -7172,32 +7560,67 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
 
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Contraseña</label>
-            <input 
-              type="password" 
-              required
-              value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-              className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
-              placeholder="Mínimo 6 caracteres"
-              minLength={6}
-            />
+            <div className="relative">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                required
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner pr-12"
+                placeholder="Mínimo 6 caracteres"
+                minLength={6}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
 
-          <div className="pt-4 flex gap-4">
-            <button 
-              type="button"
-              onClick={onBack}
-              className="flex-1 bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-[2] bg-primary text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? 'Registrando...' : 'Completar Registro'}
-            </button>
+          <div className="pt-4 flex flex-col gap-4">
+            <div className="flex gap-4">
+              <button 
+                type="button"
+                onClick={onBack}
+                className="flex-1 bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-[2] bg-primary text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? 'Registrando...' : 'Completar Registro'}
+              </button>
+            </div>
+            
+            {isSubmitting && (
+              <button 
+                type="button"
+                onClick={() => setIsSubmitting(false)}
+                className="w-full text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-slate-600 transition-colors"
+              >
+                ¿Atascado? Haz clic aquí para reintentar
+              </button>
+            )}
+
+            <div className="pt-4 border-t border-slate-100 text-center">
+              <button 
+                type="button"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  localStorage.clear();
+                  window.location.reload();
+                }}
+                className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors"
+              >
+                Limpiar sesión y reintentar
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -7208,24 +7631,76 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
 function TreatmentProposalsListView({ navigateTo, proposals, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string, propId?: string) => void, proposals: TreatmentProposal[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
 
+  const exportToExcel = () => {
+    const data = proposals.map(p => ({
+      Folio: p.id.substring(0, 8),
+      Paciente: p.patientName,
+      Programa: p.program,
+      Inversion: p.investment,
+      Fecha: p.date
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Propuestas");
+    XLSX.writeFile(workbook, "Propuestas_Tratamiento_ViMedical.xlsx");
+    toast.success('Excel exportado correctamente');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Propuestas de Tratamiento - ViMedical", 14, 22);
+    
+    const tableData = proposals.map(p => [
+      p.id.substring(0, 8),
+      p.patientName,
+      p.program,
+      `$${p.investment.toLocaleString()}`,
+      p.date
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Folio', 'Paciente', 'Programa', 'Inversión', 'Fecha']],
+      body: tableData,
+      startY: 30,
+      theme: 'grid'
+    });
+
+    doc.save("Propuestas_Tratamiento_ViMedical.pdf");
+    toast.success('PDF exportado correctamente');
+  };
+
   const filteredProposals = proposals.filter(p => 
     p.patientName.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Propuestas de Tratamiento</h2>
           <p className="text-slate-500 font-medium">Gestión de planes de cuidados en casa e inversión.</p>
         </div>
-        <button 
-          onClick={() => navigateTo('new-treatment-proposal')}
-          className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all flex items-center gap-3"
-        >
-          <PlusCircle className="w-5 h-5" />
-          Nueva Propuesta
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+          >
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
+          <button 
+            onClick={() => navigateTo('new-treatment-proposal')}
+            className="bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" /> Nueva Propuesta
+          </button>
+        </div>
       </header>
 
       <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-4">
@@ -7635,6 +8110,43 @@ function TreatmentProposalDetailView({ proposalId, navigateTo, proposals }: { pr
 function DiagnosticsListView({ navigateTo, diagnostics, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string, propId?: string, diagId?: string) => void, diagnostics: Diagnostic[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');
 
+  const exportToExcel = () => {
+    const data = diagnostics.map(d => ({
+      Folio: d.id.substring(0, 8),
+      Paciente: d.patientName,
+      Fecha: d.date,
+      Diagnostico: d.diagnosis
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Diagnosticos");
+    XLSX.writeFile(workbook, "Diagnosticos_ViMedical.xlsx");
+    toast.success('Excel exportado correctamente');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("Listado de Diagnósticos - ViMedical", 14, 22);
+    
+    const tableData = diagnostics.map(d => [
+      d.id.substring(0, 8),
+      d.patientName,
+      d.date,
+      d.diagnosis.substring(0, 50)
+    ]);
+
+    (doc as any).autoTable({
+      head: [['Folio', 'Paciente', 'Fecha', 'Diagnóstico']],
+      body: tableData,
+      startY: 30,
+      theme: 'grid'
+    });
+
+    doc.save("Diagnosticos_ViMedical.pdf");
+    toast.success('PDF exportado correctamente');
+  };
+
   const filteredDiagnostics = diagnostics.filter(d => 
     d.patientName.toLowerCase().includes(search.toLowerCase()) ||
     d.diagnosis.toLowerCase().includes(search.toLowerCase())
@@ -7642,18 +8154,31 @@ function DiagnosticsListView({ navigateTo, diagnostics, currentRole, onDelete }:
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Diagnósticos Electrónicos</h2>
           <p className="text-slate-500 font-medium">Gestión y consulta de diagnósticos clínicos.</p>
         </div>
-        <button 
-          onClick={() => navigateTo('new-diagnostic')}
-          className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all flex items-center gap-3"
-        >
-          <PlusCircle className="w-5 h-5" />
-          Nuevo Diagnóstico
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+          >
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
+          <button 
+            onClick={() => navigateTo('new-diagnostic')}
+            className="bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" /> Nuevo Diagnóstico
+          </button>
+        </div>
       </header>
 
       <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-4">

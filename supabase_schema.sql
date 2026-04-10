@@ -5,7 +5,7 @@
 -- Tabla para Perfiles de Usuario (Admin, Doctor, Enfermero)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL,
   full_name TEXT NOT NULL,
   email TEXT NOT NULL,
@@ -208,6 +208,9 @@ CREATE POLICY "Public profiles are viewable by authenticated users" ON profiles
 CREATE POLICY "Users can update own profile" ON profiles
   FOR UPDATE USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can insert own profile" ON profiles
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
 -- Políticas para Pacientes
 CREATE POLICY "Patients viewable by authenticated staff" ON patients
   FOR SELECT USING (auth.role() = 'authenticated');
@@ -227,6 +230,44 @@ CREATE POLICY "Only admins can manage products" ON products
     EXISTS (
       SELECT 1 FROM profiles 
       WHERE profiles.user_id = auth.uid() AND profiles.role = 'Administrador'
+    )
+  );
+
+-- Políticas para Notificaciones
+CREATE POLICY "Staff can insert notifications" ON notifications
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Staff can view notifications" ON notifications
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Políticas para Cotizaciones
+CREATE POLICY "Staff can manage quotations" ON quotations
+  FOR ALL USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Staff can manage quotation items" ON quotation_items
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Políticas para Diagnósticos
+CREATE POLICY "Staff can manage diagnostics" ON diagnostics
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Políticas para Propuestas
+CREATE POLICY "Staff can manage treatment proposals" ON treatment_proposals
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Políticas para Certificados
+CREATE POLICY "Staff can manage medical certificates" ON medical_certificates
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Políticas para E-commerce (Pedidos)
+CREATE POLICY "Users can manage own orders" ON orders
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own order items" ON order_items
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM orders 
+      WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid()
     )
   );
 
