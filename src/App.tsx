@@ -363,6 +363,19 @@ export default function App() {
     }
   });
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  useEffect(() => {
+    // Safety timeout for initial auth check
+    const authTimeout = setTimeout(() => {
+      if (isAuthChecking) {
+        console.warn('App: Initial auth check timed out, forcing ready state');
+        setIsAuthChecking(false);
+      }
+    }, 5000);
+
+    return () => clearTimeout(authTimeout);
+  }, [isAuthChecking]);
+
   const [currentRole, setCurrentRole] = useState<Role>(() => {
     try {
       console.log('App: Initializing currentRole');
@@ -377,25 +390,6 @@ export default function App() {
   const [pendingOps, setPendingOps] = useState(0);
 
   useEffect(() => {
-    // Verificar sesión inicial de forma proactiva
-    const checkInitialSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('App: Initial session check error:', error);
-          if (error.message.includes('refresh_token') || error.message.includes('token')) {
-            console.warn('App: Invalid token detected on startup, clearing...');
-            await supabase.auth.signOut();
-            localStorage.clear();
-          }
-        }
-      } catch (e) {
-        console.error('App: Unexpected error checking initial session:', e);
-      }
-    };
-    
-    checkInitialSession();
-
     // Escuchar cambios en la autenticación de Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('App: Auth event triggered:', event, session?.user?.id);
@@ -1772,17 +1766,23 @@ function SettingsView() {
                     Estado: {permissionStatus === 'granted' ? 'Activadas' : permissionStatus === 'denied' ? 'Bloqueadas' : 'Pendientes'}
                   </span>
                 </div>
-                <button 
-                  onClick={handleRequestPermission}
-                  disabled={permissionStatus === 'granted'}
-                  className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                    permissionStatus === 'granted' 
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                    : 'bg-primary text-white hover:bg-indigo-700 shadow-lg shadow-primary/20'
-                  }`}
-                >
-                  {permissionStatus === 'granted' ? 'Ya Activo' : 'Activar Ahora'}
-                </button>
+                {permissionStatus === 'denied' ? (
+                  <p className="text-[10px] text-amber-600 font-bold max-w-[200px] leading-tight">
+                    Las notificaciones están bloqueadas en tu navegador. Debes habilitarlas manualmente en la configuración del sitio (icono del candado en la barra de direcciones).
+                  </p>
+                ) : (
+                  <button 
+                    onClick={handleRequestPermission}
+                    disabled={permissionStatus === 'granted'}
+                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                      permissionStatus === 'granted' 
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                      : 'bg-primary text-white hover:bg-indigo-700 shadow-lg shadow-primary/20'
+                    }`}
+                  >
+                    {permissionStatus === 'granted' ? 'Ya Activo' : 'Activar Ahora'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
