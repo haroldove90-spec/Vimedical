@@ -353,41 +353,77 @@ function PWAInstallPrompt() {
 
 export default function App() {
   console.log('App: Component starting');
+  
+  // 1. Definiciones de Estado (al principio para evitar errores de referencia)
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
-      console.log('App: Initializing isLoggedIn');
       return localStorage.getItem('isLoggedIn') === 'true';
     } catch (e) {
-      console.error('App: Error reading localStorage', e);
       return false;
     }
   });
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
+  const [currentRole, setCurrentRole] = useState<Role>(() => {
+    try {
+      return (localStorage.getItem('currentRole') as Role) || 'Enfermero';
+    } catch (e) {
+      return 'Enfermero';
+    }
+  });
+
+  const [currentProfile, setCurrentProfileData] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('currentProfile');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const [isAuthChecking, setIsAuthChecking] = useState(() => {
+    try {
+      // Si ya tenemos sesión y perfil en caché, no bloqueamos la UI inicialmente para agilizar el acceso
+      const hasSession = localStorage.getItem('isLoggedIn') === 'true';
+      const hasProfile = localStorage.getItem('currentProfile') !== null;
+      return !(hasSession && hasProfile);
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [pendingOps, setPendingOps] = useState(0);
+  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedWoundId, setSelectedWoundId] = useState<string | null>(null);
+  const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
+  const [wounds, setWounds] = useState<Wound[]>(MOCK_WOUNDS);
+  const [treatmentLogs, setTreatmentLogs] = useState<TreatmentLog[]>(MOCK_TREATMENTS);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [certificates, setCertificates] = useState<MedicalCertificate[]>([]);
+  const [proposals, setProposals] = useState<TreatmentProposal[]>(MOCK_PROPOSALS);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(MOCK_DIAGNOSTICS);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(null);
+  const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(null);
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
+  const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // 2. Efectos de Autenticación
   useEffect(() => {
-    // Safety timeout for initial auth check
+    // Safety timeout for initial auth check (reducido a 3s para mayor agilidad)
     const authTimeout = setTimeout(() => {
       if (isAuthChecking) {
         console.warn('App: Initial auth check timed out, forcing ready state');
         setIsAuthChecking(false);
       }
-    }, 5000);
+    }, 3000);
 
     return () => clearTimeout(authTimeout);
   }, [isAuthChecking]);
-
-  const [currentRole, setCurrentRole] = useState<Role>(() => {
-    try {
-      console.log('App: Initializing currentRole');
-      return (localStorage.getItem('currentRole') as Role) || 'Enfermero';
-    } catch (e) {
-      console.error('App: Error reading currentRole from localStorage', e);
-      return 'Enfermero';
-    }
-  });
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [pendingOps, setPendingOps] = useState(0);
 
   useEffect(() => {
     // Escuchar cambios en la autenticación de Supabase
@@ -408,19 +444,22 @@ export default function App() {
 
       if (session?.user) {
         console.log('App: User session found, fetching profile for', session.user.id);
-        setIsAuthChecking(true);
+        
+        // Solo mostramos el cargando si no tenemos datos en caché (usamos localStorage para evitar cierres de scope)
+        const hasCachedProfile = localStorage.getItem('currentProfile') !== null;
+        if (!hasCachedProfile) {
+          setIsAuthChecking(true);
+        }
         
         // Timeout para la búsqueda de perfil (aumentado a 30s)
         const profileTimeout = setTimeout(() => {
           console.error('App: Profile fetch timeout reached for', session.user.id);
-          toast.error('La carga del perfil está tardando demasiado. Por favor, usa el botón "Limpiar sesión" si el problema persiste.');
           setIsAuthChecking(false);
         }, 30000);
 
         console.time(`profile_fetch_${session.user.id}`);
         // Buscar el perfil del usuario en la tabla profiles
         try {
-          // Usar select con limit(1) es más robusto que single() o maybeSingle() si hay inconsistencias
           const { data: profiles, error } = await supabase
             .from('profiles')
             .select('*')
@@ -442,9 +481,6 @@ export default function App() {
               return;
             }
 
-            if (event === 'SIGNED_IN') {
-              toast.error('Error al obtener tu perfil: ' + error.message);
-            }
             setIsAuthChecking(false);
             return;
           }
@@ -480,9 +516,6 @@ export default function App() {
             console.log('App: Login state updated successfully');
           } else {
             console.warn('App: No profile data returned for user', session.user.id);
-            if (event === 'SIGNED_IN') {
-              toast.error('Tu cuenta no tiene un perfil configurado.');
-            }
           }
         } catch (profileErr) {
           console.error('App: Unexpected error fetching profile:', profileErr);
@@ -523,30 +556,6 @@ export default function App() {
     };
   }, []);
 
-  const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [selectedWoundId, setSelectedWoundId] = useState<string | null>(null);
-  const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
-  const [wounds, setWounds] = useState<Wound[]>(MOCK_WOUNDS);
-  const [treatmentLogs, setTreatmentLogs] = useState<TreatmentLog[]>(MOCK_TREATMENTS);
-  const [quotations, setQuotations] = useState<Quotation[]>([]);
-  const [certificates, setCertificates] = useState<MedicalCertificate[]>([]);
-  const [proposals, setProposals] = useState<TreatmentProposal[]>(MOCK_PROPOSALS);
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(MOCK_DIAGNOSTICS);
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
-  const [currentProfile, setCurrentProfileData] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem('currentProfile');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-  const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(null);
-  const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(null);
-  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
-
   useEffect(() => {
     if (isLoggedIn) {
       localStorage.setItem('isLoggedIn', 'true');
@@ -560,8 +569,6 @@ export default function App() {
       localStorage.removeItem('currentProfile');
     }
   }, [isLoggedIn, currentRole, currentProfile]);
-  const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     requestNotificationPermission();
@@ -2662,47 +2669,15 @@ function EcommerceView({ onBack, userProfile }: { onBack: () => void, userProfil
         </button>
       </header>
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <RefreshCw className="w-12 h-12 text-primary animate-spin mb-4" />
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Cargando productos...</p>
+      <div className="flex flex-col items-center justify-center py-32 bg-white border border-slate-200 rounded-[3rem] shadow-xl shadow-slate-200/50">
+        <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6">
+          <ShoppingBag className="w-10 h-10 text-primary" />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {products.map(product => (
-            <div key={product.id} className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-xl shadow-slate-200/50 group hover:border-primary transition-all">
-              <div className="aspect-square bg-slate-50 relative overflow-hidden">
-                <img 
-                  src={product.imageUrl} 
-                  alt={product.name} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute top-4 left-4">
-                  <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-[10px] font-black text-primary uppercase tracking-widest shadow-sm">
-                    {product.category}
-                  </span>
-                </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <h3 className="font-black text-slate-900 leading-tight mb-1">{product.name}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2">{product.description}</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xl font-black text-primary">${product.price.toLocaleString()}</span>
-                  <button 
-                    onClick={() => addToCart(product)}
-                    className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center hover:bg-primary transition-all active:scale-90"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+        <h3 className="text-3xl font-black text-slate-900 mb-2">Próximamente</h3>
+        <p className="text-slate-500 font-medium max-w-md text-center px-6">
+          Estamos preparando la mejor selección de insumos médicos para el cuidado de heridas. Muy pronto podrás adquirir tus productos directamente desde aquí.
+        </p>
+      </div>
 
       {/* Carrito Lateral */}
       {showCart && (
