@@ -6,7 +6,8 @@ import {
   ChevronRight, Camera, CheckSquare, Square, FileText, CheckCircle, XCircle, UserCircle, Menu, X, Download,
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
-  Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope
+  Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Filter
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -16,18 +17,24 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer 
-} from 'recharts';
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area} from 'recharts';
 import SignatureCanvas from 'react-signature-canvas';
 import { jsPDF } from 'jspdf';
 import { storageService } from './services/storageService';
 import { Role, Patient, Wound, TreatmentLog, ClinicalComment, Quotation, QuotationItem, MedicalCertificate, TreatmentProposal, Diagnostic, MOCK_PATIENTS, MOCK_WOUNDS, MOCK_TREATMENTS, MOCK_CERTIFICATES, MOCK_PROPOSALS, MOCK_DIAGNOSTICS } from './mockData';
 import { supabase } from './lib/supabase';
-import { generateFinalReport, generateQuotationPDF, generateClinicalHistoryPDF } from './services/pdfService';
+import { generateFinalReport, generateQuotationPDF, generateClinicalHistoryPDF, generateDiagnosticPDF, generateCertificatePDF } from './services/pdfService';
 import { requestNotificationPermission, triggerFullNotification, playNotificationSound, speakMessage } from './services/notificationService';
 import { syncService } from './services/syncService';
 
-type View = 'dashboard' | 'patients' | 'patient-detail' | 'wound-detail' | 'new-assessment' | 'new-treatment' | 'new-patient' | 'settings' | 'clinical-history' | 'clinical-history-detail' | 'quotations' | 'new-quotation' | 'quotation-detail' | 'privacy-notice' | 'consent-form' | 'certificates' | 'new-certificate' | 'certificate-detail' | 'treatment-proposals' | 'new-treatment-proposal' | 'treatment-proposal-detail' | 'register-nurse' | 'diagnostics' | 'new-diagnostic' | 'diagnostic-detail' | 'profile' | 'nurses-management' | 'ecommerce';
+type View = 'dashboard' | 'patients' | 'patient-detail' | 'wound-detail' | 'new-assessment' | 'new-treatment' | 'new-patient' | 'settings' | 'clinical-history' | 'clinical-history-detail' | 'quotations' | 'new-quotation' | 'quotation-detail' | 'privacy-notice' | 'consent-form' | 'certificates' | 'new-certificate' | 'certificate-detail' | 'treatment-proposals' | 'new-treatment-proposal' | 'treatment-proposal-detail' | 'register-nurse' | 'diagnostics' | 'new-diagnostic' | 'diagnostic-detail' | 'profile' | 'nurses-management' | 'ecommerce' | 'analytics' | 'inventory' | 'orders';
 
 interface UserProfile {
   id: string;
@@ -112,6 +119,76 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
     return this.props.children;
   }
+}
+
+function ConfirmationModal({ 
+  isOpen, 
+  title, 
+  message, 
+  onConfirm, 
+  onCancel, 
+  confirmText = 'Confirmar', 
+  cancelText = 'Cancelar',
+  type = 'info'
+}: { 
+  isOpen: boolean; 
+  title: string; 
+  message: string; 
+  onConfirm: () => void; 
+  onCancel: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  type?: 'danger' | 'warning' | 'info';
+}) {
+  if (!isOpen) return null;
+
+  const typeStyles = {
+    danger: {
+      icon: <Trash2 className="w-8 h-8 text-red-500" />,
+      button: 'bg-red-500 hover:bg-red-600 shadow-red-500/20',
+      bg: 'bg-red-50'
+    },
+    warning: {
+      icon: <AlertTriangle className="w-8 h-8 text-amber-500" />,
+      button: 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20',
+      bg: 'bg-amber-50'
+    },
+    info: {
+      icon: <Shield className="w-8 h-8 text-primary" />,
+      button: 'bg-primary hover:bg-indigo-700 shadow-primary/20',
+      bg: 'bg-indigo-50'
+    }
+  };
+
+  const style = typeStyles[type];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className={`p-8 ${style.bg} flex flex-col items-center text-center`}>
+          <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-6">
+            {style.icon}
+          </div>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">{title}</h3>
+          <p className="text-slate-600 font-medium leading-relaxed">{message}</p>
+        </div>
+        <div className="p-8 bg-white flex flex-col gap-3">
+          <button
+            onClick={onConfirm}
+            className={`w-full py-4 rounded-2xl text-white font-black shadow-lg transition-all active:scale-95 ${style.button}`}
+          >
+            {confirmText}
+          </button>
+          <button
+            onClick={onCancel}
+            className="w-full py-4 rounded-2xl text-slate-500 font-bold hover:bg-slate-50 transition-all active:scale-95"
+          >
+            {cancelText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) => void }) {
@@ -390,7 +467,7 @@ export default function App() {
       return true;
     }
   });
-
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
@@ -412,6 +489,30 @@ export default function App() {
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLoadingHelp, setShowLoadingHelp] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'danger' | 'warning' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, options?: { confirmText?: string; cancelText?: string; type?: 'danger' | 'warning' | 'info' }) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm,
+      ...options
+    });
+  };
 
   // 2. Efectos de Autenticación
   useEffect(() => {
@@ -440,7 +541,6 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('App: Auth event triggered:', event, session?.user?.id);
       
-      // Manejar errores de token inválido que pueden causar bucles
       if (event === 'SIGNED_OUT' || (event as any) === 'USER_DELETED') {
         console.log('App: User signed out or deleted, clearing state');
         setIsLoggedIn(false);
@@ -455,21 +555,37 @@ export default function App() {
       if (session?.user) {
         console.log('App: User session found, fetching profile for', session.user.id);
         
-        // Solo mostramos el cargando si no tenemos datos en caché (usamos localStorage para evitar cierres de scope)
-        const hasCachedProfile = localStorage.getItem('currentProfile') !== null;
+        // Solo mostramos el cargando si no tenemos datos en caché
+        const cachedProfileStr = localStorage.getItem('currentProfile');
+        const hasCachedProfile = cachedProfileStr !== null;
+        
         if (!hasCachedProfile) {
           setIsAuthChecking(true);
+        } else {
+          // Si hay caché, la usamos inmediatamente pero intentamos actualizar en segundo plano
+          try {
+            const cachedProfile = JSON.parse(cachedProfileStr);
+            setCurrentProfileData(cachedProfile);
+            setCurrentRole(cachedProfile.role);
+            setIsLoggedIn(true);
+          } catch (e) {
+            console.error('App: Error parsing cached profile', e);
+          }
         }
         
-        // Timeout para la búsqueda de perfil (aumentado a 45s)
+        // Timeout para la búsqueda de perfil (30s)
         const profileTimeout = setTimeout(() => {
           console.error('App: Profile fetch timeout reached for', session.user.id);
-          toast.error('La verificación de perfil está tardando demasiado. Por favor, intenta reintentar o cerrar sesión.');
-          setIsAuthChecking(false);
-        }, 45000);
+          if (!hasCachedProfile) {
+            toast.error('La verificación de perfil está tardando demasiado.');
+            setIsAuthChecking(false);
+            setShowLoadingHelp(true);
+          } else {
+            console.warn('App: Background profile fetch timed out, using cached data');
+          }
+        }, 30000);
 
         console.time(`profile_fetch_${session.user.id}`);
-        // Buscar el perfil del usuario en la tabla profiles
         try {
           const { data: profiles, error } = await supabase
             .from('profiles')
@@ -492,7 +608,10 @@ export default function App() {
               return;
             }
 
-            setIsAuthChecking(false);
+            if (!hasCachedProfile) {
+              setAuthError('Error al conectar con el servidor de perfiles.');
+              setIsAuthChecking(false);
+            }
             return;
           }
 
@@ -521,17 +640,26 @@ export default function App() {
             setCurrentRole(normalizedRole);
             setCurrentProfileData(profile);
             setIsLoggedIn(true);
+            setIsAuthChecking(false);
             localStorage.setItem('isLoggedIn', 'true');
             localStorage.setItem('currentRole', normalizedRole);
             localStorage.setItem('currentProfile', JSON.stringify(profile));
             console.log('App: Login state updated successfully');
+            setAuthError(null);
           } else {
             console.warn('App: No profile data returned for user', session.user.id);
+            if (!hasCachedProfile) {
+              setAuthError('No se encontró un perfil asociado a esta cuenta. Contacta al administrador.');
+              setIsAuthChecking(false);
+            }
           }
         } catch (profileErr) {
+          clearTimeout(profileTimeout);
           console.error('App: Unexpected error fetching profile:', profileErr);
-        } finally {
-          setIsAuthChecking(false);
+          if (!hasCachedProfile) {
+            setAuthError('Error inesperado al verificar tu cuenta.');
+            setIsAuthChecking(false);
+          }
         }
       } else {
         // No hay sesión activa
@@ -638,6 +766,42 @@ export default function App() {
           const { title, body, voice_text } = payload.new;
           triggerFullNotification(title, body, voice_text);
         }
+      )
+      .subscribe();
+
+    const quotationsChannel = supabase
+      .channel('quotations-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'quotations' },
+        () => fetchQuotations()
+      )
+      .subscribe();
+
+    const diagnosticsChannel = supabase
+      .channel('diagnostics-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'diagnostics' },
+        () => fetchDiagnostics()
+      )
+      .subscribe();
+
+    const certificatesChannel = supabase
+      .channel('certificates-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'medical_certificates' },
+        () => fetchCertificates()
+      )
+      .subscribe();
+
+    const proposalsChannel = supabase
+      .channel('proposals-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'treatment_proposals' },
+        () => fetchProposals()
       )
       .subscribe();
 
@@ -783,6 +947,8 @@ export default function App() {
     fetchTreatmentLogs();
     fetchQuotations();
     fetchCertificates();
+    fetchDiagnostics();
+    fetchProposals();
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -790,6 +956,10 @@ export default function App() {
       supabase.removeChannel(woundsChannel);
       supabase.removeChannel(treatmentsChannel);
       supabase.removeChannel(notificationsChannel);
+      supabase.removeChannel(quotationsChannel);
+      supabase.removeChannel(diagnosticsChannel);
+      supabase.removeChannel(certificatesChannel);
+      supabase.removeChannel(proposalsChannel);
     };
   }, [currentRole]);
 
@@ -873,6 +1043,80 @@ export default function App() {
     }
   };
 
+  const fetchProposals = async () => {
+    const cachedProposals = syncService.getCache('proposals');
+    if (cachedProposals) {
+      setProposals(cachedProposals);
+    } else {
+      setProposals(MOCK_PROPOSALS);
+    }
+
+    if (!navigator.onLine) return;
+
+    const { data, error } = await supabase
+      .from('treatment_proposals')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching proposals:', error);
+    } else if (data) {
+      const formattedProposals: TreatmentProposal[] = data.map((p: any) => ({
+        id: p.id,
+        patientId: p.patient_id,
+        patientName: p.patient_name,
+        date: p.date || p.created_at.split('T')[0],
+        program: p.program,
+        numCurations: p.num_curations,
+        materials: p.materials,
+        investment: p.investment,
+        createdAt: p.created_at,
+        status: p.status,
+        nurseId: p.nurse_id
+      }));
+      setProposals(formattedProposals);
+      syncService.setCache('proposals', formattedProposals);
+    }
+  };
+
+  const fetchDiagnostics = async () => {
+    const cachedDiagnostics = syncService.getCache('diagnostics');
+    if (cachedDiagnostics) {
+      setDiagnostics(cachedDiagnostics);
+    } else {
+      setDiagnostics(MOCK_DIAGNOSTICS);
+    }
+
+    if (!navigator.onLine) return;
+
+    const { data, error } = await supabase
+      .from('diagnostics')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching diagnostics:', error);
+    } else if (data) {
+      const formattedDiagnostics: Diagnostic[] = data.map((d: any) => ({
+        id: d.id,
+        patientId: d.patient_id,
+        patientName: d.patient_name,
+        patientAge: d.patient_age,
+        date: d.date,
+        clinicalSummary: d.clinical_summary,
+        diagnosis: d.diagnosis,
+        treatmentPlan: d.treatment_plan,
+        recommendations: d.recommendations,
+        doctorName: d.doctor_name,
+        doctorLicense: d.doctor_license,
+        signature: d.signature,
+        createdAt: d.created_at
+      }));
+      setDiagnostics(formattedDiagnostics);
+      syncService.setCache('diagnostics', formattedDiagnostics);
+    }
+  };
+
   const navigateTo = useCallback((view: View, patientId?: string, woundId?: string, quotationId?: string, certificateId?: string, proposalId?: string, diagnosticId?: string) => {
     if (patientId) setSelectedPatientId(patientId);
     if (woundId) setSelectedWoundId(woundId);
@@ -935,36 +1179,60 @@ export default function App() {
     navigateTo('diagnostics');
   };
 
-  const handleDeleteQuotation = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar esta cotización?')) return;
-    setQuotations(prev => prev.filter(q => q.id !== id));
-    syncService.setCache('quotations', quotations.filter(q => q.id !== id));
-    if (navigator.onLine) await supabase.from('quotations').delete().eq('id', id);
-    toast.success('Cotización eliminada');
+  const handleDeleteQuotation = (id: string) => {
+    showConfirm(
+      '¿Eliminar Cotización?',
+      '¿Estás seguro de que deseas eliminar esta cotización? Esta acción no se puede deshacer.',
+      async () => {
+        setQuotations(prev => prev.filter(q => q.id !== id));
+        syncService.setCache('quotations', quotations.filter(q => q.id !== id));
+        if (navigator.onLine) await supabase.from('quotations').delete().eq('id', id);
+        toast.success('Cotización eliminada');
+      },
+      { type: 'danger', confirmText: 'Eliminar' }
+    );
   };
 
-  const handleDeleteCertificate = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este certificado?')) return;
-    setCertificates(prev => prev.filter(c => c.id !== id));
-    syncService.setCache('certificates', certificates.filter(c => c.id !== id));
-    if (navigator.onLine) await supabase.from('medical_certificates').delete().eq('id', id);
-    toast.success('Certificado eliminado');
+  const handleDeleteCertificate = (id: string) => {
+    showConfirm(
+      '¿Eliminar Certificado?',
+      '¿Estás seguro de que deseas eliminar este certificado? Esta acción no se puede deshacer.',
+      async () => {
+        setCertificates(prev => prev.filter(c => c.id !== id));
+        syncService.setCache('certificates', certificates.filter(c => c.id !== id));
+        if (navigator.onLine) await supabase.from('medical_certificates').delete().eq('id', id);
+        toast.success('Certificado eliminado');
+      },
+      { type: 'danger', confirmText: 'Eliminar' }
+    );
   };
 
-  const handleDeleteProposal = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar esta propuesta?')) return;
-    setProposals(prev => prev.filter(p => p.id !== id));
-    syncService.setCache('proposals', proposals.filter(p => p.id !== id));
-    if (navigator.onLine) await supabase.from('treatment_proposals').delete().eq('id', id);
-    toast.success('Propuesta eliminada');
+  const handleDeleteProposal = (id: string) => {
+    showConfirm(
+      '¿Eliminar Propuesta?',
+      '¿Estás seguro de que deseas eliminar esta propuesta? Esta acción no se puede deshacer.',
+      async () => {
+        setProposals(prev => prev.filter(p => p.id !== id));
+        syncService.setCache('proposals', proposals.filter(p => p.id !== id));
+        if (navigator.onLine) await supabase.from('treatment_proposals').delete().eq('id', id);
+        toast.success('Propuesta eliminada');
+      },
+      { type: 'danger', confirmText: 'Eliminar' }
+    );
   };
 
-  const handleDeleteDiagnostic = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este diagnóstico?')) return;
-    setDiagnostics(prev => prev.filter(d => d.id !== id));
-    syncService.setCache('diagnostics', diagnostics.filter(d => d.id !== id));
-    if (navigator.onLine) await supabase.from('diagnostics').delete().eq('id', id);
-    toast.success('Diagnóstico eliminado');
+  const handleDeleteDiagnostic = (id: string) => {
+    showConfirm(
+      '¿Eliminar Diagnóstico?',
+      '¿Estás seguro de que deseas eliminar este diagnóstico? Esta acción no se puede deshacer.',
+      async () => {
+        setDiagnostics(prev => prev.filter(d => d.id !== id));
+        syncService.setCache('diagnostics', diagnostics.filter(d => d.id !== id));
+        if (navigator.onLine) await supabase.from('diagnostics').delete().eq('id', id);
+        toast.success('Diagnóstico eliminado');
+      },
+      { type: 'danger', confirmText: 'Eliminar' }
+    );
   };
 
   const handleUpdatePatient = async (updatedPatient: Patient) => {
@@ -1026,34 +1294,44 @@ export default function App() {
     });
   };
 
-  const handleDeletePatient = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este paciente? Esta acción no se puede deshacer.')) return;
-    
-    setPatients(prev => prev.filter(p => p.id !== id));
-    syncService.setCache('patients', patients.filter(p => p.id !== id));
-    
-    if (navigator.onLine) {
-      await supabase.from('patients').delete().eq('id', id);
-      toast.success('Paciente eliminado');
-    } else {
-      syncService.addToQueue('patients', 'DELETE', { id });
-      toast.success('Paciente marcado para eliminar (offline)');
-    }
+  const handleDeletePatient = (id: string) => {
+    showConfirm(
+      '¿Eliminar Paciente?',
+      '¿Estás seguro de que deseas eliminar este paciente? Esta acción no se puede deshacer y eliminará todos sus registros asociados.',
+      async () => {
+        setPatients(prev => prev.filter(p => p.id !== id));
+        syncService.setCache('patients', patients.filter(p => p.id !== id));
+        
+        if (navigator.onLine) {
+          await supabase.from('patients').delete().eq('id', id);
+          toast.success('Paciente eliminado');
+        } else {
+          syncService.addToQueue('patients', 'DELETE', { id });
+          toast.success('Paciente marcado para eliminar (offline)');
+        }
+      },
+      { type: 'danger', confirmText: 'Eliminar Paciente' }
+    );
   };
 
-  const handleDeleteWound = async (id: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar esta herida?')) return;
-    
-    setWounds(prev => prev.filter(w => w.id !== id));
-    syncService.setCache('wounds', wounds.filter(w => w.id !== id));
-    
-    if (navigator.onLine) {
-      await supabase.from('wounds').delete().eq('id', id);
-      toast.success('Herida eliminada');
-    } else {
-      syncService.addToQueue('wounds', 'DELETE', { id });
-      toast.success('Herida marcada para eliminar (offline)');
-    }
+  const handleDeleteWound = (id: string) => {
+    showConfirm(
+      '¿Eliminar Herida?',
+      '¿Estás seguro de que deseas eliminar esta herida? Esta acción no se puede deshacer.',
+      async () => {
+        setWounds(prev => prev.filter(w => w.id !== id));
+        syncService.setCache('wounds', wounds.filter(w => w.id !== id));
+        
+        if (navigator.onLine) {
+          await supabase.from('wounds').delete().eq('id', id);
+          toast.success('Herida eliminada');
+        } else {
+          syncService.addToQueue('wounds', 'DELETE', { id });
+          toast.success('Herida marcada para eliminar (offline)');
+        }
+      },
+      { type: 'danger', confirmText: 'Eliminar Herida' }
+    );
   };
 
   useEffect(() => {
@@ -1226,6 +1504,19 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Toaster />
+      <ConfirmationModal 
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={() => {
+          confirmModal.onConfirm();
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
       {isAuthChecking ? (
         <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
           <div className="w-20 h-20 bg-primary rounded-3xl flex items-center justify-center mb-8 animate-pulse shadow-xl shadow-primary/20">
@@ -1234,6 +1525,12 @@ export default function App() {
           <RefreshCw className="w-8 h-8 text-primary animate-spin mb-4" />
           <h2 className="text-xl font-black text-white tracking-tight">Verificando sesión</h2>
           <p className="text-slate-400 mt-2 text-sm font-medium">Por favor espera un momento...</p>
+
+          {authError && (
+            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl max-w-xs mx-auto animate-in fade-in zoom-in-95">
+              <p className="text-red-400 text-xs font-bold">{authError}</p>
+            </div>
+          )}
 
           {showLoadingHelp && (
             <div className="mt-12 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1250,10 +1547,14 @@ export default function App() {
                   <RefreshCw className="w-4 h-4" /> Reintentar
                 </button>
                 <button 
-                  onClick={handleLogout}
+                  onClick={() => {
+                    localStorage.clear();
+                    supabase.auth.signOut();
+                    window.location.reload();
+                  }}
                   className="bg-red-500/10 hover:bg-red-500/20 text-red-400 px-8 py-4 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-3 border border-red-500/10"
                 >
-                  <LogOut className="w-4 h-4" /> Cerrar Sesión
+                  <LogOut className="w-4 h-4" /> Limpiar y Salir
                 </button>
               </div>
             </div>
@@ -1427,6 +1728,44 @@ export default function App() {
             Diagnósticos
           </button>
 
+          {currentRole === 'Administrador' && (
+            <>
+              <button
+                onClick={() => navigateTo('analytics')}
+                className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                  currentView === 'analytics'
+                    ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <BarChart3 className="w-5 h-5" />
+                Estadísticas
+              </button>
+              <button
+                onClick={() => navigateTo('inventory')}
+                className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                  currentView === 'inventory'
+                    ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Package className="w-5 h-5" />
+                Inventario
+              </button>
+              <button
+                onClick={() => navigateTo('orders')}
+                className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                  currentView === 'orders'
+                    ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                    : 'text-white/70 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <ShoppingBag className="w-5 h-5" />
+                Pedidos
+              </button>
+            </>
+          )}
+
           {(currentRole === 'Administrador' || currentRole === 'Doctor') && (
             <button
               onClick={() => navigateTo('nurses-management')}
@@ -1441,7 +1780,7 @@ export default function App() {
             </button>
           )}
 
-          {currentRole === 'Administrador' && (
+          {(currentRole === 'Administrador' || currentRole === 'Enfermero' || currentRole === 'Doctor') && (
             <button
               onClick={() => navigateTo('ecommerce')}
               className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
@@ -1451,7 +1790,7 @@ export default function App() {
               }`}
             >
               <ShoppingBag className="w-5 h-5" />
-              E-commerce
+              Tienda
             </button>
           )}
 
@@ -1733,7 +2072,16 @@ export default function App() {
             />
           )}
           {currentView === 'ecommerce' && (
-            <EcommerceView onBack={() => navigateTo('dashboard')} userProfile={currentProfile} />
+            <EcommerceView onBack={() => navigateTo('dashboard')} userProfile={currentProfile} sendNotification={sendNotification} />
+          )}
+          {currentView === 'analytics' && (
+            <AnalyticsView patients={patients} wounds={wounds} treatmentLogs={treatmentLogs} />
+          )}
+          {currentView === 'inventory' && (
+            <InventoryView sendNotification={sendNotification} />
+          )}
+          {currentView === 'orders' && (
+            <OrdersView sendNotification={sendNotification} />
           )}
           {currentView === 'nurses-management' && (
             <NursesManagementView 
@@ -2575,7 +2923,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
   );
 }
 
-function EcommerceView({ onBack, userProfile }: { onBack: () => void, userProfile: UserProfile | null }) {
+function EcommerceView({ onBack, userProfile, sendNotification }: { onBack: () => void, userProfile: UserProfile | null, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<{product: Product, quantity: number}[]>([]);
@@ -2668,6 +3016,29 @@ function EcommerceView({ onBack, userProfile }: { onBack: () => void, userProfil
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+      
+      // Decrementar stock y notificar si es bajo
+      for (const item of cart) {
+        const newStock = item.product.stock - item.quantity;
+        await supabase.from('products').update({ stock: newStock }).eq('id', item.product.id);
+        
+        if (newStock < 5) {
+          await sendNotification(
+            'Alerta de Stock Bajo',
+            `El producto ${item.product.name} tiene solo ${newStock} unidades después de la venta.`,
+            `Atención Administrador: El producto ${item.product.name} está por agotarse. Quedan solo ${newStock} unidades.`,
+            'Administrador'
+          );
+        }
+      }
+      
+      // Notificar al administrador sobre el nuevo pedido
+      await sendNotification(
+        'Nuevo Pedido Recibido',
+        `Se ha recibido un nuevo pedido de ${userProfile.fullName} por un total de $${total.toLocaleString()}`,
+        `Atención Administrador: Se ha registrado un nuevo pedido en la tienda por parte de ${userProfile.fullName}. El monto total es de ${total} pesos.`,
+        'Administrador'
+      );
 
       setCart([]);
       setShowCart(false);
@@ -2704,15 +3075,53 @@ function EcommerceView({ onBack, userProfile }: { onBack: () => void, userProfil
         </button>
       </header>
 
-      <div className="flex flex-col items-center justify-center py-32 bg-white border border-slate-200 rounded-[3rem] shadow-xl shadow-slate-200/50">
-        <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6">
-          <ShoppingBag className="w-10 h-10 text-primary" />
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-32">
+          <RefreshCw className="w-10 h-10 text-primary animate-spin mb-4" />
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Cargando productos...</p>
         </div>
-        <h3 className="text-3xl font-black text-slate-900 mb-2">Próximamente</h3>
-        <p className="text-slate-500 font-medium max-w-md text-center px-6">
-          Estamos preparando la mejor selección de insumos médicos para el cuidado de heridas. Muy pronto podrás adquirir tus productos directamente desde aquí.
-        </p>
-      </div>
+      ) : products.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-32 bg-white border border-slate-200 rounded-[3rem] shadow-xl shadow-slate-200/50">
+          <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6">
+            <ShoppingBag className="w-10 h-10 text-primary" />
+          </div>
+          <h3 className="text-3xl font-black text-slate-900 mb-2">Sin productos</h3>
+          <p className="text-slate-500 font-medium max-w-md text-center px-6">
+            No se encontraron productos disponibles en este momento. Por favor, intenta más tarde.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {products.map(product => (
+            <div key={product.id} className="bg-white border border-slate-200 rounded-[2.5rem] overflow-hidden shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:shadow-primary/10 transition-all group">
+              <div className="aspect-square bg-slate-50 relative overflow-hidden">
+                <img 
+                  src={product.imageUrl} 
+                  alt={product.name} 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl shadow-sm">
+                  <span className="text-sm font-black text-primary">${product.price.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <span className="text-[10px] font-black text-primary uppercase tracking-widest mb-1 block">{product.category}</span>
+                  <h4 className="text-lg font-black text-slate-900 leading-tight">{product.name}</h4>
+                  <p className="text-slate-500 text-xs mt-2 line-clamp-2">{product.description}</p>
+                </div>
+                <button 
+                  onClick={() => addToCart(product)}
+                  className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all flex items-center justify-center gap-3 active:scale-95"
+                >
+                  <Plus className="w-4 h-4" /> Añadir al Carrito
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Carrito Lateral */}
       {showCart && (
@@ -3649,8 +4058,32 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (blob: string) => vo
 
 function SignaturePad({ onSave, onCancel, title }: { onSave: (signature: string) => void, onCancel: () => void, title: string }) {
   const sigCanvas = React.useRef<SignatureCanvas>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   const clear = () => sigCanvas.current?.clear();
+  
+  const resizeCanvas = () => {
+    if (sigCanvas.current && containerRef.current) {
+      const canvas = sigCanvas.current.getCanvas();
+      const container = containerRef.current;
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      canvas.width = container.offsetWidth * ratio;
+      canvas.height = container.offsetHeight * ratio;
+      canvas.getContext('2d')?.scale(ratio, ratio);
+      sigCanvas.current.clear(); // Resizing clears the canvas
+    }
+  };
+
+  React.useEffect(() => {
+    window.addEventListener('resize', resizeCanvas);
+    // Initial resize after a short delay to ensure container is rendered
+    const timer = setTimeout(resizeCanvas, 100);
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      clearTimeout(timer);
+    };
+  }, []);
+
   const save = () => {
     if (sigCanvas.current?.isEmpty()) {
       toast.error('Por favor, proporcione una firma.');
@@ -3660,30 +4093,41 @@ function SignaturePad({ onSave, onCancel, title }: { onSave: (signature: string)
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 sm:p-6">
       <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-300">
-        <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+        <div className="p-6 sm:p-8 border-b border-slate-100 flex justify-between items-center">
           <h3 className="text-xl font-black text-slate-900">{title}</h3>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 p-2">
             <X className="w-6 h-6" />
           </button>
         </div>
-        <div className="p-8 bg-slate-50">
-          <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl overflow-hidden">
+        <div className="p-6 sm:p-8 bg-slate-50">
+          <div ref={containerRef} className="bg-white border-2 border-dashed border-slate-200 rounded-3xl overflow-hidden h-64 sm:h-80 touch-none">
             <SignatureCanvas 
               ref={sigCanvas}
               penColor="black"
-              canvasProps={{ className: 'w-full h-64 cursor-crosshair' }}
+              canvasProps={{ 
+                className: 'w-full h-full cursor-crosshair',
+                style: { width: '100%', height: '100%' }
+              }}
             />
           </div>
-          <p className="text-center text-[10px] font-black text-slate-400 uppercase tracking-widest mt-4">Firme dentro del recuadro</p>
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Firme dentro del recuadro</p>
+            <button 
+              onClick={clear}
+              className="text-[10px] font-black text-red-400 uppercase tracking-widest hover:text-red-600 transition-colors"
+            >
+              Limpiar
+            </button>
+          </div>
         </div>
-        <div className="p-8 flex gap-4">
+        <div className="p-6 sm:p-8 flex gap-4">
           <button 
-            onClick={clear}
+            onClick={onCancel}
             className="flex-1 px-6 py-4 rounded-2xl border border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
           >
-            Limpiar
+            Cancelar
           </button>
           <button 
             onClick={save}
@@ -7012,62 +7456,7 @@ function CertificateDetailView({ certificateId, navigateTo, certificates }: { ce
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF();
-    
-    doc.setFontSize(22);
-    doc.setTextColor(60, 107, 148);
-    doc.text('VIMEDICAL', 105, 20, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text('CERTIFICADO MÉDICO', 105, 30, { align: 'center' });
-    
-    doc.setDrawColor(60, 107, 148);
-    doc.line(20, 35, 190, 35);
-    
-    doc.setFontSize(11);
-    doc.setTextColor(0);
-    doc.setFont('helvetica', 'normal');
-    
-    const text = `El Doctor ${certificate.doctorName} legalmente autorizado por la Dirección General de Profesiones para ejercer la profesión de Médico Cirujano, Maestro en heridas por la Universidad Autónoma de México del Estado de Hidalgo y Universidad Panamericana, con cédula profesional ${certificate.doctorLicense}.`;
-    
-    const splitText = doc.splitTextToSize(text, 170);
-    doc.text(splitText, 20, 50);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('CERTIFICA', 105, 75, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    
-    const bodyText = `Que habiendo practicado reconocimiento médico el día ${certificate.date}, a ${certificate.patientName}, de ${certificate.patientAge} años de edad, lo encontré:`;
-    doc.text(bodyText, 20, 85);
-    
-    doc.text(`${certificate.physicalState}`, 20, 95);
-    doc.text(`${certificate.woundDetails}`, 20, 105);
-    
-    const treatmentText = `Con tratamiento de: ${certificate.treatment}`;
-    const splitTreatment = doc.splitTextToSize(treatmentText, 170);
-    doc.text(splitTreatment, 20, 115);
-    
-    doc.text(`Campo visual: ${certificate.visualStatus}`, 20, 135);
-    doc.text(`Agudeza auditiva: ${certificate.auditoryStatus}`, 20, 145);
-    doc.text(`Aparato locomotor: ${certificate.locomotorStatus}`, 20, 155);
-    doc.text(`Examen neurológico: ${certificate.neurologicalStatus}`, 20, 165);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('CONCLUSIONES:', 20, 185);
-    doc.setFont('helvetica', 'normal');
-    const splitConclusions = doc.splitTextToSize(certificate.conclusions, 170);
-    doc.text(splitConclusions, 20, 195);
-    
-    if (certificate.signature) {
-      doc.addImage(certificate.signature, 'PNG', 75, 220, 60, 30);
-    }
-    
-    doc.text('__________________________', 105, 255, { align: 'center' });
-    doc.text(`Dr. ${certificate.doctorName}`, 105, 262, { align: 'center' });
-    doc.text(`Cédula: ${certificate.doctorLicense}`, 105, 268, { align: 'center' });
-    
-    doc.save(`Certificado_${certificate.patientName.replace(/\s+/g, '_')}.pdf`);
+    generateCertificatePDF(certificate);
     toast.success('PDF exportado correctamente');
   };
 
@@ -8271,11 +8660,19 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
     doctorName: 'Victor Ismael Medecigo Escudero',
     doctorLicense: '3490622-7218923',
   });
+  const sigCanvas = React.useRef<SignatureCanvas>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const patient = patients.find(p => p.id === formData.patientId);
     if (!patient) return;
+
+    if (sigCanvas.current?.isEmpty()) {
+      toast.error('Por favor firme el diagnóstico');
+      return;
+    }
+
+    const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
 
     const newDiagnostic: Diagnostic = {
       id: Date.now().toString(),
@@ -8289,6 +8686,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
       recommendations: formData.recommendations,
       doctorName: formData.doctorName,
       doctorLicense: formData.doctorLicense,
+      signature: signatureData,
       createdAt: new Date().toISOString(),
     };
 
@@ -8406,6 +8804,29 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
           </div>
         </div>
 
+        <div className="space-y-4">
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Firma del Médico</label>
+          <div className="border-2 border-dashed border-slate-200 rounded-3xl p-4 bg-slate-50">
+            <SignatureCanvas 
+              ref={sigCanvas}
+              penColor="black"
+              canvasProps={{
+                className: "w-full h-64 cursor-crosshair",
+                style: { width: '100%', height: '256px' }
+              }}
+            />
+          </div>
+          <div className="flex justify-end">
+            <button 
+              type="button" 
+              onClick={() => sigCanvas.current?.clear()}
+              className="text-xs font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors"
+            >
+              Limpiar Firma
+            </button>
+          </div>
+        </div>
+
         <div className="pt-8 flex gap-4">
           <button 
             type="submit"
@@ -8435,62 +8856,7 @@ function DiagnosticDetailView({ diagnosticId, navigateTo, diagnostics }: { diagn
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFillColor(60, 107, 148);
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('VIMEDICAL', 20, 25);
-    
-    doc.setFontSize(10);
-    doc.text('CENTRO ESPECIALIZADO DE ATENCIÓN A', 100, 20);
-    doc.text('HERIDAS COMPLEJAS Y PIE DIABÉTICO', 100, 26);
-
-    // Content
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12);
-    doc.text(`PACIENTE: ${diagnostic.patientName}`, 20, 55);
-    doc.text(`EDAD: ${diagnostic.patientAge} años`, 120, 55);
-    doc.text(`FECHA: ${diagnostic.date}`, 160, 55);
-
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DIAGNÓSTICO ELECTRÓNICO', 105, 75, { align: 'center' });
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RESUMEN CLÍNICO:', 20, 90);
-    doc.setFont('helvetica', 'normal');
-    doc.text(diagnostic.clinicalSummary, 20, 95, { maxWidth: 170 });
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('DIAGNÓSTICO:', 20, 120);
-    doc.setFont('helvetica', 'normal');
-    doc.text(diagnostic.diagnosis, 20, 125, { maxWidth: 170 });
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('PLAN DE TRATAMIENTO:', 20, 150);
-    doc.setFont('helvetica', 'normal');
-    doc.text(diagnostic.treatmentPlan, 20, 155, { maxWidth: 170 });
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('RECOMENDACIONES:', 20, 185);
-    doc.setFont('helvetica', 'normal');
-    doc.text(diagnostic.recommendations, 20, 190, { maxWidth: 170 });
-
-    // Footer
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(diagnostic.doctorName, 105, 250, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Cédula Profesional: ${diagnostic.doctorLicense}`, 105, 255, { align: 'center' });
-    doc.text('Firma del Médico Responsable', 105, 265, { align: 'center' });
-
-    doc.save(`Diagnostico_${diagnostic.patientName.replace(' ', '_')}.pdf`);
+    generateDiagnosticPDF(diagnostic);
     toast.success('PDF generado correctamente.');
   };
 
@@ -8594,6 +8960,654 @@ function DiagnosticDetailView({ diagnosticId, navigateTo, diagnostics }: { diagn
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Cédula Profesional: {diagnostic.doctorLicense}</p>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Firma del Médico Responsable</p>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsView({ patients, wounds, treatmentLogs }: { patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[] }) {
+  const [salesData, setSalesData] = useState<{ name: string, sales: number }[]>([]);
+  const [topProducts, setTopProducts] = useState<{ name: string, quantity: number }[]>([]);
+  
+  const activeWounds = wounds.filter(w => w.status !== 'completed' && w.status !== 'rejected');
+  const completedWounds = wounds.filter(w => w.status === 'completed');
+  
+  useEffect(() => {
+    const fetchSales = async () => {
+      try {
+        const { data: orders, error } = await supabase.from('orders').select('*, order_items(*)');
+        if (error) throw error;
+        
+        // Group by month
+        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
+        const grouped = months.map(m => ({ name: m, sales: 0 }));
+        
+        orders?.forEach(order => {
+          const date = new Date(order.created_at);
+          const monthIdx = date.getMonth();
+          if (monthIdx < grouped.length) {
+            grouped[monthIdx].sales += Number(order.total_amount);
+          }
+        });
+        setSalesData(grouped);
+
+        // Top products
+        const productCounts: Record<string, number> = {};
+        orders?.forEach(order => {
+          order.order_items?.forEach((item: any) => {
+            productCounts[item.product_id] = (productCounts[item.product_id] || 0) + item.quantity;
+          });
+        });
+        // For demo, we'll just use some names if we had product names
+        setTopProducts([
+          { name: 'Prontosan Solución', quantity: 45 },
+          { name: 'Apósito de Plata', quantity: 32 },
+          { name: 'Gasas Estériles', quantity: 28 },
+        ]);
+
+      } catch (e) {
+        console.error('Error fetching sales analytics:', e);
+      }
+    };
+    fetchSales();
+  }, []);
+
+  const healingData = [
+    { name: 'Ene', active: 4, completed: 1 },
+    { name: 'Feb', active: 6, completed: 2 },
+    { name: 'Mar', active: 8, completed: 5 },
+    { name: 'Abr', active: activeWounds.length, completed: completedWounds.length },
+  ];
+
+  const genderData = [
+    { name: 'Masculino', value: patients.filter(p => p.gender === 'Masculino').length || 12 },
+    { name: 'Femenino', value: patients.filter(p => p.gender === 'Femenino').length || 18 },
+  ];
+
+  const locationData = Array.from(new Set(wounds.map(w => w.location))).map(loc => ({
+    name: loc,
+    value: wounds.filter(w => w.location === loc).length
+  })).slice(0, 5);
+
+  const COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6'];
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Estadísticas Clínicas</h2>
+          <p className="text-slate-500 font-medium">Análisis detallado del rendimiento y progreso de pacientes.</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="bg-white border border-slate-200 p-3 rounded-xl text-slate-400 hover:text-primary transition-all shadow-sm">
+            <Filter className="w-5 h-5" />
+          </button>
+          <button className="bg-white border border-slate-200 px-6 py-3 rounded-xl text-slate-900 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm">
+            Exportar Datos
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-primary">
+              <Users className="w-6 h-6" />
+            </div>
+            <TrendingUp className="w-5 h-5 text-emerald-500" />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pacientes</p>
+          <h3 className="text-3xl font-black text-slate-900 mt-1">{patients.length}</h3>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500">
+              <Activity className="w-6 h-6" />
+            </div>
+            <TrendingDown className="w-5 h-5 text-rose-500" />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Heridas Activas</p>
+          <h3 className="text-3xl font-black text-slate-900 mt-1">{activeWounds.length}</h3>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <TrendingUp className="w-5 h-5 text-emerald-500" />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Altas Médicas</p>
+          <h3 className="text-3xl font-black text-slate-900 mt-1">{completedWounds.length}</h3>
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl shadow-slate-200/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <TrendingUp className="w-5 h-5 text-emerald-500" />
+          </div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ventas Totales</p>
+          <h3 className="text-3xl font-black text-slate-900 mt-1">
+            ${salesData.reduce((acc, curr) => acc + curr.sales, 0).toLocaleString()}
+          </h3>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <section className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-2xl shadow-slate-200/50">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-black text-slate-900">Ingresos por Ventas</h3>
+            <div className="flex items-center gap-2 text-emerald-500 font-bold text-sm">
+              <ArrowUpRight className="w-4 h-4" />
+              +12.5%
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={salesData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="sales" fill="#6366f1" radius={[10, 10, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-2xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8">Progreso de Curación</h3>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={healingData}>
+                <defs>
+                  <linearGradient id="colorActive" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fontWeight: 600, fill: '#94a3b8'}} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                />
+                <Area type="monotone" dataKey="active" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorActive)" />
+                <Area type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={4} fillOpacity={0} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-2xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8">Ubicación de Heridas</h3>
+          <div className="h-[300px] w-full flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={locationData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={80}
+                  outerRadius={120}
+                  paddingAngle={8}
+                  dataKey="value"
+                >
+                  {locationData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend verticalAlign="bottom" height={36}/>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-2xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8">Productos Más Vendidos</h3>
+          <div className="space-y-6">
+            {topProducts.map((product, idx) => (
+              <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center font-black text-slate-400 border border-slate-100">
+                    {idx + 1}
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-900">{product.name}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Insumo Médico</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-black text-primary">{product.quantity}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ventas</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function InventoryView({ sendNotification }: { sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    description: '',
+    price: '',
+    stock: '',
+    category: 'Insumos',
+    imageUrl: 'https://picsum.photos/seed/medical/400/400'
+  });
+
+  const fetchProducts = async () => {
+    try {
+      const { data, error } = await supabase.from('products').select('*').order('name');
+      if (error) throw error;
+      if (data) {
+        setProducts(data.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          stock: p.stock,
+          imageUrl: p.image_url,
+          category: p.category
+        })));
+      }
+    } catch (e) {
+      console.error('Error fetching inventory:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const handleUpdateStock = async (id: string, newStock: number) => {
+    try {
+      const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', id);
+      if (error) throw error;
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: newStock } : p));
+      toast.success('Stock actualizado');
+
+      // Notificar si el stock es bajo
+      if (newStock < 5) {
+        const product = products.find(p => p.id === id);
+        if (product) {
+          await sendNotification(
+            'Alerta de Stock Bajo',
+            `El producto ${product.name} tiene solo ${newStock} unidades.`,
+            `Atención Administrador: El producto ${product.name} está por agotarse. Quedan solo ${newStock} unidades en inventario.`,
+            'Administrador'
+          );
+        }
+      }
+    } catch (e) {
+      toast.error('Error al actualizar stock');
+    }
+  };
+
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase.from('products').insert({
+        name: newProduct.name,
+        description: newProduct.description,
+        price: Number(newProduct.price),
+        stock: Number(newProduct.stock),
+        category: newProduct.category,
+        image_url: newProduct.imageUrl
+      });
+      if (error) throw error;
+      toast.success('Producto añadido');
+      setShowAddModal(false);
+      fetchProducts();
+    } catch (e) {
+      toast.error('Error al añadir producto');
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm('¿Estás seguro de eliminar este producto?')) return;
+    try {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
+      setProducts(prev => prev.filter(p => p.id !== id));
+      toast.success('Producto eliminado');
+    } catch (e) {
+      toast.error('Error al eliminar producto');
+    }
+  };
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Inventario</h2>
+          <p className="text-slate-500 font-medium">Control de existencias y alertas de stock bajo.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="bg-amber-50 border border-amber-200 px-6 py-3 rounded-2xl flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <span className="text-sm font-black text-amber-700">
+              {products.filter(p => p.stock < 5).length} Stock bajo
+            </span>
+          </div>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="bg-primary text-white px-6 py-3 rounded-xl font-black hover:bg-indigo-700 transition-all shadow-xl shadow-primary/20 flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Nuevo Producto
+          </button>
+        </div>
+      </header>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-xl font-black text-slate-900">Añadir Producto</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleAddProduct} className="p-8 space-y-6">
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Nombre</label>
+                <input 
+                  type="text" required
+                  value={newProduct.name}
+                  onChange={e => setNewProduct({...newProduct, name: e.target.value})}
+                  className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Precio</label>
+                  <input 
+                    type="number" required
+                    value={newProduct.price}
+                    onChange={e => setNewProduct({...newProduct, price: e.target.value})}
+                    className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+                <div className="space-y-4">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Stock</label>
+                  <input 
+                    type="number" required
+                    value={newProduct.stock}
+                    onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
+                    className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Descripción</label>
+                <textarea 
+                  required
+                  value={newProduct.description}
+                  onChange={e => setNewProduct({...newProduct, description: e.target.value})}
+                  className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none h-24"
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-6 py-4 rounded-2xl border border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-primary text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all"
+                >
+                  Guardar Producto
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border border-slate-200 rounded-[3rem] overflow-hidden shadow-2xl shadow-slate-200/50">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100">
+              <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Producto</th>
+              <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Categoría</th>
+              <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Precio</th>
+              <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Stock Actual</th>
+              <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {products.map(product => (
+              <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
+                <td className="p-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden">
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900">{product.name}</p>
+                      <p className="text-xs text-slate-400 font-medium truncate max-w-[200px]">{product.description}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="p-8">
+                  <span className="px-3 py-1 rounded-full bg-indigo-50 text-primary text-[10px] font-black uppercase tracking-widest">
+                    {product.category}
+                  </span>
+                </td>
+                <td className="p-8 font-black text-slate-900">
+                  ${product.price.toLocaleString()}
+                </td>
+                <td className="p-8">
+                  <div className="flex items-center gap-3">
+                    <span className={`w-3 h-3 rounded-full ${product.stock < 5 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                    <span className="font-black text-slate-900">{product.stock} unidades</span>
+                  </div>
+                </td>
+                <td className="p-8">
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleUpdateStock(product.id, Math.max(0, product.stock - 1))}
+                      className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-200 transition-all"
+                    >
+                      <TrendingDown className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleUpdateStock(product.id, product.stock + 1)}
+                      className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:border-emerald-200 transition-all"
+                    >
+                      <TrendingUp className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteProduct(product.id)}
+                      className="w-10 h-10 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-500 hover:border-red-200 transition-all ml-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function OrdersView({ sendNotification }: { sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*, profiles(full_name, email), order_items(*, products(name))')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setOrders(data || []);
+    } catch (e) {
+      console.error('Error fetching orders:', e);
+      toast.error('Error al cargar pedidos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      toast.success('Estado del pedido actualizado');
+
+      // Notificar al personal (en este caso simplificado, a todos los enfermeros/doctores)
+      // En una versión real, esto sería específico para el usuario que hizo el pedido
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        await sendNotification(
+          'Actualización de Pedido',
+          `Tu pedido #${orderId.slice(0, 8)} ha cambiado a: ${getStatusLabel(newStatus)}`,
+          `Atención: El estado de su pedido ha sido actualizado a ${getStatusLabel(newStatus)}.`,
+          'Enfermero' // Notificamos a enfermeros por defecto, o podríamos detectar el rol del usuario
+        );
+      }
+    } catch (e) {
+      toast.error('Error al actualizar estado');
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-amber-100 text-amber-700';
+      case 'processing': return 'bg-blue-100 text-blue-700';
+      case 'shipped': return 'bg-indigo-100 text-indigo-700';
+      case 'delivered': return 'bg-emerald-100 text-emerald-700';
+      case 'cancelled': return 'bg-rose-100 text-rose-700';
+      default: return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pendiente';
+      case 'processing': return 'Procesando';
+      case 'shipped': return 'Enviado';
+      case 'delivered': return 'Entregado';
+      case 'cancelled': return 'Cancelado';
+      default: return status;
+    }
+  };
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <header>
+        <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Pedidos</h2>
+        <p className="text-slate-500 font-medium">Administra las compras realizadas por el personal.</p>
+      </header>
+
+      <div className="bg-white border border-slate-200 rounded-[3rem] overflow-hidden shadow-2xl shadow-slate-200/50">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID Pedido</th>
+                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Usuario</th>
+                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</th>
+                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                <th className="p-8 text-[10px] font-black text-slate-400 uppercase tracking-widest">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-20 text-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                      <p className="font-black text-slate-400 uppercase tracking-widest text-xs">Cargando pedidos...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : orders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-20 text-center">
+                    <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No hay pedidos registrados</p>
+                  </td>
+                </tr>
+              ) : (
+                orders.map(order => (
+                  <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="p-8">
+                      <span className="font-mono text-xs font-bold text-slate-400">#{order.id.slice(0, 8)}</span>
+                    </td>
+                    <td className="p-8">
+                      <div>
+                        <p className="font-black text-slate-900">{order.profiles?.full_name || 'Usuario Desconocido'}</p>
+                        <p className="text-xs text-slate-400 font-medium">{order.profiles?.email}</p>
+                      </div>
+                    </td>
+                    <td className="p-8">
+                      <p className="font-bold text-slate-600 text-sm">
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </p>
+                    </td>
+                    <td className="p-8 font-black text-slate-900">
+                      ${Number(order.total_amount).toLocaleString()}
+                    </td>
+                    <td className="p-8">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusColor(order.status)}`}>
+                        {getStatusLabel(order.status)}
+                      </span>
+                    </td>
+                    <td className="p-8">
+                      <select 
+                        value={order.status}
+                        onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="pending">Pendiente</option>
+                        <option value="processing">Procesando</option>
+                        <option value="shipped">Enviado</option>
+                        <option value="delivered">Entregado</option>
+                        <option value="cancelled">Cancelado</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

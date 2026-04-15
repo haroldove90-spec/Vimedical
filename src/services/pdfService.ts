@@ -1,6 +1,167 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Patient, Wound, TreatmentLog, Quotation } from '../mockData';
+import { Patient, Wound, TreatmentLog, Quotation, Diagnostic, MedicalCertificate } from '../mockData';
+
+export const generateDiagnosticPDF = (diagnostic: Diagnostic) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, pageWidth, 40, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ViMedical', 20, 25);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('DIAGNÓSTICO CLÍNICO', pageWidth - 20, 25, { align: 'right' });
+
+  // Patient Info
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Información del Paciente', 20, 55);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Paciente: ${diagnostic.patientName}`, 20, 65);
+  doc.text(`Edad: ${diagnostic.patientAge} años`, 20, 72);
+  doc.text(`Fecha: ${new Date(diagnostic.date).toLocaleDateString()}`, 20, 79);
+
+  // Clinical Summary
+  doc.setFont('helvetica', 'bold');
+  doc.text('Resumen Clínico:', 20, 95);
+  doc.setFont('helvetica', 'normal');
+  const summaryLines = doc.splitTextToSize(diagnostic.clinicalSummary, pageWidth - 40);
+  doc.text(summaryLines, 20, 102);
+  
+  let currentY = 102 + (summaryLines.length * 5) + 10;
+
+  // Diagnosis
+  doc.setFont('helvetica', 'bold');
+  doc.text('Diagnóstico:', 20, currentY);
+  doc.setFont('helvetica', 'normal');
+  const diagnosisLines = doc.splitTextToSize(diagnostic.diagnosis, pageWidth - 40);
+  doc.text(diagnosisLines, 20, currentY + 7);
+  
+  currentY += 7 + (diagnosisLines.length * 5) + 10;
+
+  // Treatment Plan
+  doc.setFont('helvetica', 'bold');
+  doc.text('Plan de Tratamiento:', 20, currentY);
+  doc.setFont('helvetica', 'normal');
+  const planLines = doc.splitTextToSize(diagnostic.treatmentPlan, pageWidth - 40);
+  doc.text(planLines, 20, currentY + 7);
+  
+  currentY += 7 + (planLines.length * 5) + 10;
+
+  // Recommendations
+  doc.setFont('helvetica', 'bold');
+  doc.text('Recomendaciones:', 20, currentY);
+  doc.setFont('helvetica', 'normal');
+  const recLines = doc.splitTextToSize(diagnostic.recommendations, pageWidth - 40);
+  doc.text(recLines, 20, currentY + 7);
+
+  // Signature
+  const footerY = 260;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(20, footerY, 90, footerY);
+  doc.setFontSize(9);
+  doc.text(diagnostic.doctorName, 55, footerY + 5, { align: 'center' });
+  doc.text(`Cédula: ${diagnostic.doctorLicense}`, 55, footerY + 10, { align: 'center' });
+  
+  if (diagnostic.signature) {
+    try {
+      doc.addImage(diagnostic.signature, 'PNG', 30, footerY - 25, 50, 20);
+    } catch (e) {
+      console.error('Error adding signature to diagnostic PDF', e);
+    }
+  }
+
+  doc.save(`ViMedical_Diagnostico_${diagnostic.patientName.replace(/\s+/g, '_')}.pdf`);
+};
+
+export const generateCertificatePDF = (certificate: MedicalCertificate) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, pageWidth, 40, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ViMedical', 20, 25);
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('CERTIFICADO MÉDICO', pageWidth - 20, 25, { align: 'right' });
+
+  // Content
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  const date = new Date(certificate.date);
+  const dateStr = date.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+  
+  doc.text(`Fecha: ${dateStr}`, pageWidth - 20, 50, { align: 'right' });
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('DATOS DEL PACIENTE', 20, 60);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Nombre: ${certificate.patientName}`, 20, 67);
+  doc.text(`Edad: ${certificate.patientAge} años`, 120, 67);
+
+  // Clinical Details
+  let currentY = 80;
+  
+  const sections = [
+    { title: 'ESTADO FÍSICO:', content: certificate.physicalState },
+    { title: 'DETALLES DE HERIDA:', content: certificate.woundDetails },
+    { title: 'TRATAMIENTO:', content: certificate.treatment },
+    { title: 'ESTADO VISUAL:', content: certificate.visualStatus },
+    { title: 'ESTADO AUDITIVO:', content: certificate.auditoryStatus },
+    { title: 'APARATO LOCOMOTOR:', content: certificate.locomotorStatus },
+    { title: 'EXAMEN NEUROLÓGICO:', content: certificate.neurologicalStatus },
+    { title: 'CONCLUSIONES:', content: certificate.conclusions },
+  ];
+
+  sections.forEach(section => {
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.text(section.title, 20, currentY);
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(section.content, pageWidth - 40);
+    doc.text(lines, 20, currentY + 6);
+    currentY += 6 + (lines.length * 5) + 8;
+  });
+
+  // Signature
+  const footerY = 260;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(pageWidth / 2 - 40, footerY, pageWidth / 2 + 40, footerY);
+  doc.setFontSize(9);
+  doc.text(`Dr. ${certificate.doctorName}`, pageWidth / 2, footerY + 5, { align: 'center' });
+  doc.text(`Cédula Profesional: ${certificate.doctorLicense}`, pageWidth / 2, footerY + 10, { align: 'center' });
+  
+  if (certificate.signature) {
+    try {
+      doc.addImage(certificate.signature, 'PNG', pageWidth / 2 - 25, footerY - 25, 50, 20);
+    } catch (e) {
+      console.error('Error adding signature to certificate PDF', e);
+    }
+  }
+
+  doc.save(`ViMedical_Certificado_${certificate.patientName.replace(/\s+/g, '_')}.pdf`);
+};
 
 export const generateQuotationPDF = (quotation: Quotation) => {
   const doc = new jsPDF();

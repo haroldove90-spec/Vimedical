@@ -12,18 +12,27 @@ const SYNC_QUEUE_KEY = 'vimedical_sync_queue';
 
 export const syncService = {
   getQueue(): SyncOperation[] {
-    const queue = localStorage.getItem(SYNC_QUEUE_KEY);
-    return queue ? JSON.parse(queue) : [];
+    try {
+      const queue = localStorage.getItem(SYNC_QUEUE_KEY);
+      return queue ? JSON.parse(queue) : [];
+    } catch (e) {
+      console.error('Error reading sync queue from localStorage:', e);
+      return [];
+    }
   },
 
   saveQueue(queue: SyncOperation[]) {
-    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    try {
+      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+    } catch (e) {
+      console.error('Error saving sync queue to localStorage:', e);
+    }
   },
 
   addToQueue(table: string, type: 'INSERT' | 'UPDATE' | 'DELETE', data: any) {
     const queue = this.getQueue();
     const operation: SyncOperation = {
-      id: crypto.randomUUID(),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
       table,
       type,
       data,
@@ -35,7 +44,7 @@ export const syncService = {
   },
 
   async processQueue() {
-    if (!navigator.onLine) return;
+    if (typeof navigator === 'undefined' || !navigator.onLine) return;
 
     const queue = this.getQueue();
     if (queue.length === 0) return;
@@ -77,11 +86,20 @@ export const syncService = {
 
   // Caching helpers
   setCache(key: string, data: any) {
-    localStorage.setItem(`cache_${key}`, JSON.stringify(data));
+    try {
+      localStorage.setItem(`cache_${key}`, JSON.stringify(data));
+    } catch (e) {
+      console.error(`Error saving cache for ${key}:`, e);
+    }
   },
 
   getCache(key: string) {
-    const data = localStorage.getItem(`cache_${key}`);
-    return data ? JSON.parse(data) : null;
+    try {
+      const data = localStorage.getItem(`cache_${key}`);
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      console.error(`Error reading cache for ${key}:`, e);
+      return null;
+    }
   }
 };
