@@ -92,6 +92,9 @@ CREATE TABLE IF NOT EXISTS wounds (
   abi_right_pedal TEXT,
   abi_right_post_tibial TEXT,
   prognosis TEXT,
+  doctor_comments TEXT,
+  visit_count INTEGER DEFAULT 0,
+  target_visits INTEGER DEFAULT 10,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

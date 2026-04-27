@@ -6522,6 +6522,20 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       };
       
       syncService.addToQueue('patients', 'INSERT', patientData);
+      
+      // Crear herida automática en offline si hay datos
+      if (patientData.current_condition || patientData.initial_wound_photo) {
+        const automaticWoundData = {
+          patient_id: tempId,
+          location: patientData.regions_segments || 'Región por especificar',
+          description: patientData.current_condition || 'Registro inicial de paciente',
+          status: 'pending_doctor',
+          initial_photos: patientData.initial_wound_photo ? [patientData.initial_wound_photo] : [],
+          proposed_plan: 'Plan pendiente de valoración detallada. Registrado automáticamente durante el alta del paciente.'
+        };
+        syncService.addToQueue('wounds', 'INSERT', automaticWoundData);
+      }
+
       syncService.addToQueue('notifications', 'INSERT', [
         {
           title: 'Nuevo Paciente Registrado (Offline)',
@@ -6696,6 +6710,31 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
             target_role: 'Doctor'
           }
         ]);
+
+        // Crear automáticamente una valoración pendiente para que el doctor pueda autorizar
+        // si se proporcionó información de padecimiento actual
+        if (patientData.current_condition || patientData.initial_wound_photo) {
+          const automaticWoundData = {
+            patient_id: data.id,
+            location: (patientData as any).regions_segments || 'Región por especificar',
+            description: (patientData as any).current_condition || 'Registro inicial de paciente',
+            status: 'pending_doctor',
+            initial_photos: patientData.initial_wound_photo ? [patientData.initial_wound_photo] : [],
+            proposed_plan: 'Plan pendiente de valoración detallada. Registrado automáticamente durante el alta del paciente.'
+          };
+          
+          const { error: woundError } = await supabase.from('wounds').insert([automaticWoundData]);
+          if (!woundError) {
+            await supabase.from('notifications').insert([
+              {
+                title: 'Plan de Tratamiento Pendiente',
+                body: `Se ha generado un registro para ${newPatient.fullName}. Requiere su valoración y autorización.`,
+                voice_text: `Doctor: El paciente ${newPatient.fullName} ya tiene un registro clínico inicial. Por favor, revise y autorice el tratamiento para comenzar las visitas.`,
+                target_role: 'Doctor'
+              }
+            ]);
+          }
+        }
 
         setCreatedPatientId(data.id);
         onSave(newPatient);
