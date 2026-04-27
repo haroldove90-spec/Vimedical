@@ -1209,24 +1209,101 @@ export default function App() {
     // Removed navigateTo to allow NewPatientFormView to show success screen
   };
 
-  const handleSaveQuotation = (newQuotation: Quotation) => {
-    const updatedQuotations = [newQuotation, ...quotations];
-    setQuotations(updatedQuotations);
-    syncService.setCache('quotations', updatedQuotations);
+  const handleSaveQuotation = async (newQuotation: Quotation) => {
+    setQuotations(prev => [newQuotation, ...prev]);
+    syncService.setCache('quotations', [newQuotation, ...quotations]);
+    
+    try {
+      if (navigator.onLine) {
+        const { error } = await supabase.from('quotations').insert([{
+          id: newQuotation.id,
+          patient_id: newQuotation.patientId,
+          patient_name: newQuotation.patientName,
+          total_amount: newQuotation.totalAmount,
+          status: newQuotation.status,
+          notes: newQuotation.notes,
+          created_at: newQuotation.createdAt
+        }]);
+        if (error) throw error;
+        
+        // Items
+        const items = newQuotation.items.map(item => ({
+          quotation_id: newQuotation.id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_cost: item.unitCost,
+          total: item.total
+        }));
+        await supabase.from('quotation_items').insert(items);
+        toast.success('Cotización guardada y sincronizada');
+      } else {
+        syncService.addToQueue('quotations', 'INSERT', newQuotation);
+        toast.success('Cotización guardada (offline)');
+      }
+    } catch (err) {
+      console.error('Error syncing quotation:', err);
+      toast.error('Error de sincronización');
+    }
     navigateTo('quotations');
   };
 
-  const handleSaveCertificate = (newCertificate: MedicalCertificate) => {
-    const updatedCertificates = [newCertificate, ...certificates];
-    setCertificates(updatedCertificates);
-    syncService.setCache('certificates', updatedCertificates);
+  const handleSaveCertificate = async (newCertificate: MedicalCertificate) => {
+    setCertificates(prev => [newCertificate, ...prev]);
+    syncService.setCache('certificates', [newCertificate, ...certificates]);
+    
+    try {
+      if (navigator.onLine) {
+        const { error } = await supabase.from('medical_certificates').insert([{
+          id: newCertificate.id,
+          patient_id: newCertificate.patientId,
+          patient_name: newCertificate.patientName,
+          date: newCertificate.date,
+          content: newCertificate.physicalState || '', // Adapt if schema differs
+          doctor_name: newCertificate.doctorName,
+          doctor_license: newCertificate.doctorLicense,
+          signature: newCertificate.signature,
+          created_at: newCertificate.createdAt
+        }]);
+        if (error) throw error;
+        toast.success('Certificado guardado y sincronizado');
+      } else {
+        syncService.addToQueue('medical_certificates', 'INSERT', newCertificate);
+        toast.success('Certificado guardado (offline)');
+      }
+    } catch (err) {
+      console.error('Error syncing certificate:', err);
+    }
     navigateTo('certificates');
   };
 
-  const handleSaveProposal = (newProposal: TreatmentProposal) => {
-    const updatedProposals = [newProposal, ...proposals];
-    setProposals(updatedProposals);
-    syncService.setCache('proposals', updatedProposals);
+  const handleSaveProposal = async (newProposal: TreatmentProposal) => {
+    setProposals(prev => [newProposal, ...prev]);
+    syncService.setCache('proposals', [newProposal, ...proposals]);
+    
+    try {
+      if (navigator.onLine) {
+        const { error } = await supabase.from('treatment_proposals').insert([{
+          id: newProposal.id,
+          patient_id: newProposal.patientId,
+          patient_name: newProposal.patientName,
+          program: newProposal.program,
+          num_curations: newProposal.numCurations,
+          materials: newProposal.materials,
+          investment: newProposal.investment,
+          status: newProposal.status,
+          nurse_id: newProposal.nurseId,
+          created_at: newProposal.createdAt
+        }]);
+        if (error) throw error;
+        toast.success('Propuesta guardada y sincronizada');
+      } else {
+        syncService.addToQueue('treatment_proposals', 'INSERT', newProposal);
+        toast.success('Propuesta guardada (offline)');
+      }
+    } catch (err) {
+      console.error('Error syncing proposal:', err);
+      toast.error('Error de sincronización');
+    }
     navigateTo('treatment-proposals');
   };
 
@@ -1825,18 +1902,6 @@ export default function App() {
             Propuesta de Tratamiento
           </button>
 
-          <button
-            onClick={() => navigateTo('diagnostics')}
-            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-              currentView === 'diagnostics' || currentView === 'new-diagnostic' || currentView === 'diagnostic-detail'
-                ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                : 'text-white/70 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Activity className="w-5 h-5" />
-            Diagnósticos
-          </button>
-
           {currentRole === 'Administrador' && (
             <>
               <button
@@ -1889,7 +1954,7 @@ export default function App() {
             </button>
           )}
 
-          {(currentRole === 'Administrador' || currentRole === 'Enfermero' || currentRole === 'Doctor') && (
+          {currentRole === 'Administrador' && (
             <button
               onClick={() => navigateTo('ecommerce')}
               className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
@@ -2389,9 +2454,17 @@ function ClinicalHistoryListView({ navigateTo, patients }: { navigateTo: (view: 
   };
 
   const exportToPDF = () => {
+    // Generate individual medical records for each patient as its list or a summary with branding
     const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text("Historial Clínico - ViMedical", 14, 22);
+    // Use the branding header from pdfService concepts (though we don't import addHeader directly)
+    // We can just use the generation service for each or one combined one.
+    // For now, let's just make sure the logo is included in the list PDF
+    
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text("ViMedical - Historiales Clínicos", 15, 20);
     
     const tableData = patients.map(p => [
       p.fullName,
@@ -2403,12 +2476,13 @@ function ClinicalHistoryListView({ navigateTo, patients }: { navigateTo: (view: 
     (doc as any).autoTable({
       head: [['Nombre', 'Teléfono', 'Nacimiento', 'Antecedentes']],
       body: tableData,
-      startY: 30,
-      theme: 'grid'
+      startY: 40,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] }
     });
 
-    doc.save("Historial_Clinico_ViMedical.pdf");
-    toast.success('PDF exportado correctamente');
+    doc.save(`ViMedical_Historiales_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success('PDF exportado con identidad ViMedical');
   };
 
   const filteredPatients = patients.filter(p => 
@@ -2945,13 +3019,14 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
     if (file) {
       setIsUploading(true);
       try {
-        const fileName = `profiles/${formData.user_id || formData.id}_${Date.now()}.png`;
+        const fileName = `profiles/${formData.user_id || formData.id || 'temp'}_${Date.now()}.png`;
         const url = await storageService.uploadFile('photos', fileName, file);
         if (url) {
           setFormData({ ...formData, photoUrl: url });
-          toast.success('Foto actualizada');
+          toast.success('Foto de perfil lista para guardar');
         }
       } catch (error) {
+        console.error('Error uploading profile photo:', error);
         toast.error('Error al subir la foto');
       } finally {
         setIsUploading(false);
@@ -5983,7 +6058,7 @@ function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { 
           >
             <FileText className="w-4 h-4" /> PDF
           </button>
-          {currentRole === 'Administrador' && (
+          {(currentRole === 'Enfermero' || currentRole === 'Administrador') && (
             <button 
               onClick={() => navigateTo('new-quotation')}
               className="bg-secondary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-secondary/20 hover:bg-secondary-dark transition-all"
