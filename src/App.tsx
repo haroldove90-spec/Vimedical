@@ -6415,8 +6415,8 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdPatientId, setCreatedPatientId] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setIsSubmitting(true);
 
     const patientData = {
@@ -6498,7 +6498,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       return;
     }
 
-    toast.loading('Guardando paciente...', { id: 'patient-save' });
+    toast.loading('Subiendo firmas y fotos...', { id: 'patient-save' });
     try {
       // Subir firmas a Storage si existen
       if (patientData.privacy_notice_signature && patientData.privacy_notice_signature.startsWith('data:image')) {
@@ -6512,11 +6512,13 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       
       // Subir foto inicial si existe
       if (patientData.initial_wound_photo && patientData.initial_wound_photo.startsWith('data:image')) {
+        toast.loading('Subiendo evidencia fotográfica...', { id: 'patient-save' });
         console.log('Subiendo evidencia fotográfica inicial...');
         const url = await storageService.uploadBase64('photos', `patient_${Date.now()}.png`, patientData.initial_wound_photo);
         if (url) patientData.initial_wound_photo = url;
       }
 
+      toast.loading('Guardando expediente...', { id: 'patient-save' });
       console.log('Insertando datos del paciente en Supabase:', patientData);
       
       // Sanitizar datos para la tabla de Supabase (solo columnas que existen en la DB)
@@ -6671,7 +6673,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         </div>
       </header>
 
-      <form className="space-y-10" onSubmit={handleSubmit}>
+      <div className="space-y-10" onKeyDown={e => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') e.preventDefault(); }}>
         
         {step === 1 && (
           <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -7185,17 +7187,6 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           </div>
           
           <div className="flex gap-4">
-            {step < 4 && (
-              <button 
-                type="button"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="bg-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-300 transition-all"
-              >
-                Guardar y Finalizar
-              </button>
-            )}
-            
             {step < 4 ? (
               <button 
                 type="button"
@@ -7206,7 +7197,8 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
               </button>
             ) : (
               <button 
-                type="submit" 
+                type="button"
+                onClick={() => handleSubmit()}
                 disabled={isSubmitting}
                 className="bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all disabled:opacity-50"
               >
@@ -7215,7 +7207,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
             )}
           </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
