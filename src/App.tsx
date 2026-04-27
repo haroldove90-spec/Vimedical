@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import {
@@ -489,6 +489,11 @@ export default function App() {
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLoadingHelp, setShowLoadingHelp] = useState(false);
+  
+  // Refs para evitar fugas de memoria y llamadas duplicadas
+  const lastFetchUserId = useRef<string | null>(null);
+  const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -546,6 +551,8 @@ export default function App() {
         setIsLoggedIn(false);
         setCurrentProfileData(null);
         setIsAuthChecking(false);
+        lastFetchUserId.current = null;
+        if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
         localStorage.removeItem('isLoggedIn');
         localStorage.removeItem('currentRole');
         localStorage.removeItem('currentProfile');
@@ -553,8 +560,18 @@ export default function App() {
       }
 
       if (session?.user) {
+        // Evitar múltiples llamadas al mismo tiempo para el mismo usuario
+        if (lastFetchUserId.current === session.user.id) {
+          console.log('App: Profile already loading or loaded for user, skipping duplicate fetch');
+          return;
+        }
+
         console.log('App: User session found, fetching profile for', session.user.id);
+        lastFetchUserId.current = session.user.id;
         
+        // Limpiar timeout anterior si existe
+        if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+
         // Solo mostramos el cargando si no tenemos datos en caché
         const cachedProfileStr = localStorage.getItem('currentProfile');
         const hasCachedProfile = cachedProfileStr !== null;
@@ -573,8 +590,8 @@ export default function App() {
           }
         }
         
-        // Timeout para la búsqueda de perfil (30s)
-        const profileTimeout = setTimeout(() => {
+        // Timeout extendido para la búsqueda de perfil (45s)
+        profileTimeoutRef.current = setTimeout(() => {
           console.error('App: Profile fetch timeout reached for', session.user.id);
           if (!hasCachedProfile) {
             toast.error('La verificación de perfil está tardando demasiado.');
@@ -583,7 +600,7 @@ export default function App() {
           } else {
             console.warn('App: Background profile fetch timed out, using cached data');
           }
-        }, 30000);
+        }, 45000);
 
         console.time(`profile_fetch_${session.user.id}`);
         try {
@@ -594,7 +611,7 @@ export default function App() {
             .limit(1);
 
           console.timeEnd(`profile_fetch_${session.user.id}`);
-          clearTimeout(profileTimeout);
+          if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
 
           if (error) {
             console.error('App: Error fetching profile:', error);
@@ -654,7 +671,7 @@ export default function App() {
             }
           }
         } catch (profileErr) {
-          clearTimeout(profileTimeout);
+          if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
           console.error('App: Unexpected error fetching profile:', profileErr);
           if (!hasCachedProfile) {
             setAuthError('Error inesperado al verificar tu cuenta.');
@@ -669,6 +686,7 @@ export default function App() {
 
     return () => {
       subscription.unsubscribe();
+      if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
     };
   }, []);
 
@@ -6342,6 +6360,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
     consentFormSignature: '',
     consentFormDate: '',
     consentFormType: 'casa',
+    initialWoundPhoto: '',
     pathologicalHistoryDetails: {
       endocrino: { diabetes: false, hipertiroidismo: false, hipotiroidismo: false, tiempo: '', tratamiento: '' },
       cardiovascular: { hipertension: false, palpitaciones: false, fiebreReumatica: false, varices: false, tiempo: '', tratamiento: '' },
@@ -6419,6 +6438,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       current_condition: formData.currentCondition,
       physical_exploration: formData.physicalExploration,
       regions_segments: formData.regionsSegments,
+      initial_wound_photo: formData.initialWoundPhoto || '',
       privacy_notice_signed: formData.privacyNoticeSigned || false,
       privacy_notice_signature: formData.privacyNoticeSignature || '',
       privacy_notice_date: formData.privacyNoticeDate || '',
@@ -6489,10 +6509,53 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         const url = await storageService.uploadBase64('signatures', `consent_${Date.now()}.png`, patientData.consent_form_signature);
         if (url) patientData.consent_form_signature = url;
       }
+      
+      // Subir foto inicial si existe
+      if (patientData.initial_wound_photo && patientData.initial_wound_photo.startsWith('data:image')) {
+        console.log('Subiendo evidencia fotográfica inicial...');
+        const url = await storageService.uploadBase64('photos', `patient_${Date.now()}.png`, patientData.initial_wound_photo);
+        if (url) patientData.initial_wound_photo = url;
+      }
+
+      console.log('Insertando datos del paciente en Supabase:', patientData);
+      
+      // Sanitizar datos para la tabla de Supabase (solo columnas que sabemos que existen)
+      const sanitizedData = {
+        full_name: patientData.full_name,
+        date_of_birth: patientData.date_of_birth,
+        gender: patientData.gender,
+        phone: patientData.phone,
+        address: patientData.address,
+        marital_status: patientData.marital_status,
+        occupation: patientData.occupation,
+        religion: patientData.religion,
+        family_history: patientData.family_history,
+        pathological_history: patientData.pathological_history,
+        non_pathological_history: patientData.non_pathological_history,
+        initial_wound_photo: patientData.initial_wound_photo,
+        privacy_notice_signed: patientData.privacy_notice_signed,
+        privacy_notice_date: patientData.privacy_notice_date,
+        privacy_notice_signature: patientData.privacy_notice_signature,
+        consent_form_signed: patientData.consent_form_signed,
+        consent_form_date: patientData.consent_form_date,
+        consent_form_signature: patientData.consent_form_signature
+      };
+
+      // Si la fecha fue capturada manualmente en formato DD/MM/AAAA, intentamos convertirla
+      if (sanitizedData.date_of_birth && sanitizedData.date_of_birth.includes('/')) {
+        const parts = sanitizedData.date_of_birth.split('/');
+        if (parts.length === 3) {
+          // Asumimos DD/MM/AAAA -> AAAA-MM-DD
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
+          const year = parts[2];
+          sanitizedData.date_of_birth = `${year}-${month}-${day}`;
+        }
+      }
 
       const { data, error } = await supabase
         .from('patients')
-        .insert([patientData])
+        .insert([sanitizedData])
         .select()
         .single();
       
@@ -6620,7 +6683,14 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
               
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento</label>
-                <input type="date" value={formData.dateOfBirth} onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <input 
+                  type="text" 
+                  placeholder="DD/MM/AAAA o AAAA-MM-DD"
+                  value={formData.dateOfBirth} 
+                  onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} 
+                  className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" 
+                />
+                <p className="text-[10px] text-slate-400 mt-1 ml-1 px-1 italic">Captura manual habilitada</p>
               </div>
               
               <div>
@@ -6633,8 +6703,9 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
                 <div className="relative">
                   <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none pr-12">
                     <option value="">Seleccionar...</option>
-                    <option value="Femenino">Femenino</option>
                     <option value="Masculino">Masculino</option>
+                    <option value="Femenino">Femenino</option>
+                    <option value="No Binario">No Binario</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <ChevronRight className="w-5 h-5 rotate-90" />
@@ -7017,6 +7088,78 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Descripción del Padecimiento</label>
                 <textarea rows={8} value={formData.currentCondition} onChange={e => setFormData({...formData, currentCondition: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Evidencia Fotográfica Inicial (Opcional)</label>
+                <div className="flex flex-col items-center gap-6 p-8 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/30">
+                  {formData.initialWoundPhoto ? (
+                    <div className="relative group">
+                      <img src={formData.initialWoundPhoto} alt="Evidencia" className="w-full max-w-sm rounded-2xl shadow-lg border-4 border-white" />
+                      <button 
+                        type="button"
+                        onClick={() => setFormData({...formData, initialWoundPhoto: ''})}
+                        className="absolute -top-3 -right-3 w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-all"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center text-center py-6">
+                      <div className="w-20 h-20 bg-primary/10 text-primary rounded-3xl flex items-center justify-center mb-4">
+                        <Camera className="w-10 h-10" />
+                      </div>
+                      <p className="text-slate-500 font-medium mb-6 max-w-xs">Toma una foto de la herida o carga un archivo desde tu dispositivo</p>
+                      
+                      <div className="flex flex-wrap justify-center gap-4">
+                        <label className="bg-primary text-white px-8 py-4 rounded-xl font-black text-sm cursor-pointer hover:bg-primary/90 transition-all flex items-center gap-3">
+                          <Plus className="w-5 h-5" />
+                          Subir Archivo
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setFormData({...formData, initialWoundPhoto: reader.result as string});
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.capture = 'environment';
+                            input.onchange = (e: any) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setFormData({...formData, initialWoundPhoto: reader.result as string});
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            };
+                            input.click();
+                          }}
+                          className="bg-secondary text-primary px-8 py-4 rounded-xl font-black text-sm hover:bg-secondary/80 transition-all flex items-center gap-3"
+                        >
+                          <Camera className="w-5 h-5" />
+                          Tomar Foto
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
