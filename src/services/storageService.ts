@@ -8,23 +8,43 @@ export const storageService = {
    * @param file Archivo a subir (File o Blob)
    */
   async uploadFile(bucket: string, path: string, file: File | Blob): Promise<string | null> {
+    console.log(`Iniciando subida a ${bucket}/${path}...`);
+    
+    // Timer para debugging de lentitud
+    const startTime = Date.now();
+    
     try {
-      const { data, error } = await supabase.storage
+      // Implementamos un timeout manual de 30 segundos
+      const timeoutPromise = new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout en la subida a Supabase Storage')), 30000)
+      );
+
+      const uploadPromise = supabase.storage
         .from(bucket)
         .upload(path, file, {
           upsert: true,
-          contentType: file.type
+          contentType: file.type || 'image/png',
+          cacheControl: '3600'
         });
 
-      if (error) throw error;
+      const { data, error } = await Promise.race([uploadPromise as any, timeoutPromise]);
 
+      if (error) {
+        console.error(`Error de Supabase Storage en ${bucket}:`, error);
+        throw error;
+      }
+
+      if (!data) throw new Error('No se recibieron datos de la subida');
+
+      console.log(`Subida exitosa a ${bucket}/${path} en ${Date.now() - startTime}ms. Obteniendo URL pública...`);
       const { data: { publicUrl } } = supabase.storage
         .from(bucket)
         .getPublicUrl(data.path);
 
+      console.log(`URL pública obtenida: ${publicUrl}`);
       return publicUrl;
     } catch (error) {
-      console.error(`Error uploading to ${bucket}:`, error);
+      console.error(`Error fatal subiendo a ${bucket}:`, error);
       return null;
     }
   },

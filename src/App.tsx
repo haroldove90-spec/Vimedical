@@ -6503,11 +6503,21 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       // Subir firmas a Storage si existen
       if (patientData.privacy_notice_signature && patientData.privacy_notice_signature.startsWith('data:image')) {
         const url = await storageService.uploadBase64('signatures', `privacy_${Date.now()}.png`, patientData.privacy_notice_signature);
-        if (url) patientData.privacy_notice_signature = url;
+        if (url) {
+          patientData.privacy_notice_signature = url;
+        } else {
+          console.warn('Fallo la subida de firma de aviso de privacidad, se guardará sin firma');
+          patientData.privacy_notice_signature = '';
+        }
       }
       if (patientData.consent_form_signature && patientData.consent_form_signature.startsWith('data:image')) {
         const url = await storageService.uploadBase64('signatures', `consent_${Date.now()}.png`, patientData.consent_form_signature);
-        if (url) patientData.consent_form_signature = url;
+        if (url) {
+          patientData.consent_form_signature = url;
+        } else {
+          console.warn('Fallo la subida de firma de consentimiento, se guardará sin firma');
+          patientData.consent_form_signature = '';
+        }
       }
       
       // Subir foto inicial si existe
@@ -6515,7 +6525,14 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         toast.loading('Subiendo evidencia fotográfica...', { id: 'patient-save' });
         console.log('Subiendo evidencia fotográfica inicial...');
         const url = await storageService.uploadBase64('photos', `patient_${Date.now()}.png`, patientData.initial_wound_photo);
-        if (url) patientData.initial_wound_photo = url;
+        if (url) {
+          patientData.initial_wound_photo = url;
+        } else {
+          // Si falla la subida de la foto, mostramos advertencia pero permitimos continuar sin la foto
+          // para no bloquear el registro del paciente
+          toast.error('No se pudo subir la foto, el registro continuará sin ella', { duration: 4000 });
+          patientData.initial_wound_photo = '';
+        }
       }
 
       toast.loading('Guardando expediente...', { id: 'patient-save' });
