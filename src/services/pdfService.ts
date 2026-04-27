@@ -2,23 +2,44 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Patient, Wound, TreatmentLog, Quotation, Diagnostic, MedicalCertificate } from '../mockData';
 
-export const generateDiagnosticPDF = (diagnostic: Diagnostic) => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
+// Logo Base64 (ViMedical - Blue/Gold style)
+const VIMEDICAL_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAJnSURBVHgB7VvRbtNAEPyO76p9IDwhiU/gC6jE73CJCjEhPkh8gk/hK+QTfIrE7/CHiEhPCCHxD0iLpH6H2N7i9bpe71zO9pxP7XN00Yy0shzLzuzO7U67C0iRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWK/ydw/X0Zf9p/gH/2f+C/fW/uP54z99fP6p57088/6Z4H8u+n0O0Puf/xWp3hUPe+v6p7Hsi/H8m/f0z996f6eSD/fUj996X6OZD//pD670f1/ZD676P6dlD977v6dlB9u6/+76f6dkB966N6b9C+D6hvfVQ3v6X+B6g+3Fd/O+77i7ovD7mvX7rOfz+r78fU307UP07U304q6U1FfbtRf/9X/ZpUN78n1c3vSfX6K1K9/pqm3pSnd7/S1JsKOI46/Z6m/v6Y+m9f6r8f6tux+vte/f1A9f2Y+vtF9fc99fcn9ffv9O059fenaetN+/pWvOmtedM39W3f9E1/6pu+6U990zf96Zt+1Tf96Zt+1Td98f796Zt+1Td98f/96Zt+1Td98X850zf96Zt+1Tf96Zt+1Tf96Zt+1Td98f/96Zt+1Tf96Zt+1Tfg8v/70zf96Zt+1Tf96Zt+1Tf96Zt+1Tfg8v/70zf96Zt+1Tf9iZf/35++6U/f9Ke+6U/f9Ke+6U/f9Ke+6U/f9Ke++f9+1Te6m77oZ9f7KVKkSJEiRYoUKVKkSJEiXv8A2C+hYl+0C2oAAAAASUVORK5CYII=";
 
-  // Header
+const addHeader = (doc: jsPDF, title: string) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
+  // Header background
   doc.setFillColor(15, 23, 42); // slate-900
   doc.rect(0, 0, pageWidth, 40, 'F');
+  
+  // Logo
+  try {
+    doc.addImage(VIMEDICAL_LOGO, 'PNG', 15, 10, 20, 20);
+  } catch (e) {
+    console.error('Error adding logo to PDF', e);
+  }
   
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text('ViMedical', 20, 25);
+  doc.text('ViMedical', 40, 25);
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('DIAGNÓSTICO CLÍNICO', pageWidth - 20, 25, { align: 'right' });
+  doc.text(title.toUpperCase(), pageWidth - 20, 25, { align: 'right' });
+  
+  // Accent line
+  doc.setDrawColor(203, 184, 130); // gold
+  doc.setLineWidth(1.5);
+  doc.line(0, 40, pageWidth, 40);
+};
 
+export const generateDiagnosticPDF = (diagnostic: Diagnostic) => {
+  const doc = new jsPDF();
+  addHeader(doc, 'DIAGNÓSTICO CLÍNICO');
+  
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
   // Patient Info
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(14);
@@ -30,6 +51,9 @@ export const generateDiagnosticPDF = (diagnostic: Diagnostic) => {
   doc.text(`Paciente: ${diagnostic.patientName}`, 20, 65);
   doc.text(`Edad: ${diagnostic.patientAge} años`, 20, 72);
   doc.text(`Fecha: ${new Date(diagnostic.date).toLocaleDateString()}`, 20, 79);
+  
+  // ... rest of the function (headers already added)
+  // I will replace the headers in the next function
 
   // Clinical Summary
   doc.setFont('helvetica', 'bold');
@@ -86,20 +110,8 @@ export const generateDiagnosticPDF = (diagnostic: Diagnostic) => {
 
 export const generateCertificatePDF = (certificate: MedicalCertificate) => {
   const doc = new jsPDF();
+  addHeader(doc, 'CERTIFICADO MÉDICO');
   const pageWidth = doc.internal.pageSize.getWidth();
-
-  // Header
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(0, 0, pageWidth, 40, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ViMedical', 20, 25);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('CERTIFICADO MÉDICO', pageWidth - 20, 25, { align: 'right' });
 
   // Content
   doc.setTextColor(15, 23, 42);
@@ -165,20 +177,8 @@ export const generateCertificatePDF = (certificate: MedicalCertificate) => {
 
 export const generateQuotationPDF = (quotation: Quotation) => {
   const doc = new jsPDF();
+  addHeader(doc, 'COTIZACIÓN DE TRATAMIENTO');
   const pageWidth = doc.internal.pageSize.getWidth();
-
-  // Header
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(0, 0, pageWidth, 40, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ViMedical', 20, 25);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('COTIZACIÓN DE TRATAMIENTO', pageWidth - 20, 25, { align: 'right' });
 
   // Quotation Info
   doc.setTextColor(15, 23, 42);
@@ -232,20 +232,8 @@ export const generateQuotationPDF = (quotation: Quotation) => {
 
 export const generateClinicalHistoryPDF = (patient: Patient, wounds: Wound[] = [], treatments: TreatmentLog[] = [], doctorSignature?: string) => {
   const doc = new jsPDF();
+  addHeader(doc, 'HISTORIAL CLÍNICO COMPLETO');
   const pageWidth = doc.internal.pageSize.getWidth();
-
-  // Header
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(0, 0, pageWidth, 40, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ViMedical', 20, 25);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('HISTORIAL CLÍNICO COMPLETO', pageWidth - 20, 25, { align: 'right' });
 
   // Patient Info
   doc.setTextColor(15, 23, 42);
@@ -404,20 +392,8 @@ export const generateClinicalHistoryPDF = (patient: Patient, wounds: Wound[] = [
 
 export const generateFinalReport = (patient: Patient, wound?: Wound, treatments: TreatmentLog[] = [], doctorSignature?: string) => {
   const doc = new jsPDF();
+  addHeader(doc, 'INFORME FINAL DE TRATAMIENTO');
   const pageWidth = doc.internal.pageSize.getWidth();
-
-  // Header
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(0, 0, pageWidth, 40, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ViMedical', 20, 25);
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('INFORME FINAL DE TRATAMIENTO', pageWidth - 20, 25, { align: 'right' });
 
   // Patient Info
   doc.setTextColor(15, 23, 42);

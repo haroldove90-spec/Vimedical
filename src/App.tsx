@@ -471,9 +471,15 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
-  const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [selectedWoundId, setSelectedWoundId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<View>(() => {
+    try {
+      return (localStorage.getItem('currentView') as View) || 'dashboard';
+    } catch (e) {
+      return 'dashboard';
+    }
+  });
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(() => localStorage.getItem('selectedPatientId'));
+  const [selectedWoundId, setSelectedWoundId] = useState<string | null>(() => localStorage.getItem('selectedWoundId'));
   const [patients, setPatients] = useState<Patient[]>(MOCK_PATIENTS);
   const [wounds, setWounds] = useState<Wound[]>(MOCK_WOUNDS);
   const [treatmentLogs, setTreatmentLogs] = useState<TreatmentLog[]>(MOCK_TREATMENTS);
@@ -483,10 +489,10 @@ export default function App() {
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(MOCK_DIAGNOSTICS);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
-  const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(null);
-  const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(null);
-  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null);
-  const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(null);
+  const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(() => localStorage.getItem('selectedQuotationId'));
+  const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(() => localStorage.getItem('selectedCertificateId'));
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(() => localStorage.getItem('selectedProposalId'));
+  const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(() => localStorage.getItem('selectedDiagnosticId'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLoadingHelp, setShowLoadingHelp] = useState(false);
   
@@ -1151,13 +1157,32 @@ export default function App() {
   };
 
   const navigateTo = useCallback((view: View, patientId?: string, woundId?: string, quotationId?: string, certificateId?: string, proposalId?: string, diagnosticId?: string) => {
-    if (patientId) setSelectedPatientId(patientId);
-    if (woundId) setSelectedWoundId(woundId);
-    if (quotationId) setSelectedQuotationId(quotationId);
-    if (certificateId) setSelectedCertificateId(certificateId);
-    if (proposalId) setSelectedProposalId(proposalId);
-    if (diagnosticId) setSelectedDiagnosticId(diagnosticId);
+    if (patientId) {
+      setSelectedPatientId(patientId);
+      localStorage.setItem('selectedPatientId', patientId);
+    }
+    if (woundId) {
+      setSelectedWoundId(woundId);
+      localStorage.setItem('selectedWoundId', woundId);
+    }
+    if (quotationId) {
+      setSelectedQuotationId(quotationId);
+      localStorage.setItem('selectedQuotationId', quotationId);
+    }
+    if (certificateId) {
+      setSelectedCertificateId(certificateId);
+      localStorage.setItem('selectedCertificateId', certificateId);
+    }
+    if (proposalId) {
+      setSelectedProposalId(proposalId);
+      localStorage.setItem('selectedProposalId', proposalId);
+    }
+    if (diagnosticId) {
+      setSelectedDiagnosticId(diagnosticId);
+      localStorage.setItem('selectedDiagnosticId', diagnosticId);
+    }
     setCurrentView(view);
+    localStorage.setItem('currentView', view);
     setIsSidebarOpen(false);
   }, []);
 
@@ -1317,7 +1342,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateWoundStatus = (woundId: string, status: Wound['status'], comments?: string) => {
+  const handleUpdateWoundStatus = async (woundId: string, status: Wound['status'], comments?: string) => {
     setWounds(prev => {
       const updated = prev.map(w => 
         w.id === woundId ? { ...w, status, doctorComments: comments || w.doctorComments } : w
@@ -1325,6 +1350,50 @@ export default function App() {
       syncService.setCache('wounds', updated);
       return updated;
     });
+
+    const wound = wounds.find(w => w.id === woundId);
+    const patientName = patients.find(p => p.id === wound?.patientId)?.fullName || 'Paciente';
+
+    try {
+      if (navigator.onLine) {
+        await supabase
+          .from('wounds')
+          .update({ 
+            status, 
+            doctor_comments: comments 
+          })
+          .eq('id', woundId);
+        
+        // Notificaciones
+        const statusText = status === 'approved' ? 'Aprobado' : 
+                          status === 'completed' ? 'Completado' : 
+                          status === 'rejected' ? 'Rechazado' : status;
+                          
+        // Notificar al Enfermero
+        sendNotification(
+          'Estado de Plan Actualizado',
+          `El plan de ${patientName} ha sido cambiado a ${statusText}.`,
+          `Atención enfermero: El doctor ha actualizado el estado de la herida de ${patientName} a ${statusText}.`,
+          'Enfermero'
+        );
+        
+        // Notificar al Administrador
+        sendNotification(
+          'Control de Plan: ' + statusText,
+          `Doctor actualizó estado de ${patientName}`,
+          `Admin: El doctor ha cambiado el estado del plan de ${patientName} a ${statusText}.`,
+          'Administrador'
+        );
+
+        toast.success(`Estado actualizado a ${statusText}`);
+      } else {
+        syncService.addToQueue('wounds', 'UPDATE', { id: woundId, status, doctor_comments: comments });
+        toast.success('Estado actualizado (offline)');
+      }
+    } catch (error) {
+      console.error('Error updating wound status:', error);
+      toast.error('Error al actualizar el estado');
+    }
   };
 
   const handleDeletePatient = (id: string) => {
@@ -1507,6 +1576,13 @@ export default function App() {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('currentRole');
     localStorage.removeItem('currentProfile');
+    localStorage.removeItem('currentView');
+    localStorage.removeItem('selectedPatientId');
+    localStorage.removeItem('selectedWoundId');
+    localStorage.removeItem('selectedQuotationId');
+    localStorage.removeItem('selectedCertificateId');
+    localStorage.removeItem('selectedProposalId');
+    localStorage.removeItem('selectedDiagnosticId');
     setCurrentView('dashboard');
     setIsSidebarOpen(false);
     
@@ -1989,6 +2065,7 @@ export default function App() {
               wounds={wounds}
               treatmentLogs={treatmentLogs}
               currentProfile={currentProfile}
+              sendNotification={sendNotification}
             />
           )}
           {currentView === 'quotations' && (
@@ -2286,16 +2363,29 @@ function ClinicalHistoryListView({ navigateTo, patients }: { navigateTo: (view: 
 
   const exportToExcel = () => {
     const data = patients.map(p => ({
-      Nombre: p.fullName,
-      Telefono: p.phone,
-      Nacimiento: p.dateOfBirth,
-      Antecedentes: p.pathologicalHistory || 'N/A'
+      'ID de Paciente': p.id.substring(0, 8),
+      'Nombre Completo': p.fullName,
+      'Teléfono': p.phone,
+      'Fecha de Nacimiento': p.dateOfBirth,
+      'Edad': new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear(),
+      'Género': p.gender || 'N/A',
+      'Estado Civil': p.maritalStatus || 'N/A',
+      'Ocupación': p.occupation || 'N/A',
+      'Dirección': p.address || 'N/A',
+      'Religión': p.religion || 'N/A',
+      'Escolaridad': p.educationLevel || 'N/A',
+      'Herida Inicial': p.initialWoundPhoto ? 'Sí' : 'No',
+      'Aviso Privacidad': p.privacyNoticeSigned ? `Firmado (${p.privacyNoticeDate})` : 'No',
+      'Consentimiento': p.consentFormSigned ? `Firmado (${p.consentFormDate})` : 'No',
+      'Antecedentes Familiares': p.familyHistory || 'Sin datos',
+      'Antecedentes Patológicos': p.pathologicalHistory || 'Sin datos',
+      'Antecedentes No Patológicos': p.nonPathologicalHistory || 'Sin datos'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Historiales");
-    XLSX.writeFile(workbook, "Historial_Clinico_ViMedical.xlsx");
-    toast.success('Excel exportado correctamente');
+    XLSX.writeFile(workbook, `Historial_Clinico_ViMedical_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Historiales exportados correctamente');
   };
 
   const exportToPDF = () => {
@@ -2405,7 +2495,8 @@ function ClinicalHistoryDetailView({
   currentRole,
   wounds,
   treatmentLogs,
-  currentProfile
+  currentProfile,
+  sendNotification
 }: { 
   patientId: string, 
   navigateTo: (view: View, pId?: string, wId?: string) => void, 
@@ -2414,7 +2505,8 @@ function ClinicalHistoryDetailView({
   currentRole: Role,
   wounds: Wound[],
   treatmentLogs: TreatmentLog[],
-  currentProfile: UserProfile | null
+  currentProfile: UserProfile | null,
+  sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => void
 }) {
   const patient = patients.find(p => p.id === patientId);
   if (!patient) return <div>Paciente no encontrado</div>;
@@ -2446,12 +2538,29 @@ function ClinicalHistoryDetailView({
     onUpdate(updatedPatient);
     setNewComment('');
     
-    // Notificar al otro rol
+    // Notificar al otro rol y al Administrador
     const targetRole = currentRole === 'Doctor' ? 'Enfermero' : 'Doctor';
-    triggerFullNotification(
+    const authorName = currentProfile?.fullName || (currentRole === 'Doctor' ? 'Dr. Especialista' : 'Enf. Operativo');
+    
+    sendNotification(
       'Nuevo comentario clínico',
-      `${comment.author} ha comentado en el historial de ${patient.fullName}`,
-      `Atención ${targetRole}: Hay un nuevo comentario clínico para el paciente ${patient.fullName}.`
+      `${authorName} ha comentado en el historial de ${patient.fullName}`,
+      `Atención ${targetRole}: Hay un nuevo comentario clínico de ${authorName} para el paciente ${patient.fullName}.`,
+      targetRole
+    );
+
+    // También notificar al Admin para control
+    sendNotification(
+      'Control: Comentario Clínico',
+      `${authorName} comentó a ${targetRole}`,
+      `Admin: Seguimiento de comunicación clínica para ${patient.fullName}.`,
+      'Administrador'
+    );
+
+    triggerFullNotification(
+      'Comentario Enviado',
+      `Tu comentario ha sido registrado y notificado al ${targetRole === 'Doctor' ? 'médico' : 'enfermero'}.`,
+      `Mensaje enviado correctamente.`
     );
   };
 
@@ -4295,18 +4404,20 @@ function SignaturePad({ onSave, onCancel, title }: { onSave: (signature: string)
 function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: View, pId?: string) => void, patients: Patient[], onDelete: (id: string) => void }) {
   const exportToExcel = () => {
     const data = patients.map(p => ({
-      Nombre: p.fullName,
-      Fecha_Nacimiento: p.dateOfBirth,
-      Telefono: p.phone,
-      Ocupacion: p.occupation,
-      Genero: p.gender,
-      Direccion: p.address
+      'ID': p.id.substring(0, 8),
+      'Nombre': p.fullName,
+      'F. Nacimiento': p.dateOfBirth,
+      'Teléfono': p.phone,
+      'Género': p.gender || 'N/A',
+      'Dirección': p.address || 'N/A',
+      'Ocupación': p.occupation || 'N/A',
+      'Religión': p.religion || 'N/A'
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pacientes");
-    XLSX.writeFile(workbook, "Pacientes_ViMedical.xlsx");
-    toast.success('Excel exportado correctamente');
+    XLSX.writeFile(workbook, `Pacientes_ViMedical_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Pacientes exportados correctamente');
   };
 
   const exportToPDF = () => {
@@ -4335,33 +4446,39 @@ function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: V
     toast.success('PDF exportado correctamente');
   };
 
+  const [search, setSearch] = useState('');
+  const filteredPatients = patients.filter(p => 
+    p.fullName.toLowerCase().includes(search.toLowerCase()) || 
+    p.phone.includes(search)
+  );
+
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Pacientes</h2>
-          <p className="text-slate-500 font-medium">Registro y búsqueda de pacientes.</p>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-slate-900">Gestión de Pacientes</h2>
+          <p className="text-slate-500 font-medium text-sm sm:text-base">Registro y búsqueda de pacientes activos en el sistema.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3">
           <button 
             onClick={exportToExcel}
-            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+            className="flex-1 sm:flex-none bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
           >
             <Download className="w-4 h-4" />
             Excel
           </button>
           <button 
             onClick={exportToPDF}
-            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+            className="flex-1 sm:flex-none bg-red-500 text-white px-5 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
           >
             <FileText className="w-4 h-4" />
             PDF
           </button>
           <button 
             onClick={() => navigateTo('new-patient')}
-            className="bg-secondary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-secondary/20 hover:bg-secondary-dark transition-all scale-100 active:scale-95"
+            className="w-full sm:w-auto bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-105 transition-all text-center"
           >
-            <PlusCircle className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             Nuevo Paciente
           </button>
         </div>
@@ -5800,17 +5917,21 @@ function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { 
 
   const exportToExcel = () => {
     const data = quotations.map(q => ({
-      Folio: q.id.substring(0, 8),
-      Paciente: q.patientName,
-      Fecha: new Date(q.createdAt).toLocaleDateString(),
-      Total: q.totalAmount,
-      Estado: q.status === 'sent' ? 'Enviada' : 'Pendiente'
+      'Folio': q.id.substring(0, 8),
+      'Paciente': q.patientName,
+      'Fecha Emisión': new Date(q.createdAt).toLocaleDateString(),
+      'Subtotal': q.totalAmount,
+      'IVA (0%)': 0,
+      'Total': q.totalAmount,
+      'Estado': q.status === 'sent' ? 'Enviada' : 'Pendiente',
+      'Conceptos': q.items.map(i => `${i.description} (x${i.quantity})`).join('; '),
+      'Notas': q.notes || ''
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Cotizaciones");
-    XLSX.writeFile(workbook, "Cotizaciones_ViMedical.xlsx");
-    toast.success('Excel exportado correctamente');
+    XLSX.writeFile(workbook, `Cotizaciones_ViMedical_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Cotizaciones exportadas correctamente');
   };
 
   const exportToPDF = () => {
