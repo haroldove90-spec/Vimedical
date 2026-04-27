@@ -4732,7 +4732,51 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         abi_right_toe: formData.get('abiRightToe') as string,
         abi_right_pedal: formData.get('abiRightPedal') as string,
         abi_right_post_tibial: formData.get('abiRightPostTibial') as string,
+        prognosis: formData.get('prognosis') as string,
       };
+
+      // Sanitizar datos para la tabla de Supabase (ahora con soporte para todas las columnas clínicas)
+      const sanitizedWoundData: any = {
+        patient_id: woundData.patient_id,
+        location: woundData.location,
+        description: woundData.description,
+        proposed_plan: woundData.proposed_plan,
+        status: woundData.status,
+        initial_photos: uploadedPhotoUrls,
+        weight: woundData.weight,
+        height: woundData.height,
+        temp: woundData.temp,
+        blood_pressure_systolic: woundData.blood_pressure_systolic,
+        blood_pressure_diastolic: woundData.blood_pressure_diastolic,
+        pulse: woundData.pulse,
+        heart_rate: woundData.heart_rate,
+        respiratory_rate: woundData.respiratory_rate,
+        oxygenation: woundData.oxygenation,
+        glycemia_fasting: woundData.glycemia_fasting,
+        glycemia_postprandial: woundData.glycemia_postprandial,
+        width: woundData.width,
+        length: woundData.length,
+        depth: woundData.depth,
+        tunneling: woundData.tunneling,
+        sinus_tract: woundData.sinus_tract,
+        undermining: woundData.undermining,
+        pain_level: woundData.pain_level,
+        shape: woundData.shape,
+        tissue_type: woundData.tissue_type,
+        etiology: woundData.etiology,
+        classification: woundData.classification,
+        characteristics: woundData.characteristics,
+        abi_arm: woundData.abi_arm,
+        abi_left_toe: woundData.abi_left_toe,
+        abi_left_pedal: woundData.abi_left_pedal,
+        abi_left_post_tibial: woundData.abi_left_post_tibial,
+        abi_right_toe: woundData.abi_right_toe,
+        abi_right_pedal: woundData.abi_right_pedal,
+        abi_right_post_tibial: woundData.abi_right_post_tibial,
+        prognosis: woundData.prognosis,
+      };
+
+      console.log('Insertando valoración inicial completa:', sanitizedWoundData);
       
       const notificationData = [
         {
@@ -4764,11 +4808,11 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
           targetVisits: 10
         } as Wound;
         
-        syncService.addToQueue('wounds', 'INSERT', woundData);
+        syncService.addToQueue('wounds', 'INSERT', sanitizedWoundData);
         syncService.addToQueue('notifications', 'INSERT', notificationData);
         onSave(newWound);
       } else {
-        const { data, error } = await supabase.from('wounds').insert([woundData]).select().single();
+        const { data, error } = await supabase.from('wounds').insert([sanitizedWoundData]).select().single();
         if (error) throw error;
         if (data) {
           const newWound: Wound = {
@@ -4793,9 +4837,10 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
       setTimeout(() => {
         navigateTo('patient-detail', patientId);
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving assessment:', error);
-      toast.error('Error al guardar la valoración', { id: 'assessment-save' });
+      const errorMessage = error.message || 'Error desconocido';
+      toast.error(`Error al guardar la valoración: ${errorMessage}`, { id: 'assessment-save' });
     } finally {
       setIsSubmitting(false);
     }
