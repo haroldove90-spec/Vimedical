@@ -6631,9 +6631,10 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         toast.success('Paciente registrado correctamente', { id: 'patient-save' });
         setIsSuccess(true);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving patient:', error);
-      toast.error('Error al registrar el paciente', { id: 'patient-save' });
+      const errorMessage = error.message || 'Error desconocido';
+      toast.error(`Error al registrar el paciente: ${errorMessage}`, { id: 'patient-save' });
     } finally {
       setIsSubmitting(false);
     }

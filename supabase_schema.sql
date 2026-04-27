@@ -33,16 +33,22 @@ CREATE TABLE IF NOT EXISTS patients (
   marital_status TEXT,
   occupation TEXT,
   religion TEXT,
+  education_level TEXT,
   family_history TEXT,
   pathological_history TEXT,
   non_pathological_history TEXT,
   initial_wound_photo TEXT,
+  current_condition TEXT,
+  physical_exploration TEXT,
+  regions_segments TEXT,
   privacy_notice_signed BOOLEAN DEFAULT FALSE,
   privacy_notice_date TEXT,
   privacy_notice_signature TEXT,
+  privacy_notice_type TEXT DEFAULT 'casa',
   consent_form_signed BOOLEAN DEFAULT FALSE,
   consent_form_date TEXT,
   consent_form_signature TEXT,
+  consent_form_type TEXT DEFAULT 'casa',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
