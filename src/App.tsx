@@ -6519,8 +6519,8 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
 
       console.log('Insertando datos del paciente en Supabase:', patientData);
       
-      // Sanitizar datos para la tabla de Supabase (solo columnas que sabemos que existen)
-      const sanitizedData = {
+      // Sanitizar datos para la tabla de Supabase (solo columnas que existen en la DB)
+      const sanitizedData: any = {
         full_name: patientData.full_name,
         date_of_birth: patientData.date_of_birth,
         gender: patientData.gender,
@@ -6529,23 +6529,28 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         marital_status: patientData.marital_status,
         occupation: patientData.occupation,
         religion: patientData.religion,
+        education_level: formData.educationLevel || '',
         family_history: patientData.family_history,
         pathological_history: patientData.pathological_history,
         non_pathological_history: patientData.non_pathological_history,
         initial_wound_photo: patientData.initial_wound_photo,
+        current_condition: formData.currentCondition || '',
+        physical_exploration: formData.physicalExploration || '',
+        regions_segments: formData.regionsSegments || '',
         privacy_notice_signed: patientData.privacy_notice_signed,
         privacy_notice_date: patientData.privacy_notice_date,
         privacy_notice_signature: patientData.privacy_notice_signature,
+        privacy_notice_type: patientData.privacy_notice_type,
         consent_form_signed: patientData.consent_form_signed,
         consent_form_date: patientData.consent_form_date,
-        consent_form_signature: patientData.consent_form_signature
+        consent_form_signature: patientData.consent_form_signature,
+        consent_form_type: patientData.consent_form_type
       };
 
       // Si la fecha fue capturada manualmente en formato DD/MM/AAAA, intentamos convertirla
       if (sanitizedData.date_of_birth && sanitizedData.date_of_birth.includes('/')) {
         const parts = sanitizedData.date_of_birth.split('/');
         if (parts.length === 3) {
-          // Asumimos DD/MM/AAAA -> AAAA-MM-DD
           const day = parts[0].padStart(2, '0');
           const month = parts[1].padStart(2, '0');
           const year = parts[2];
@@ -6553,6 +6558,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         }
       }
 
+      console.log('Insertando datos del paciente en Supabase:', sanitizedData);
       const { data, error } = await supabase
         .from('patients')
         .insert([sanitizedData])
