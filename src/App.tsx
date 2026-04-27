@@ -874,7 +874,8 @@ export default function App() {
           consentFormSigned: p.consent_form_signed,
           consentFormSignature: p.consent_form_signature,
           consentFormDate: p.consent_form_date,
-          consentFormType: p.consent_form_type
+          consentFormType: p.consent_form_type,
+          clinicalComments: p.clinical_comments || []
         }));
         const finalPatients = [...formattedPatients];
         setPatients(finalPatients);
@@ -2583,6 +2584,108 @@ function ClinicalHistoryDetailView({
             </div>
           </div>
 
+          {/* Evolución y Evidencias */}
+          <div className="bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 space-y-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm">Historial de Visitas y Evidencias</h3>
+              <Activity className="w-5 h-5 text-primary" />
+            </div>
+
+            <div className="space-y-12">
+              {wounds.filter(w => w.patientId === patient.id).map(wound => {
+                const logs = treatmentLogs
+                  .filter(l => l.woundId === wound.id)
+                  .sort((a, b) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime());
+
+                return (
+                  <div key={wound.id} className="space-y-6">
+                    <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black">
+                        <Activity className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-slate-900">{wound.location}</h4>
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-widest">{wound.description}</p>
+                      </div>
+                    </div>
+
+                    {/* Initial Evidence */}
+                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Evidencia Inicial de esta Herida</p>
+                      <div className="flex gap-3 overflow-x-auto pb-2">
+                        {(wound.initialPhotos || []).map((photo, idx) => (
+                          <div key={idx} className="w-24 h-24 rounded-xl overflow-hidden shadow-sm border-2 border-white cursor-pointer hover:scale-105 transition-transform flex-shrink-0" onClick={() => setZoomedImage(photo)}>
+                            <img src={photo} alt={`Inicial ${idx}`} className="w-full h-full object-cover" />
+                          </div>
+                        ))}
+                        {(wound.initialPhotos || []).length === 0 && (
+                          <div className="w-24 h-24 rounded-xl bg-slate-200 flex items-center justify-center text-slate-400 text-xs text-center p-2">
+                            Sin fotos iniciales
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="relative pl-8 space-y-8 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100">
+                      {logs.map(log => (
+                        <div key={log.id} className="relative transition-all hover:translate-x-1">
+                          {/* Dot */}
+                          <div className="absolute -left-[27px] top-1.5 w-[12px] h-[12px] rounded-full bg-white border-2 border-primary z-10 shadow-sm shadow-primary/20" />
+                          
+                          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex flex-col sm:flex-row justify-between gap-4 mb-4">
+                              <div>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Fecha de Evaluación</span>
+                                <span className="text-sm font-bold text-slate-700">{new Date(log.evaluationDate).toLocaleString()}</span>
+                              </div>
+                              <div className="flex gap-4">
+                                <div className="text-right">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Medidas</span>
+                                  <span className="text-xs font-black text-primary">{log.width}x{log.length} cm</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Costo</span>
+                                  <span className="text-xs font-black text-emerald-600">${log.cost?.toLocaleString() || '0'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {log.notes && (
+                              <div className="mb-4 text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl italic">
+                                "{log.notes}"
+                              </div>
+                            )}
+
+                            {log.photos && log.photos.length > 0 && (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {log.photos.map((photo, idx) => (
+                                  <div key={idx} className="aspect-square rounded-xl overflow-hidden shadow-sm hover:ring-2 hover:ring-primary transition-all cursor-pointer" onClick={() => setZoomedImage(photo)}>
+                                    <img src={photo} alt={`Evidencia ${idx}`} className="w-full h-full object-cover" />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {logs.length === 0 && (
+                        <div className="text-center py-6 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No hay registros de tratamiento aún</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {wounds.filter(w => w.patientId === patient.id).length === 0 && (
+                <div className="text-center py-12">
+                  <Activity className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                  <p className="text-slate-400 font-medium">Este paciente no tiene heridas registradas.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Comunicación Directa / Comentarios */}
           <div className="bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 space-y-6">
             <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm border-b border-slate-100 pb-4">Comunicación Directa y Evolución</h3>
@@ -3847,6 +3950,13 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
                               `Atención Enfermero: El Doctor ha enviado comentarios de corrección para el paciente ${patient?.fullName}. Por favor revise las indicaciones.`,
                               'Enfermero'
                             );
+
+                            await sendNotification(
+                              'Plan de Tratamiento con Correcciones',
+                              `El Doctor ha solicitado correcciones para ${patient?.fullName}`,
+                              `Atención Administrador: El Doctor ha enviado correcciones para el plan de ${patient?.fullName}.`,
+                              'Administrador'
+                            );
                             onUpdateWoundStatus(wound.id, 'rejected', comments);
                             toast.success('Plan Rechazado. Se notificará al enfermero.');
                             setComments('');
@@ -3875,6 +3985,13 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
                               `El Doctor ha aprobado el plan para ${patient?.fullName}. Ya puede iniciar las visitas.`,
                               `Atención Enfermero: El Doctor ha aprobado el plan de tratamiento para ${patient?.fullName}. Ya puede consultar las indicaciones e iniciar las visitas.`,
                               'Enfermero'
+                            );
+
+                            await sendNotification(
+                              'Plan de Tratamiento Aprobado',
+                              `El Doctor ha aprobado el plan para ${patient?.fullName}.`,
+                              `Atención Administrador: El Doctor ha aprobado el plan de tratamiento para ${patient?.fullName}.`,
+                              'Administrador'
                             );
                             onUpdateWoundStatus(wound.id, 'approved', comments || 'Aprobado sin comentarios adicionales.');
                             toast.success('Plan Aprobado. El enfermero ya puede iniciar visitas.');
