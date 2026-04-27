@@ -590,35 +590,34 @@ export default function App() {
           }
         }
         
-        // Timeout extendido para la búsqueda de perfil (45s)
-        profileTimeoutRef.current = setTimeout(() => {
-          console.error('App: Profile fetch timeout reached for', session.user.id);
-          if (!hasCachedProfile) {
-            toast.error('La verificación de perfil está tardando demasiado.');
-            setIsAuthChecking(false);
-            setShowLoadingHelp(true);
-          } else {
-            console.warn('App: Background profile fetch timed out, using cached data');
-          }
-        }, 45000);
+        // Timeout para la búsqueda de perfil (25s)
+        let timeoutId: any;
+        const fetchTimeout = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('TIMEOUT')), 25000);
+        });
 
         console.time(`profile_fetch_${session.user.id}`);
         try {
-          const { data: profiles, error } = await supabase
+          const fetchPromise = supabase
             .from('profiles')
             .select('*')
             .eq('user_id', session.user.id)
             .limit(1);
 
+          const result = await Promise.race([fetchPromise, fetchTimeout]) as any;
+          clearTimeout(timeoutId);
+          
           console.timeEnd(`profile_fetch_${session.user.id}`);
           if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
 
+          const { data: profiles, error } = result;
+
           if (error) {
             console.error('App: Error fetching profile:', error);
+            lastFetchUserId.current = null; // Liberar para reintento
             
-            // Si el error es de autenticación (token inválido), forzar cierre de sesión
-            if (error.message.includes('JWT') || error.message.includes('token') || error.message.includes('refresh_token')) {
-              console.warn('App: Auth token error detected, signing out...');
+            if (error.message.includes('JWT') || error.message.includes('token')) {
+              console.warn('App: Auth token error, signing out...');
               await supabase.auth.signOut();
               localStorage.clear();
               window.location.reload();
@@ -626,7 +625,7 @@ export default function App() {
             }
 
             if (!hasCachedProfile) {
-              setAuthError('Error al conectar con el servidor de perfiles.');
+              setAuthError('Error al conectar con el servidor.');
               setIsAuthChecking(false);
             }
             return;
@@ -665,17 +664,32 @@ export default function App() {
             setAuthError(null);
           } else {
             console.warn('App: No profile data returned for user', session.user.id);
+            lastFetchUserId.current = null; // Liberar para reintento
             if (!hasCachedProfile) {
-              setAuthError('No se encontró un perfil asociado a esta cuenta. Contacta al administrador.');
+              setAuthError('No se encontró un perfil asociado a esta cuenta.');
               setIsAuthChecking(false);
             }
           }
-        } catch (profileErr) {
-          if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
-          console.error('App: Unexpected error fetching profile:', profileErr);
-          if (!hasCachedProfile) {
-            setAuthError('Error inesperado al verificar tu cuenta.');
-            setIsAuthChecking(false);
+        } catch (profileErr: any) {
+          clearTimeout(timeoutId);
+          console.timeEnd(`profile_fetch_${session.user.id}`);
+          lastFetchUserId.current = null; // Liberar para que pueda intentar de nuevo si el evento dispara otra vez
+          
+          if (profileErr.message === 'TIMEOUT') {
+            console.error('App: Profile fetch timeout reached for', session.user.id);
+            if (!hasCachedProfile) {
+              setAuthError('La conexión es lenta o el servidor no responde. Por favor, recarga la página.');
+              setIsAuthChecking(false);
+              setShowLoadingHelp(true);
+            } else {
+              console.warn('App: Background profile fetch timed out, using cached data');
+            }
+          } else {
+            console.error('App: Unexpected error fetching profile:', profileErr);
+            if (!hasCachedProfile) {
+              setAuthError('Error inesperado al verificar tu cuenta.');
+              setIsAuthChecking(false);
+            }
           }
         }
       } else {
@@ -4736,6 +4750,13 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
       };
 
       // Sanitizar datos para la tabla de Supabase (ahora con soporte para todas las columnas clínicas)
+      // Convertimos strings vacíos a null para evitar errores de tipo numeric en Supabase
+      const toNumeric = (val: any) => {
+        if (val === null || val === undefined || val === '') return null;
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       const sanitizedWoundData: any = {
         patient_id: woundData.patient_id,
         location: woundData.location,
@@ -4743,36 +4764,36 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         proposed_plan: woundData.proposed_plan,
         status: woundData.status,
         initial_photos: uploadedPhotoUrls,
-        weight: woundData.weight,
-        height: woundData.height,
-        temp: woundData.temp,
-        blood_pressure_systolic: woundData.blood_pressure_systolic,
-        blood_pressure_diastolic: woundData.blood_pressure_diastolic,
-        pulse: woundData.pulse,
-        heart_rate: woundData.heart_rate,
-        respiratory_rate: woundData.respiratory_rate,
-        oxygenation: woundData.oxygenation,
-        glycemia_fasting: woundData.glycemia_fasting,
-        glycemia_postprandial: woundData.glycemia_postprandial,
-        width: woundData.width,
-        length: woundData.length,
-        depth: woundData.depth,
-        tunneling: woundData.tunneling,
-        sinus_tract: woundData.sinus_tract,
-        undermining: woundData.undermining,
+        weight: toNumeric(woundData.weight),
+        height: toNumeric(woundData.height),
+        temp: toNumeric(woundData.temp),
+        blood_pressure_systolic: toNumeric(woundData.blood_pressure_systolic),
+        blood_pressure_diastolic: toNumeric(woundData.blood_pressure_diastolic),
+        pulse: toNumeric(woundData.pulse),
+        heart_rate: toNumeric(woundData.heart_rate),
+        respiratory_rate: toNumeric(woundData.respiratory_rate),
+        oxygenation: toNumeric(woundData.oxygenation),
+        glycemia_fasting: toNumeric(woundData.glycemia_fasting),
+        glycemia_postprandial: toNumeric(woundData.glycemia_postprandial),
+        width: toNumeric(woundData.width),
+        length: toNumeric(woundData.length),
+        depth: toNumeric(woundData.depth),
+        tunneling: woundData.tunneling || null,
+        sinus_tract: woundData.sinus_tract || null,
+        undermining: woundData.undermining || null,
         pain_level: woundData.pain_level,
         shape: woundData.shape,
         tissue_type: woundData.tissue_type,
         etiology: woundData.etiology,
         classification: woundData.classification,
         characteristics: woundData.characteristics,
-        abi_arm: woundData.abi_arm,
-        abi_left_toe: woundData.abi_left_toe,
-        abi_left_pedal: woundData.abi_left_pedal,
-        abi_left_post_tibial: woundData.abi_left_post_tibial,
-        abi_right_toe: woundData.abi_right_toe,
-        abi_right_pedal: woundData.abi_right_pedal,
-        abi_right_post_tibial: woundData.abi_right_post_tibial,
+        abi_arm: toNumeric(woundData.abi_arm),
+        abi_left_toe: toNumeric(woundData.abi_left_toe),
+        abi_left_pedal: toNumeric(woundData.abi_left_pedal),
+        abi_left_post_tibial: toNumeric(woundData.abi_left_post_tibial),
+        abi_right_toe: toNumeric(woundData.abi_right_toe),
+        abi_right_pedal: toNumeric(woundData.abi_right_pedal),
+        abi_right_post_tibial: toNumeric(woundData.abi_right_post_tibial),
         prognosis: woundData.prognosis,
       };
 
