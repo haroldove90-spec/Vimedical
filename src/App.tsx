@@ -6566,14 +6566,40 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         consent_form_type: patientData.consent_form_type
       };
 
-      // Si la fecha fue capturada manualmente en formato DD/MM/AAAA, intentamos convertirla
-      if (sanitizedData.date_of_birth && sanitizedData.date_of_birth.includes('/')) {
-        const parts = sanitizedData.date_of_birth.split('/');
-        if (parts.length === 3) {
-          const day = parts[0].padStart(2, '0');
-          const month = parts[1].padStart(2, '0');
-          const year = parts[2];
-          sanitizedData.date_of_birth = `${year}-${month}-${day}`;
+      // Si la fecha fue capturada manualmente o contiene texto, intentamos normalizarla
+      if (sanitizedData.date_of_birth) {
+        let dob = sanitizedData.date_of_birth.trim().toUpperCase();
+        
+        // Mapeo de meses en español
+        const months: { [key: string]: string } = {
+          'ENERO': '01', 'FEBRERO': '02', 'MARZO': '03', 'ABRIL': '04', 'MAYO': '05', 'JUNIO': '06',
+          'JULIO': '07', 'AGOSTO': '08', 'SEPTIEMBRE': '09', 'OCTUBRE': '10', 'NOVIEMBRE': '11', 'DICIEMBRE': '12'
+        };
+
+        // Caso: "20 DE NOVIEMBRE DE 1970" o "20 NOVIEMBRE 1970"
+        for (const monthName in months) {
+          if (dob.includes(monthName)) {
+            const parts = dob.split(/\s+DE\s+|\s+/);
+            const day = parts[0].padStart(2, '0');
+            const year = parts[parts.length - 1];
+            if (day && year && year.length === 4) {
+              sanitizedData.date_of_birth = `${year}-${months[monthName]}-${day}`;
+            }
+            break;
+          }
+        }
+
+        // Caso: DD/MM/AAAA
+        if (sanitizedData.date_of_birth.includes('/')) {
+          const parts = sanitizedData.date_of_birth.split('/');
+          if (parts.length === 3) {
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            if (year.length === 4) {
+              sanitizedData.date_of_birth = `${year}-${month}-${day}`;
+            }
+          }
         }
       }
 
