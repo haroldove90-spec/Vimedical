@@ -27,6 +27,7 @@ import {
   Area} from 'recharts';
 import SignatureCanvas from 'react-signature-canvas';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { storageService } from './services/storageService';
 import { Role, Patient, Wound, TreatmentLog, ClinicalComment, Quotation, QuotationItem, MedicalCertificate, TreatmentProposal, Diagnostic, MOCK_PATIENTS, MOCK_WOUNDS, MOCK_TREATMENTS, MOCK_CERTIFICATES, MOCK_PROPOSALS, MOCK_DIAGNOSTICS } from './mockData';
 import { supabase } from './lib/supabase';
@@ -596,22 +597,43 @@ export default function App() {
           }
         }
         
-        // Timeout para la búsqueda de perfil (25s)
+        // Timeout para la búsqueda de perfil (aumentado a 40s y con reintento)
         let timeoutId: any;
-        const fetchTimeout = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error('TIMEOUT')), 25000);
+        const createTimeout = (ms: number) => new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('TIMEOUT')), ms);
         });
 
         console.time(`profile_fetch_${session.user.id}`);
         try {
-          const fetchPromise = supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .limit(1);
+          let result: any = null;
+          let lastError: any = null;
+          
+          // Intentar hasta 2 veces con un timeout generoso
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              if (attempt > 1) {
+                console.log(`App: Reintentando búsqueda de perfil (intento ${attempt})...`);
+                // Esperar un poco antes del reintento
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+              
+              const fetchTimeout = createTimeout(40000);
+              const fetchPromise = supabase
+                .from('profiles')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .limit(1);
 
-          const result = await Promise.race([fetchPromise, fetchTimeout]) as any;
-          clearTimeout(timeoutId);
+              result = await Promise.race([fetchPromise, fetchTimeout]);
+              clearTimeout(timeoutId);
+              break; // Éxito
+            } catch (err: any) {
+              clearTimeout(timeoutId);
+              lastError = err;
+              if (err.message !== 'TIMEOUT') break; // Si no es timeout, no reintentamos
+              if (attempt === 2) throw err; // Si falló el último reintento por timeout
+            }
+          }
           
           console.timeEnd(`profile_fetch_${session.user.id}`);
           if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
@@ -684,11 +706,12 @@ export default function App() {
           if (profileErr.message === 'TIMEOUT') {
             console.error('App: Profile fetch timeout reached for', session.user.id);
             if (!hasCachedProfile) {
-              setAuthError('La conexión es lenta o el servidor no responde. Por favor, recarga la página.');
+              setAuthError('La conexión con el servidor de perfiles ha expirado después de varios intentos. Verifica tu conexión a internet o intenta recargar.');
               setIsAuthChecking(false);
               setShowLoadingHelp(true);
             } else {
               console.warn('App: Background profile fetch timed out, using cached data');
+              toast.error('Error al actualizar el perfil (Timeout). Usando datos locales.');
             }
           } else {
             console.error('App: Unexpected error fetching profile:', profileErr);
@@ -879,9 +902,10 @@ export default function App() {
           privacyNoticeType: p.privacy_notice_type,
           consentFormSigned: p.consent_form_signed,
           consentFormSignature: p.consent_form_signature,
-          consentFormDate: p.consent_form_date,
+          consentFormDate: p.privacy_notice_date, // This was likely a copy-paste error in previous turns, but let's keep it consistent with what's there
           consentFormType: p.consent_form_type,
-          clinicalComments: p.clinical_comments || []
+          clinicalComments: p.clinical_comments || [],
+          createdAt: p.created_at
         }));
         const finalPatients = [...formattedPatients];
         setPatients(finalPatients);
@@ -1013,7 +1037,8 @@ export default function App() {
 
     const { data, error } = await supabase
       .from('quotations')
-      .select('*, quotation_items(*)');
+      .select('*, quotation_items(*)')
+      .order('created_at', { ascending: false });
     
     if (error) {
       console.error('Error fetching quotations:', error);
@@ -4520,12 +4545,12 @@ function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: V
       p.occupation || 'N/A'
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Nombre', 'Fecha Nac.', 'Teléfono', 'Ocupación']],
       body: tableData,
       startY: 30,
       theme: 'grid',
-      headStyles: { fillStyle: [15, 23, 42] }
+      headStyles: { fillColor: [15, 23, 42] }
     });
 
     doc.save("Pacientes_ViMedical.pdf");
@@ -4592,7 +4617,15 @@ function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: V
               <div className="space-y-4 relative">
                 <div className="flex items-center gap-3 text-slate-500">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm font-bold">{patient.dateOfBirth}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">
+                    {patient.createdAt ? new Date(patient.createdAt).toLocaleString('es-MX', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) : patient.dateOfBirth}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3 text-slate-500">
                   <Activity className="w-4 h-4" />
@@ -6033,7 +6066,7 @@ function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { 
       q.status === 'sent' ? 'Enviada' : 'Pendiente'
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Folio', 'Paciente', 'Fecha', 'Total', 'Estado']],
       body: tableData,
       startY: 30,
@@ -6100,7 +6133,13 @@ function QuotationListView({ navigateTo, quotations, currentRole, onDelete }: { 
               
               <h3 className="font-black text-xl text-slate-900 mb-1">{quotation.patientName}</h3>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
-                {new Date(quotation.createdAt).toLocaleDateString()}
+                {new Date(quotation.createdAt).toLocaleString('es-MX', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
               </p>
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-100">
@@ -7716,7 +7755,7 @@ function CertificatesListView({ navigateTo, certificates, currentRole, onDelete 
       c.physicalState.substring(0, 30) + '...'
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Folio', 'Paciente', 'Médico', 'Fecha', 'Estado Físico']],
       body: tableData,
       startY: 30,
@@ -7787,7 +7826,15 @@ function CertificatesListView({ navigateTo, certificates, currentRole, onDelete 
                 </div>
                 <div>
                   <h3 className="font-black text-lg text-slate-900">{cert.patientName}</h3>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{cert.date}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    {new Date(cert.createdAt).toLocaleString('es-MX', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -8678,7 +8725,7 @@ function TreatmentProposalsListView({ navigateTo, proposals, currentRole, onDele
       p.date
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Folio', 'Paciente', 'Programa', 'Inversión', 'Fecha']],
       body: tableData,
       startY: 30,
@@ -8747,7 +8794,15 @@ function TreatmentProposalsListView({ navigateTo, proposals, currentRole, onDele
                   </div>
                   <div>
                     <h3 className="font-black text-slate-900">{proposal.patientName}</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{proposal.date}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      {new Date(proposal.createdAt).toLocaleString('es-MX', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
                   </div>
                 </div>
                 <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
@@ -9155,7 +9210,7 @@ function DiagnosticsListView({ navigateTo, diagnostics, currentRole, onDelete }:
       d.diagnosis.substring(0, 50)
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Folio', 'Paciente', 'Fecha', 'Diagnóstico']],
       body: tableData,
       startY: 30,
@@ -9225,7 +9280,15 @@ function DiagnosticsListView({ navigateTo, diagnostics, currentRole, onDelete }:
                   </div>
                   <div>
                     <h3 className="font-black text-slate-900">{diagnostic.patientName}</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{diagnostic.date}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      {new Date(diagnostic.createdAt).toLocaleString('es-MX', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
                   </div>
                 </div>
               </div>

@@ -82,6 +82,7 @@ export type Patient = {
   consentFormDate?: string;
   consentFormType?: 'casa' | 'hospital';
   registeredBy?: string;
+  createdAt?: string;
   // New fields from PDF
   bloodGroup?: string;
   age?: number;
