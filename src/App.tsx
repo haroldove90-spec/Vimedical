@@ -8884,6 +8884,7 @@ function NewTreatmentProposalView({ navigateTo, patients, onSave }: { navigateTo
 
     onSave(newProposal);
     toast.success('Propuesta guardada correctamente.');
+    navigateTo('treatment-proposals');
   };
 
   return (
