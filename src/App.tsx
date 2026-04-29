@@ -1852,17 +1852,19 @@ export default function App() {
             Pacientes
           </button>
 
-          <button
-            onClick={() => navigateTo('clinical-history')}
-            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-              currentView === 'clinical-history' || currentView === 'clinical-history-detail' 
-                ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                : 'text-white/70 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <FileText className="w-5 h-5" />
-            Historial Clínico
-          </button>
+          {currentRole !== 'Enfermero' && (
+            <button
+              onClick={() => navigateTo('clinical-history')}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'clinical-history' || currentView === 'clinical-history-detail' 
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FileText className="w-5 h-5" />
+              Historial Clínico
+            </button>
+          )}
 
           <button
             onClick={() => navigateTo('quotations')}
@@ -1892,14 +1894,14 @@ export default function App() {
 
           <button
             onClick={() => navigateTo('treatment-proposals')}
-            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+            className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
               currentView === 'treatment-proposals' || currentView === 'new-treatment-proposal' || currentView === 'treatment-proposal-detail'
                 ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
                 : 'text-white/70 hover:text-white hover:bg-white/5'
             }`}
           >
-            <PenTool className="w-5 h-5" />
-            Propuesta de Tratamiento
+            <PenTool className="w-5 h-5 flex-shrink-0" />
+            <span className="text-left">Propuesta de Tratamiento</span>
           </button>
 
           {currentRole === 'Administrador' && (
@@ -2732,7 +2734,7 @@ function ClinicalHistoryDetailView({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Antecedentes Familiares</label>
                 {isEditing ? (
                   <textarea 
-                    value={formData.familyHistory}
+                    value={formData.familyHistory ?? ''}
                     onChange={(e) => setFormData({...formData, familyHistory: e.target.value})}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm min-h-[100px]"
                   />
@@ -2744,7 +2746,7 @@ function ClinicalHistoryDetailView({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Antecedentes Patológicos</label>
                 {isEditing ? (
                   <textarea 
-                    value={formData.pathologicalHistory}
+                    value={formData.pathologicalHistory ?? ''}
                     onChange={(e) => setFormData({...formData, pathologicalHistory: e.target.value})}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm min-h-[100px]"
                   />
@@ -2756,7 +2758,7 @@ function ClinicalHistoryDetailView({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Antecedentes No Patológicos</label>
                 {isEditing ? (
                   <textarea 
-                    value={formData.nonPathologicalHistory}
+                    value={formData.nonPathologicalHistory ?? ''}
                     onChange={(e) => setFormData({...formData, nonPathologicalHistory: e.target.value})}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm min-h-[100px]"
                   />
@@ -3091,7 +3093,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Biografía / Notas</label>
               {isEditing ? (
                 <textarea 
-                  value={formData.bio}
+                  value={formData.bio ?? ''}
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm min-h-[120px] outline-none focus:ring-2 focus:ring-primary"
                   placeholder="Cuéntanos un poco sobre ti..."
@@ -3150,7 +3152,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                 <input 
                   type="text" 
                   disabled={!isEditing}
-                  value={formData.fullName}
+                  value={formData.fullName ?? ''}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
                 />
@@ -3160,7 +3162,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                 <input 
                   type="email" 
                   disabled={!isEditing}
-                  value={formData.email}
+                  value={formData.email ?? ''}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
                 />
@@ -3170,7 +3172,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                 <input 
                   type="text" 
                   disabled={!isEditing}
-                  value={formData.phone}
+                  value={formData.phone ?? ''}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
                   placeholder="No registrado"
@@ -3181,7 +3183,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                 <input 
                   type="text" 
                   disabled={!isEditing}
-                  value={formData.license}
+                  value={formData.license ?? ''}
                   onChange={(e) => setFormData({ ...formData, license: e.target.value })}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
                   placeholder="No registrada"
@@ -3193,7 +3195,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                   <input 
                     type="text" 
                     disabled={!isEditing}
-                    value={formData.specialty}
+                    value={formData.specialty ?? ''}
                     onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
                     placeholder="Ej. Heridas y Estomas"
@@ -3210,7 +3212,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                 <input 
                   type="text" 
                   disabled={!isEditing}
-                  value={formData.username}
+                  value={formData.username ?? ''}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70"
                 />
@@ -3221,7 +3223,7 @@ function ProfileView({ profile, onUpdate, onBack }: { profile: UserProfile, onUp
                   <input 
                     type={showPassword ? "text" : "password"} 
                     disabled={!isEditing}
-                    value={formData.password}
+                    value={formData.password ?? ''}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70 pr-12"
                   />
@@ -3769,6 +3771,15 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
                 <Activity className="w-4 h-4 text-primary" />
                 <span className="text-slate-600 font-medium">{nurse.specialty || 'General'}</span>
               </div>
+              
+              {nurse.signatureUrl && (
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Firma Digital</p>
+                  <div className="bg-slate-50 rounded-xl p-2 flex items-center justify-center border border-slate-100">
+                    <img src={nurse.signatureUrl} alt="Firma" className="h-12 w-auto object-contain" />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 gap-3">
@@ -7234,7 +7245,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
             <div className="space-y-8">
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Heredo Familiares</label>
-                <textarea rows={3} value={formData.familyHistory} onChange={e => setFormData({...formData, familyHistory: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
+                <textarea rows={3} value={formData.familyHistory ?? ''} onChange={e => setFormData({...formData, familyHistory: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
               </div>
 
               <div className="border-t border-slate-100 pt-8">
@@ -7270,7 +7281,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
                       <input 
                         type="text" 
                         placeholder="Tiempo de evolución" 
-                        value={formData.pathologicalHistoryDetails?.endocrino?.tiempo}
+                        value={formData.pathologicalHistoryDetails?.endocrino?.tiempo ?? ''}
                         onChange={e => setFormData({
                           ...formData,
                           pathologicalHistoryDetails: {
@@ -7283,7 +7294,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
                       <input 
                         type="text" 
                         placeholder="Tratamiento" 
-                        value={formData.pathologicalHistoryDetails?.endocrino?.tratamiento}
+                        value={formData.pathologicalHistoryDetails?.endocrino?.tratamiento ?? ''}
                         onChange={e => setFormData({
                           ...formData,
                           pathologicalHistoryDetails: {
@@ -7954,7 +7965,7 @@ function NewCertificateView({ navigateTo, patients, wounds, onSave }: { navigate
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Estado Físico (Encamado, palidez...)</label>
               <textarea 
                 rows={2}
-                value={formData.physicalState}
+                value={formData.physicalState ?? ''}
                 onChange={e => setFormData({...formData, physicalState: e.target.value})}
                 className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none"
               />
@@ -7963,7 +7974,7 @@ function NewCertificateView({ navigateTo, patients, wounds, onSave }: { navigate
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Detalles de la Herida</label>
               <textarea 
                 rows={2}
-                value={formData.woundDetails}
+                value={formData.woundDetails ?? ''}
                 onChange={e => setFormData({...formData, woundDetails: e.target.value})}
                 className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none"
               />
@@ -7972,7 +7983,7 @@ function NewCertificateView({ navigateTo, patients, wounds, onSave }: { navigate
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Tratamiento Actual</label>
               <textarea 
                 rows={3}
-                value={formData.treatment}
+                value={formData.treatment ?? ''}
                 onChange={e => setFormData({...formData, treatment: e.target.value})}
                 className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none"
               />
@@ -7980,26 +7991,26 @@ function NewCertificateView({ navigateTo, patients, wounds, onSave }: { navigate
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Campo Visual</label>
-                <input type="text" value={formData.visualStatus} onChange={e => setFormData({...formData, visualStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <input type="text" value={formData.visualStatus ?? ''} onChange={e => setFormData({...formData, visualStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Agudeza Auditiva</label>
-                <input type="text" value={formData.auditoryStatus} onChange={e => setFormData({...formData, auditoryStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <input type="text" value={formData.auditoryStatus ?? ''} onChange={e => setFormData({...formData, auditoryStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Aparato Locomotor</label>
-                <input type="text" value={formData.locomotorStatus} onChange={e => setFormData({...formData, locomotorStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <input type="text" value={formData.locomotorStatus ?? ''} onChange={e => setFormData({...formData, locomotorStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Examen Neurológico</label>
-                <input type="text" value={formData.neurologicalStatus} onChange={e => setFormData({...formData, neurologicalStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+                <input type="text" value={formData.neurologicalStatus ?? ''} onChange={e => setFormData({...formData, neurologicalStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Conclusiones</label>
               <textarea 
                 rows={4}
-                value={formData.conclusions}
+                value={formData.conclusions ?? ''}
                 onChange={e => setFormData({...formData, conclusions: e.target.value})}
                 className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none"
                 required
@@ -9344,7 +9355,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Resumen Clínico</label>
           <textarea 
             required
-            value={formData.clinicalSummary}
+            value={formData.clinicalSummary ?? ''}
             onChange={(e) => setFormData({...formData, clinicalSummary: e.target.value})}
             className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 min-h-[100px]"
             placeholder="Describa los hallazgos clínicos relevantes..."
@@ -9355,7 +9366,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Diagnóstico</label>
           <textarea 
             required
-            value={formData.diagnosis}
+            value={formData.diagnosis ?? ''}
             onChange={(e) => setFormData({...formData, diagnosis: e.target.value})}
             className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 min-h-[80px]"
             placeholder="Diagnóstico clínico..."
@@ -9366,7 +9377,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Plan de Tratamiento</label>
           <textarea 
             required
-            value={formData.treatmentPlan}
+            value={formData.treatmentPlan ?? ''}
             onChange={(e) => setFormData({...formData, treatmentPlan: e.target.value})}
             className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 min-h-[100px]"
             placeholder="Plan de manejo y tratamiento..."
@@ -9377,7 +9388,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Recomendaciones</label>
           <textarea 
             required
-            value={formData.recommendations}
+            value={formData.recommendations ?? ''}
             onChange={(e) => setFormData({...formData, recommendations: e.target.value})}
             className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 min-h-[80px]"
             placeholder="Recomendaciones generales para el paciente..."
@@ -9390,7 +9401,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
             <input 
               type="text" 
               required
-              value={formData.doctorName}
+              value={formData.doctorName ?? ''}
               onChange={(e) => setFormData({...formData, doctorName: e.target.value})}
               className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50"
             />
@@ -9400,7 +9411,7 @@ function NewDiagnosticView({ navigateTo, patients, onSave }: { navigateTo: (view
             <input 
               type="text" 
               required
-              value={formData.doctorLicense}
+              value={formData.doctorLicense ?? ''}
               onChange={(e) => setFormData({...formData, doctorLicense: e.target.value})}
               className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50"
             />
