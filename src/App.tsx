@@ -677,6 +677,7 @@ export default function App() {
               license: profileData.license,
               specialty: profileData.specialty,
               photoUrl: profileData.photo_url,
+              signatureUrl: profileData.signature_url,
               bio: profileData.bio,
               status: profileData.status as 'active' | 'suspended'
             };
@@ -1235,8 +1236,9 @@ export default function App() {
   };
 
   const handleSaveQuotation = async (newQuotation: Quotation) => {
-    setQuotations(prev => [newQuotation, ...prev]);
-    syncService.setCache('quotations', [newQuotation, ...quotations]);
+    const updatedQuotations = [newQuotation, ...quotations];
+    setQuotations(updatedQuotations);
+    syncService.setCache('quotations', updatedQuotations);
     
     try {
       if (navigator.onLine) {
@@ -1273,8 +1275,9 @@ export default function App() {
   };
 
   const handleSaveCertificate = async (newCertificate: MedicalCertificate) => {
-    setCertificates(prev => [newCertificate, ...prev]);
-    syncService.setCache('certificates', [newCertificate, ...certificates]);
+    const updatedCertificates = [newCertificate, ...certificates];
+    setCertificates(updatedCertificates);
+    syncService.setCache('certificates', updatedCertificates);
     
     try {
       if (navigator.onLine) {
@@ -1282,10 +1285,19 @@ export default function App() {
           id: newCertificate.id,
           patient_id: newCertificate.patientId,
           patient_name: newCertificate.patientName,
+          patient_age: newCertificate.patientAge,
           date: newCertificate.date,
-          content: newCertificate.physicalState || '', // Adapt if schema differs
           doctor_name: newCertificate.doctorName,
+          doctor_credentials: newCertificate.doctorCredentials,
           doctor_license: newCertificate.doctorLicense,
+          physical_state: newCertificate.physicalState,
+          wound_details: newCertificate.woundDetails,
+          treatment: newCertificate.treatment,
+          visual_status: newCertificate.visualStatus,
+          auditory_status: newCertificate.auditoryStatus,
+          locomotor_status: newCertificate.locomotorStatus,
+          neurological_status: newCertificate.neurologicalStatus,
+          conclusions: newCertificate.conclusions,
           signature: newCertificate.signature,
           created_at: newCertificate.createdAt
         }]);
@@ -1297,13 +1309,15 @@ export default function App() {
       }
     } catch (err) {
       console.error('Error syncing certificate:', err);
+      toast.error('Error de sincronización');
     }
     navigateTo('certificates');
   };
 
   const handleSaveProposal = async (newProposal: TreatmentProposal) => {
-    setProposals(prev => [newProposal, ...prev]);
-    syncService.setCache('proposals', [newProposal, ...proposals]);
+    const updatedProposals = [newProposal, ...proposals];
+    setProposals(updatedProposals);
+    syncService.setCache('proposals', updatedProposals);
     
     try {
       if (navigator.onLine) {
@@ -1565,6 +1579,7 @@ export default function App() {
               license: p.license,
               specialty: p.specialty,
               photoUrl: p.photo_url,
+              signatureUrl: p.signature_url,
               bio: p.bio,
               status: p.status as 'active' | 'suspended'
             };
@@ -1867,53 +1882,53 @@ export default function App() {
           
           <button
             onClick={() => navigateTo('patients')}
-            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+            className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
               currentView === 'patients' || currentView === 'patient-detail' 
                 ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
                 : 'text-white/70 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Users className="w-5 h-5" />
-            Pacientes
+            <Users className="w-5 h-5 flex-shrink-0" />
+            <span>Pacientes</span>
           </button>
 
           {currentRole !== 'Enfermero' && (
             <button
               onClick={() => navigateTo('clinical-history')}
-              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
                 currentView === 'clinical-history' || currentView === 'clinical-history-detail' 
                   ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
-              <FileText className="w-5 h-5" />
-              Historial Clínico
+              <FileText className="w-5 h-5 flex-shrink-0" />
+              <span>Historial Clínico</span>
             </button>
           )}
 
           <button
             onClick={() => navigateTo('quotations')}
-            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+            className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
               currentView === 'quotations' || currentView === 'new-quotation' || currentView === 'quotation-detail'
                 ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
                 : 'text-white/70 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Receipt className="w-5 h-5" />
-            Cotizaciones
+            <Receipt className="w-5 h-5 flex-shrink-0" />
+            <span>Cotizaciones</span>
           </button>
 
-          {(currentRole === 'Administrador' || currentRole === 'Doctor') && (
+          {(currentRole === 'Administrador' || currentRole === 'Doctor' || currentRole === 'Enfermero') && (
             <button
               onClick={() => navigateTo('certificates')}
-              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
                 currentView === 'certificates' || currentView === 'new-certificate' || currentView === 'certificate-detail'
                   ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
-              <FileCheck className="w-5 h-5" />
-              Certificados Médicos
+              <FileCheck className="w-5 h-5 flex-shrink-0" />
+              <span>Certificados Médicos</span>
             </button>
           )}
 
@@ -1930,44 +1945,20 @@ export default function App() {
           </button>
 
           {currentRole === 'Administrador' && (
-            <>
-              <button
-                onClick={() => navigateTo('analytics')}
-                className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-                  currentView === 'analytics'
-                    ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <BarChart3 className="w-5 h-5" />
-                Estadísticas
-              </button>
-              <button
-                onClick={() => navigateTo('inventory')}
-                className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-                  currentView === 'inventory'
-                    ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Package className="w-5 h-5" />
-                Inventario
-              </button>
-              <button
-                onClick={() => navigateTo('orders')}
-                className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-                  currentView === 'orders'
-                    ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                    : 'text-white/70 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <ShoppingBag className="w-5 h-5" />
-                Pedidos
-              </button>
-            </>
+            <button
+              onClick={() => navigateTo('analytics')}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'analytics'
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <BarChart3 className="w-5 h-5" />
+              Estadísticas
+            </button>
           )}
 
-          {(currentRole === 'Administrador' || currentRole === 'Doctor') && (
+          {currentRole === 'Administrador' && (
             <button
               onClick={() => navigateTo('nurses-management')}
               className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
@@ -2500,7 +2491,7 @@ function ClinicalHistoryListView({ navigateTo, patients }: { navigateTo: (view: 
       p.pathologicalHistory?.substring(0, 50) || 'N/A'
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Nombre', 'Teléfono', 'Nacimiento', 'Antecedentes']],
       body: tableData,
       startY: 40,
@@ -3404,7 +3395,12 @@ function EcommerceView({ onBack, userProfile, sendNotification }: { onBack: () =
           <button onClick={onBack} className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-primary flex items-center gap-2 mb-6 transition-colors">
             <ChevronRight className="w-4 h-4 rotate-180" /> Volver al Panel
           </button>
-          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Tienda de Insumos</h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-4xl font-black tracking-tighter text-slate-900">Tienda de Insumos</h2>
+            <span className="bg-primary/10 text-primary px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20">
+              Próximamente
+            </span>
+          </div>
           <p className="text-slate-500 font-medium">Adquiere los mejores productos para el cuidado de heridas.</p>
         </div>
         
@@ -3547,6 +3543,49 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
   const [error, setError] = useState('');
   const [createdCredentials, setCreatedCredentials] = useState<{email: string, password: string} | null>(null);
 
+  const exportToExcel = () => {
+    const data = nurses.map(n => ({
+      Nombre: n.fullName,
+      Email: n.email,
+      Teléfono: n.phone || 'N/A',
+      Cédula: n.license || 'N/A',
+      Especialidad: n.specialty || 'N/A',
+      Estado: n.status === 'active' ? 'Activo' : 'Inactivo'
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Enfermeros");
+    XLSX.writeFile(workbook, `Enfermeros_ViMedical_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Lista de enfermeros exportada a Excel');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text("ViMedical - Gestión de Enfermeros", 15, 20);
+    
+    const tableData = nurses.map(n => [
+      n.fullName,
+      n.email,
+      n.phone || 'N/A',
+      n.license || 'N/A'
+    ]);
+
+    autoTable(doc, {
+      head: [['Nombre', 'Email', 'Teléfono', 'Cédula']],
+      body: tableData,
+      startY: 40,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] }
+    });
+
+    doc.save(`ViMedical_Enfermeros_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success('Lista de enfermeros exportada a PDF');
+  };
+
   const handleAddNurse = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -3619,13 +3658,27 @@ function NursesManagementView({ profiles, onUpdateProfile, onDeleteProfile, onBa
           <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Enfermeros</h2>
           <p className="text-slate-500 font-medium">Administra el acceso y perfiles del personal operativo.</p>
         </div>
-        <button 
-          onClick={() => setIsAddingNurse(true)}
-          className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all flex items-center gap-3"
-        >
-          <UserPlus className="w-5 h-5" />
-          Registrar Enfermero
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button 
+            onClick={exportToExcel}
+            className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+          >
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button 
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all"
+          >
+            <FileText className="w-4 h-4" /> PDF
+          </button>
+          <button 
+            onClick={() => setIsAddingNurse(true)}
+            className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all flex items-center gap-3"
+          >
+            <UserPlus className="w-5 h-5" />
+            Registrar Enfermero
+          </button>
+        </div>
       </header>
 
       {createdCredentials && (
@@ -6246,39 +6299,15 @@ function NewQuotationView({ navigateTo, patients, onSave, sendNotification }: { 
     }
 
     try {
-      // 1. Save Quotation
-      const { data: qData, error: qError } = await supabase
-        .from('quotations')
-        .insert([quotationData])
-        .select()
-        .single();
-
-      if (qError) throw qError;
-
-      // 2. Save Items
-      const itemsToInsert = items.map(item => ({
-        quotation_id: qData.id,
-        description: item.description,
-        quantity: item.quantity,
-        unit_cost: item.unitCost,
-        total: item.total
-      }));
-
-      const { error: iError } = await supabase
-        .from('quotation_items')
-        .insert(itemsToInsert);
-
-      if (iError) throw iError;
-
       const newQuotation: Quotation = {
-        id: qData.id,
+        id: crypto.randomUUID(),
         patientId: selectedPatientId,
         patientName: patient?.fullName || '',
-        createdAt: qData.created_at,
+        createdAt: new Date().toISOString(),
         totalAmount: totalAmount,
         status: 'sent',
         notes: notes,
-        items: items.map(i => i as QuotationItem)
+        items: items.map(i => ({ ...i, id: crypto.randomUUID() } as QuotationItem))
       };
 
       // 3. Notifications
@@ -6297,10 +6326,9 @@ function NewQuotationView({ navigateTo, patients, onSave, sendNotification }: { 
       );
 
       onSave(newQuotation);
-      toast.success('Cotización enviada exitosamente.');
     } catch (error) {
-      console.error('Error saving quotation:', error);
-      toast.error('Error al guardar la cotización.');
+      console.error('Error generating quotation:', error);
+      toast.error('Error al generar la cotización.');
     } finally {
       setIsSubmitting(false);
     }
@@ -7794,9 +7822,10 @@ function CertificatesListView({ navigateTo, certificates, currentRole, onDelete 
           {(currentRole === 'Administrador' || currentRole === 'Doctor') && (
             <button 
               onClick={() => navigateTo('new-certificate')}
-              className="bg-primary text-white px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
+              className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all flex items-center gap-3"
             >
-              <PlusCircle className="w-4 h-4" /> Nuevo Certificado
+              <PlusCircle className="w-5 h-5" />
+              Nuevo Certificado
             </button>
           )}
         </div>
@@ -7915,7 +7944,7 @@ function NewCertificateView({ navigateTo, patients, wounds, onSave }: { navigate
       const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
       
       const newCertificate: MedicalCertificate = {
-        id: `cert-${Date.now()}`,
+        id: crypto.randomUUID(),
         patientId: selectedPatient.id,
         patientName: selectedPatient.fullName,
         patientAge: new Date().getFullYear() - new Date(selectedPatient.dateOfBirth).getFullYear(),
@@ -7927,31 +7956,6 @@ function NewCertificateView({ navigateTo, patients, wounds, onSave }: { navigate
         signature: signatureData,
         createdAt: new Date().toISOString()
       };
-
-      try {
-        await supabase.from('medical_certificates').insert([{
-          id: newCertificate.id,
-          patient_id: newCertificate.patientId,
-          patient_name: newCertificate.patientName,
-          patient_age: newCertificate.patientAge,
-          date: newCertificate.date,
-          doctor_name: newCertificate.doctorName,
-          doctor_credentials: newCertificate.doctorCredentials,
-          doctor_license: newCertificate.doctorLicense,
-          physical_state: newCertificate.physicalState,
-          wound_details: newCertificate.woundDetails,
-          treatment: newCertificate.treatment,
-          visual_status: newCertificate.visualStatus,
-          auditory_status: newCertificate.auditoryStatus,
-          locomotor_status: newCertificate.locomotorStatus,
-          neurological_status: newCertificate.neurologicalStatus,
-          conclusions: newCertificate.conclusions,
-          signature: newCertificate.signature,
-          created_at: newCertificate.createdAt
-        }]);
-      } catch (e) {
-        console.warn('Supabase insert failed, continuing with local state', e);
-      }
 
       onSave(newCertificate);
       toast.success('Certificado generado correctamente');
@@ -8866,7 +8870,7 @@ function NewTreatmentProposalView({ navigateTo, patients, onSave }: { navigateTo
     if (!patient) return;
 
     const newProposal: TreatmentProposal = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       patientId: formData.patientId,
       patientName: patient.fullName,
       date: formData.date,
