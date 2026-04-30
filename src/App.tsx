@@ -589,14 +589,13 @@ export default function App() {
       
       if (path === '/enfermeros') {
         setCurrentView('register-nurse');
-        // Asegurarnos de persistir para que la detección de login no nos saque
         localStorage.setItem('currentView', 'register-nurse');
       } else if (path === '/' || path === '') {
-        // En la raíz, si no hay sesión, dejar que el flujo normal maneje el Login
-        // Si hay sesión, el dashboard es el default
-        const savedView = localStorage.getItem('currentView');
-        if (savedView === 'register-nurse') {
-          setCurrentView('register-nurse');
+        // En la raíz, limpiar el estado de registro si no estamos activamente en esa URL
+        if (localStorage.getItem('currentView') === 'register-nurse') {
+          // Si el usuario navegó a la raíz, volvemos al dashboard/login normal
+          localStorage.removeItem('currentView');
+          setCurrentView('dashboard');
         }
       }
     };
@@ -1309,13 +1308,6 @@ export default function App() {
     setIsSidebarOpen(false);
   }, []);
 
-  useEffect(() => {
-    (window as any).navigateToRegister = () => {
-      window.history.pushState({}, '', '/enfermeros');
-      navigateTo('register-nurse');
-    };
-  }, [navigateTo]);
-
   const handleAddWound = (newWound: Wound) => {
     const updatedWounds = [newWound, ...wounds];
     setWounds(updatedWounds);
@@ -1821,7 +1813,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    (window as any).navigateToRegister = () => setCurrentView('register-nurse');
+    (window as any).navigateToRegister = () => {
+      window.history.pushState({}, '', '/enfermeros');
+      setCurrentView('register-nurse');
+    };
     return () => {
       delete (window as any).navigateToRegister;
     };
@@ -8377,6 +8372,12 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
       });
 
       if (signUpError) {
+        if (signUpError.message.toLowerCase().includes('already registered') || 
+            signUpError.message.toLowerCase().includes('already in use') || 
+            signUpError.message.toLowerCase().includes('already been registered')) {
+          throw new Error('Este correo ya está registrado. Por favor, intenta iniciar sesión.');
+        }
+
         console.warn('RegisterNurseView: Client-side signUp failed, trying API fallback...', signUpError.message);
         
         // Si el registro directo falla (ej. por políticas de Supabase), intentamos el API de respaldo
@@ -8393,13 +8394,13 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
         });
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('RegisterNurseView: API response not OK:', response.status, errorText);
+          console.error('RegisterNurseView: API response not OK:', response.status);
           
-          if (response.status === 404 || errorText.includes('NOT_FOUND')) {
-            throw new Error('El servicio de registro automático no está disponible en este momento. Por favor, contacta al administrador.');
+          if (response.status === 405 || response.status === 404) {
+            throw new Error('El servicio de registro avanzado no está disponible. Puedes intentar iniciar sesión directamente si ya tienes cuenta, o contactar a soporte.');
           }
           
+          const errorText = await response.text();
           let errorResult;
           try {
             errorResult = JSON.parse(errorText);
