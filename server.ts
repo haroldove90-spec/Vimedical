@@ -46,19 +46,27 @@ async function startServer() {
   // API to create a user (Admin only)
   app.post("/api/create-user", async (req, res) => {
     console.log("API: POST /api/create-user received");
-    if (!supabaseAdmin) {
-      console.error("API: supabaseAdmin is NULL. Check SUPABASE_SERVICE_ROLE_KEY.");
-      return res.status(500).json({ error: "El servidor no está configurado correctamente (falta la clave de servicio)." });
-    }
-
-    const { email, password, fullName, role, license, phone, specialty } = req.body;
-    console.log(`API: Attempting to create user/profile for ${email}`);
-
     try {
+      if (!supabaseAdmin) {
+        console.error("API: supabaseAdmin is NULL. Check SUPABASE_SERVICE_ROLE_KEY.");
+        return res.status(500).json({ 
+          error: "El servidor no tiene configurada la clave necesaria (SUPABASE_SERVICE_ROLE_KEY). Por favor, contacta al administrador." 
+        });
+      }
+
+      const { email, password, fullName, role, license, phone, specialty } = req.body;
+      
+      if (!email || !password || !fullName) {
+        return res.status(400).json({ error: "Faltan datos obligatorios (email, password, nombre)." });
+      }
+
+      const trimmedEmail = email.trim();
+      console.log(`API: Attempting to create user/profile for ${trimmedEmail}`);
+
       // 1. Try to create user in Supabase Auth
-      console.log(`API: Calling auth.admin.createUser for ${email}...`);
+      console.log(`API: Calling auth.admin.createUser for ${trimmedEmail}...`);
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
+        email: trimmedEmail,
         password,
         email_confirm: true,
         user_metadata: { full_name: fullName, role }
@@ -67,20 +75,11 @@ async function startServer() {
       let userId = authData?.user?.id;
 
       if (authError) {
-        console.log(`API: Auth error for ${email}:`, authError.message, authError.status);
-        if (authError.message.includes("already been registered") || authError.status === 422) {
-          console.log(`API: User ${email} already exists in Auth. Searching for user ID...`);
+        console.log(`API: Auth error for ${trimmedEmail}:`, authError.message, authError.status);
+        if (authError.message.includes("already been registered") || authError.status === 422 || authError.message.includes("already exists")) {
+          console.log(`API: User ${trimmedEmail} already exists in Auth. Searching for user ID...`);
           
-          // Try to find the user by email with a timeout
-          const listUsersPromise = supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Timeout al listar usuarios de Auth")), 15000)
-          );
-          
-          const { data: listData, error: listError } = await Promise.race([
-            listUsersPromise,
-            timeoutPromise
-          ]) as any;
+          const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
 
           if (listError) {
             console.error("API: Error listing users:", listError);
@@ -88,21 +87,18 @@ async function startServer() {
           }
           
           const users = listData?.users || [];
-          console.log(`API: Found ${users.length} users in Auth system.`);
+          const existingUser = users.find(u => u.email?.toLowerCase() === trimmedEmail.toLowerCase());
           
-          const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
           if (!existingUser) {
-            console.error(`API: User ${email} reported as existing but not found in the list.`);
-            throw new Error("El usuario ya existe pero no se pudo encontrar en la lista. Por favor, contacta a soporte.");
+            console.error(`API: User ${trimmedEmail} reported as existing but not found in the list.`);
+            throw new Error("El usuario ya existe pero no se pudo encontrar en el registro interno.");
           }
           
           userId = existingUser.id;
           console.log(`API: Found existing user ID: ${userId}`);
           
-          // Update the password for the existing user to ensure they can log in
-          console.log(`API: Updating password for existing user ${email}`);
-          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
-          if (updateError) console.warn("API: Could not update password for existing user:", updateError);
+          // Update password for existing user to match the one they just provided
+          await supabaseAdmin.auth.admin.updateUserById(userId, { password });
         } else {
           throw authError;
         }
@@ -111,66 +107,39 @@ async function startServer() {
       if (!userId) throw new Error("No se pudo obtener el ID de usuario.");
 
       // 2. Create or update profile in profiles table
-      console.log(`API: Checking for existing profile for user_id ${userId}`);
-      const { data: existingProfile, error: checkError } = await supabaseAdmin
+      console.log(`API: Ensuring profile exists for user_id ${userId}`);
+      
+      const profileToUpsert = {
+        user_id: userId,
+        full_name: fullName,
+        email: trimmedEmail,
+        role: role || 'Enfermero',
+        license: license || '',
+        phone: phone || '',
+        specialty: specialty || '',
+        status: 'active'
+      };
+
+      const { data: profileData, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (checkError) console.warn("API: Error checking existing profile:", checkError);
-
-      let profileData, profileError;
-
-      if (existingProfile) {
-        console.log(`API: Updating existing profile ${existingProfile.id}`);
-        const { data, error } = await supabaseAdmin
-          .from('profiles')
-          .update({
-            full_name: fullName,
-            email,
-            role,
-            license,
-            phone,
-            specialty,
-            status: 'active'
-          })
-          .eq('user_id', userId)
-          .select()
-          .single();
-        profileData = data;
-        profileError = error;
-      } else {
-        console.log(`API: Inserting new profile for user_id ${userId}`);
-        const { data, error } = await supabaseAdmin
-          .from('profiles')
-          .insert([{
-            user_id: userId,
-            full_name: fullName,
-            email,
-            role,
-            license,
-            phone,
-            specialty,
-            status: 'active'
-          }])
-          .select()
-          .single();
-        profileData = data;
-        profileError = error;
-      }
+        .upsert(profileToUpsert, { onConflict: 'user_id' })
+        .select()
+        .single();
 
       if (profileError) {
         console.error("API: Profile operation error:", profileError);
         throw profileError;
       }
 
-      console.log(`API: Successfully created/updated profile for ${email}`);
-      res.json({ user: { id: userId, email }, profile: profileData });
+      console.log(`API: Success for ${trimmedEmail}`);
+      res.json({ user: { id: userId, email: trimmedEmail }, profile: profileData });
       
     } catch (err: any) {
       console.error("API: Unexpected error in /api/create-user:", err);
-      res.status(500).json({ error: err.message || "Error interno del servidor" });
+      res.status(500).json({ 
+        error: err.message || "Error interno del servidor",
+        details: typeof err === 'object' ? JSON.stringify(err) : String(err)
+      });
     }
   });
 

@@ -8341,11 +8341,11 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          fullName: formData.fullName,
+          email: formData.email.trim(),
+          password: formData.password.trim(),
+          fullName: formData.fullName.trim(),
           role: 'Enfermero',
-          license: formData.license
+          license: formData.license.trim()
         }),
         signal: controller.signal
       });
@@ -8353,16 +8353,17 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
       console.log('RegisterNurseView: Response received, status:', response.status);
       clearTimeout(timeoutId);
       
+      const responseText = await response.text();
       let result;
       try {
-        result = await response.json();
+        result = JSON.parse(responseText);
       } catch (jsonErr) {
-        console.error('RegisterNurseView: Failed to parse JSON response', jsonErr);
-        throw new Error('El servidor respondió con un formato inesperado. Por favor, intenta de nuevo.');
+        console.error('RegisterNurseView: Failed to parse JSON response. Response text:', responseText);
+        throw new Error('El servidor respondió con un formato inesperado: ' + responseText.substring(0, 100));
       }
 
       if (!response.ok) {
-        console.error('RegisterNurseView: API error:', result.error);
+        console.error('RegisterNurseView: API error:', result.error || result);
         throw new Error(result.error || 'Error al registrarse');
       }
 
