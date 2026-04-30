@@ -959,6 +959,8 @@ export default function App() {
           consentFormDate: p.privacy_notice_date, // This was likely a copy-paste error in previous turns, but let's keep it consistent with what's there
           consentFormType: p.consent_form_type,
           clinicalComments: p.clinical_comments || [],
+          currentCondition: p.current_condition,
+          physicalExploration: p.physical_exploration,
           createdAt: p.created_at
         }));
         const finalPatients = [...formattedPatients];
@@ -2175,6 +2177,7 @@ export default function App() {
               navigateTo={navigateTo} 
               patients={patients}
               onSave={handleAddWound}
+              onUpdatePatient={handleUpdatePatient}
             />
           )}
           {currentView === 'new-treatment' && selectedWoundId && (
@@ -5193,7 +5196,7 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
 
 // --- M2: Formulario de Valoración Guiado ---
 
-function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patientId: string, navigateTo: (view: View, pId?: string) => void, patients: Patient[], onSave: (w: Wound) => void }) {
+function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdatePatient }: { patientId: string, navigateTo: (view: View, pId?: string) => void, patients: Patient[], onSave: (w: Wound) => void, onUpdatePatient: (p: Patient) => void }) {
   const patient = patients.find(p => p.id === patientId);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -5293,15 +5296,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         pathological_history: formData.get('pathologicalHistory') as string,
         non_pathological_history: formData.get('nonPathologicalHistory') as string,
         current_condition: formData.get('currentCondition') as string,
-        physical_exploration: {
-          peso: formData.get('weight') as string,
-          talla: formData.get('height') as string,
-          ta: `${formData.get('bloodPressureSystolic')}/${formData.get('bloodPressureDiastolic')}`,
-          fc: formData.get('heartRate') as string,
-          fr: formData.get('respiratoryRate') as string,
-          oxygenation: formData.get('oxygenation') as string,
-          adicionales: `Temp: ${formData.get('temp')}°C, Glucosa: ${formData.get('glycemiaFasting')} / ${formData.get('glycemiaPostprandial')}`
-        }
+        physical_exploration: `Peso: ${formData.get('weight')}kg, Talla: ${formData.get('height')}m, TA: ${formData.get('bloodPressureSystolic')}/${formData.get('bloodPressureDiastolic')}, FC: ${formData.get('heartRate')}, FR: ${formData.get('respiratoryRate')}, O2: ${formData.get('oxygenation')}%, Temp: ${formData.get('temp')}°C, Glucosa: ${formData.get('glycemiaFasting')} / ${formData.get('glycemiaPostprandial')}. Hallazgos: ${formData.get('regionsExploration') || "Ninguno"}`
       };
 
       if (!navigator.onLine) {
@@ -5312,6 +5307,19 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
       } else {
         // Actualizar paciente
         await supabase.from('patients').update(patientUpdateData).eq('id', patientId);
+        
+        // Actualizar estado local del paciente
+        if (patient) {
+          onUpdatePatient({
+            ...patient,
+            familyHistory: patientUpdateData.family_history,
+            pathologicalHistory: patientUpdateData.pathological_history,
+            nonPathologicalHistory: patientUpdateData.non_pathological_history,
+            currentCondition: patientUpdateData.current_condition,
+            physicalExploration: patientUpdateData.physical_exploration
+          });
+        }
+
         // Insertar herida
         const { data, error } = await supabase.from('wounds').insert([sanitizedWoundData]).select().single();
         if (error) throw error;
@@ -5400,7 +5408,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
           <div className="space-y-6">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Motivo de Consulta y Evolución *</label>
-              <textarea required name="description" rows={4} placeholder="Describa el inicio y evolución de la lesión..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+              <textarea required name="currentCondition" rows={4} placeholder="Describa el inicio y evolución de la lesión, síntomas y tiempo de evolución..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
             </div>
           </div>
         </section>
@@ -5742,25 +5750,14 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
           />
         )}
 
-        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
-          <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
-              <FileText className="w-4 h-4" />
-            </div>
-            5. Padecimiento Actual
-          </h3>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Descripción Detallada</label>
-            <textarea name="currentCondition" rows={4} placeholder="Describa el motivo de consulta, tiempo de evolución y síntomas actuales..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
-          </div>
-        </section>
+
 
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               <Activity className="w-4 h-4" />
             </div>
-            6. Diagnóstico y Plan
+            7. Diagnóstico y Plan
           </h3>
           <div className="space-y-8">
             <div>
