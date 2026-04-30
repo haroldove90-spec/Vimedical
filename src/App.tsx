@@ -328,14 +328,28 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
           onLogin(normalizedRole, profile);
         } else {
           console.warn('LoginView: Profile missing after login, attempting auto-creation');
-          // Try to create from metadata
-          const { data: newProfile, error: createError } = await supabase.from('profiles').upsert({
-            user_id: data.user.id,
-            full_name: data.user.user_metadata?.full_name || 'Usuario ViMedical',
-            email: data.user.email,
-            role: data.user.user_metadata?.role || 'Enfermero',
-            status: 'active'
-          }).select().maybeSingle();
+          
+          // Buscar primero
+          const { data: existing } = await supabase.from('profiles').select('id').eq('user_id', data.user.id).maybeSingle();
+          
+          let opResult;
+          if (existing) {
+            opResult = await supabase.from('profiles').update({
+              full_name: data.user.user_metadata?.full_name || 'Usuario ViMedical',
+              email: data.user.email,
+              status: 'active'
+            }).eq('user_id', data.user.id).select().maybeSingle();
+          } else {
+            opResult = await supabase.from('profiles').insert({
+              user_id: data.user.id,
+              full_name: data.user.user_metadata?.full_name || 'Usuario ViMedical',
+              email: data.user.email,
+              role: data.user.user_metadata?.role || 'Enfermero',
+              status: 'active'
+            }).select().maybeSingle();
+          }
+
+          const { data: newProfile, error: createError } = opResult;
 
           if (!createError && newProfile) {
             onLogin('Enfermero', {
@@ -825,14 +839,27 @@ export default function App() {
           } else {
             console.warn('App: No profile data returned for user', session.user.id, 'attempting auto-repair');
             
-            // Try to create profile from metadata if missing
-            const { data: repairedProfile, error: repairErr } = await supabase.from('profiles').upsert({
-              user_id: session.user.id,
-              full_name: session.user.user_metadata?.full_name || 'Usuario Registrado',
-              email: session.user.email,
-              role: session.user.user_metadata?.role || 'Enfermero',
-              status: 'active'
-            }).select().maybeSingle();
+            // Try to create profile de forma robusta
+            const { data: existing } = await supabase.from('profiles').select('id').eq('user_id', session.user.id).maybeSingle();
+            
+            let opResult;
+            if (existing) {
+              opResult = await supabase.from('profiles').update({
+                full_name: session.user.user_metadata?.full_name || 'Usuario Registrado',
+                email: session.user.email,
+                status: 'active'
+              }).eq('user_id', session.user.id).select().maybeSingle();
+            } else {
+              opResult = await supabase.from('profiles').insert({
+                user_id: session.user.id,
+                full_name: session.user.user_metadata?.full_name || 'Usuario Registrado',
+                email: session.user.email,
+                role: session.user.user_metadata?.role || 'Enfermero',
+                status: 'active'
+              }).select().maybeSingle();
+            }
+
+            const { data: repairedProfile, error: repairErr } = opResult;
 
             if (!repairErr && repairedProfile) {
                console.log('App: Profile repaired successfully');
@@ -869,14 +896,27 @@ export default function App() {
           if (profileErr.message === 'TIMEOUT') {
             console.error('App: Profile fetch timeout reached for', session.user.id, 'performing emergency repair');
             
-            // EMERGENCY REPAIR: Si hay timeout, creamos el perfil inmediatamente y dejamos entrar
-            const { data: emergencyProfile, error: repairErr } = await supabase.from('profiles').upsert({
+          // EMERGENCY REPAIR: Si hay timeout, creamos el perfil de forma robusta
+          const { data: existing } = await supabase.from('profiles').select('id').eq('user_id', session.user.id).maybeSingle();
+          
+          let opResult;
+          if (existing) {
+            opResult = await supabase.from('profiles').update({
+              full_name: session.user.user_metadata?.full_name || 'Enfermero ViMedical',
+              email: session.user.email,
+              status: 'active'
+            }).eq('user_id', session.user.id).select().maybeSingle();
+          } else {
+            opResult = await supabase.from('profiles').insert({
               user_id: session.user.id,
               full_name: session.user.user_metadata?.full_name || 'Enfermero ViMedical',
               email: session.user.email,
               role: 'Enfermero',
               status: 'active'
             }).select().maybeSingle();
+          }
+          
+          const { data: emergencyProfile, error: repairErr } = opResult;
 
             if (!repairErr && emergencyProfile) {
               console.log('App: Emergency repair successful');
@@ -1885,7 +1925,12 @@ export default function App() {
           }
         }
       } else if (updatedProfile.id.length > 20) { // Likely a UUID
-        await supabase.from('profiles').upsert([{ id: updatedProfile.id, ...supabaseData }]);
+        const { data: existing } = await supabase.from('profiles').select('id').eq('id', updatedProfile.id).maybeSingle();
+        if (existing) {
+          await supabase.from('profiles').update({ ...supabaseData }).eq('id', updatedProfile.id);
+        } else {
+          await supabase.from('profiles').insert([{ id: updatedProfile.id, ...supabaseData }]);
+        }
       } else {
         const { data, error } = await supabase.from('profiles').insert([supabaseData]).select().single();
         if (error) throw error;
