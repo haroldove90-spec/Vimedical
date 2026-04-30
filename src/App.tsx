@@ -7,7 +7,7 @@ import {
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Filter
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Filter, Save, ShieldCheck
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -4864,6 +4864,18 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
                       <div className={`w-3 h-3 rounded-full mx-auto mt-1 ${wound.status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     </div>
                   </div>
+                  {wound.status === 'approved' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigateTo('new-treatment', patient.id, wound.id);
+                      }}
+                      className="mt-2 w-full py-3 bg-primary/5 text-primary rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Registrar Curación
+                    </button>
+                  )}
                 </div>
               ))}
               {patientWounds.length === 0 && (
@@ -5037,6 +5049,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [painLevel, setPainLevel] = useState(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -5045,9 +5058,25 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
       const newFiles = Array.from(files);
       const newPhotos = newFiles.map((file: File) => URL.createObjectURL(file));
       
-      setPhotoFiles(prev => [...prev, ...newFiles].slice(0, 5));
-      setPhotos(prev => [...prev, ...newPhotos].slice(0, 5));
+      setPhotoFiles(prev => [...prev, ...newFiles].slice(0, 10));
+      setPhotos(prev => [...prev, ...newPhotos].slice(0, 10));
+      
+      // Reset input value to allow selecting same file again
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  // Helper to convert base64 to File
+  const base64ToFile = (dataUrl: string, filename: string): File => {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -5057,9 +5086,13 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
       return;
     }
     setIsSubmitting(true);
-    toast.loading('Subiendo fotos y guardando valoración...', { id: 'assessment-save' });
+    toast.loading('Guardando historia clínica y valoración...', { id: 'assessment-save' });
 
     try {
+      const form = e.target as HTMLFormElement;
+      const formData = new FormData(form);
+
+      // 1. Subir fotos
       const uploadedPhotoUrls: string[] = [];
       for (const file of photoFiles) {
         const fileName = `wounds/${patientId}_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
@@ -5067,205 +5100,80 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         if (url) uploadedPhotoUrls.push(url);
       }
 
-      const form = e.target as HTMLFormElement;
-      const formData = new FormData(form);
-
-      const woundData: any = {
+      // 2. Preparar Datos de Valoración (Wound)
+      const sanitizedWoundData: any = {
         patient_id: patientId,
         location: formData.get('location') as string || 'No especificada',
-        description: formData.get('description') as string || '',
-        proposed_plan: formData.get('proposed_plan') as string || '',
+        description: formData.get('currentCondition') as string || '', // Padecimiento Actual
         status: 'pending_doctor',
         initial_photos: uploadedPhotoUrls,
-        weight: formData.get('weight') as string,
-        height: formData.get('height') as string,
-        temp: formData.get('temp') as string,
+        weight: parseFloat(formData.get('weight') as string) || null,
+        height: parseFloat(formData.get('height') as string) || null,
+        temp: parseFloat(formData.get('temp') as string) || null,
         blood_pressure_systolic: formData.get('bloodPressureSystolic') as string,
         blood_pressure_diastolic: formData.get('bloodPressureDiastolic') as string,
-        pulse: formData.get('pulse') as string,
-        heart_rate: formData.get('heartRate') as string,
-        respiratory_rate: formData.get('respiratoryRate') as string,
-        oxygenation: formData.get('oxygenation') as string,
-        glycemia_fasting: formData.get('glycemiaFasting') as string,
-        glycemia_postprandial: formData.get('glycemiaPostprandial') as string,
-        width: formData.get('width') as string,
-        length: formData.get('length') as string,
-        depth: formData.get('depth') as string,
-        tunneling: formData.get('tunneling') as string,
-        sinus_tract: formData.get('sinusTract') as string,
-        undermining: formData.get('undermining') as string,
-        pain_level: parseInt(formData.get('painLevel') as string) || 0,
-        shape: formData.get('shape') as Wound['shape'],
-        tissue_type: {
-          escara: formData.get('tissueType_escara') as string || '',
-          necrosis: formData.get('tissueType_necrosis') as string || '',
-          esfacelo: formData.get('tissueType_esfacelo') as string || '',
-          granulacion: formData.get('tissueType_granulacion') as string || '',
-          fibrina: formData.get('tissueType_fibrina') as string || '',
-          hiperqueratosis: formData.get('tissueType_hiperqueratosis') as string || '',
-          hipergranulacion: formData.get('tissueType_hipergranulacion') as string || '',
-          subcutaneo: formData.get('tissueType_subcutaneo') as string || '',
-          muscular: formData.get('tissueType_muscular') as string || '',
-          tendon: formData.get('tissueType_tendon') as string || '',
-          hueso: formData.get('tissueType_hueso') as string || '',
-          capsula: formData.get('tissueType_capsula') as string || '',
-          frictena: formData.get('tissueType_frictena') as string || '',
-        },
-        etiology: {
-          porPresion: formData.get('etiology_porPresion') === 'on',
-          venosa: formData.get('etiology_venosa') === 'on',
-          arterial: formData.get('etiology_arterial') === 'on',
-          mixta: formData.get('etiology_mixta') === 'on',
-          diabetica: formData.get('etiology_diabetica') === 'on',
-          quemadura: formData.get('etiology_quemadura') === 'on',
-          quirurgica: formData.get('etiology_quirurgica') === 'on',
-          neoplasica: formData.get('etiology_neoplasica') === 'on',
-        },
-        classification: {
-          estadio: formData.get('classification_estadio') as string || '',
-          martorell: formData.get('classification_martorell') === 'on',
-          calcifilaxis: formData.get('classification_calcifilaxis') === 'on',
-          mixta: formData.get('classification_mixta') === 'on',
-          sinbad: {
-            s: formData.get('sinbad_s') === 'on',
-            i: formData.get('sinbad_i') === 'on',
-            n: formData.get('sinbad_n') === 'on',
-            b: formData.get('sinbad_b') === 'on',
-            a: formData.get('sinbad_a') === 'on',
-            d: formData.get('sinbad_d') === 'on',
-          },
-          thickness: formData.get('classification_thickness') as Wound['classification']['thickness'],
-        },
-        characteristics: {
-          borders: formData.get('characteristics_borders') as Wound['characteristics']['borders'],
-          perilesionalSkin: formData.get('characteristics_perilesionalSkin') as Wound['characteristics']['perilesionalSkin'],
-          exudateType: formData.get('characteristics_exudateType') as Wound['characteristics']['exudateType'],
-          exudateAmount: formData.get('characteristics_exudateAmount') as Wound['characteristics']['exudateAmount'],
-          contaminationGrade: formData.get('characteristics_contaminationGrade') as Wound['characteristics']['contaminationGrade'],
-        },
-        abi_arm: formData.get('abiArm') as string,
-        abi_left_toe: formData.get('abiLeftToe') as string,
-        abi_left_pedal: formData.get('abiLeftPedal') as string,
-        abi_left_post_tibial: formData.get('abiLeftPostTibial') as string,
-        abi_right_toe: formData.get('abiRightToe') as string,
-        abi_right_pedal: formData.get('abiRightPedal') as string,
-        abi_right_post_tibial: formData.get('abiRightPostTibial') as string,
+        pulse: parseInt(formData.get('pulse') as string) || null,
+        heart_rate: parseInt(formData.get('heartRate') as string) || null,
+        respiratory_rate: parseInt(formData.get('respiratoryRate') as string) || null,
+        oxygenation: parseFloat(formData.get('oxygenation') as string) || null,
+        glycemia_fasting: parseFloat(formData.get('glycemiaFasting') as string) || null,
+        glycemia_postprandial: parseFloat(formData.get('glycemiaPostprandial') as string) || null,
+        width: parseFloat(formData.get('width') as string) || null,
+        length: parseFloat(formData.get('length') as string) || null,
+        depth: parseFloat(formData.get('depth') as string) || null,
+        pain_level: painLevel,
+        shape: formData.get('shape') as string,
         prognosis: formData.get('prognosis') as string,
+        abi_arm: parseFloat(formData.get('abiArm') as string) || null,
+        abi_left_toe: parseFloat(formData.get('abiLeftToe') as string) || null,
+        abi_right_toe: parseFloat(formData.get('abiRightToe') as string) || null
       };
 
-      // Sanitizar datos para la tabla de Supabase (ahora con soporte para todas las columnas clínicas)
-      // Convertimos strings vacíos a null para evitar errores de tipo numeric en Supabase
-      const toNumeric = (val: any) => {
-        if (val === null || val === undefined || val === '') return null;
-        const parsed = parseFloat(val);
-        return isNaN(parsed) ? null : parsed;
-      };
-
-      const sanitizedWoundData: any = {
-        patient_id: woundData.patient_id,
-        location: woundData.location,
-        description: woundData.description,
-        proposed_plan: woundData.proposed_plan,
-        status: woundData.status,
-        initial_photos: uploadedPhotoUrls,
-        weight: toNumeric(woundData.weight),
-        height: toNumeric(woundData.height),
-        temp: toNumeric(woundData.temp),
-        blood_pressure_systolic: toNumeric(woundData.blood_pressure_systolic),
-        blood_pressure_diastolic: toNumeric(woundData.blood_pressure_diastolic),
-        pulse: toNumeric(woundData.pulse),
-        heart_rate: toNumeric(woundData.heart_rate),
-        respiratory_rate: toNumeric(woundData.respiratory_rate),
-        oxygenation: toNumeric(woundData.oxygenation),
-        glycemia_fasting: toNumeric(woundData.glycemia_fasting),
-        glycemia_postprandial: toNumeric(woundData.glycemia_postprandial),
-        width: toNumeric(woundData.width),
-        length: toNumeric(woundData.length),
-        depth: toNumeric(woundData.depth),
-        tunneling: woundData.tunneling || null,
-        sinus_tract: woundData.sinus_tract || null,
-        undermining: woundData.undermining || null,
-        pain_level: woundData.pain_level,
-        shape: woundData.shape,
-        tissue_type: woundData.tissue_type,
-        etiology: woundData.etiology,
-        classification: woundData.classification,
-        characteristics: woundData.characteristics,
-        abi_arm: toNumeric(woundData.abi_arm),
-        abi_left_toe: toNumeric(woundData.abi_left_toe),
-        abi_left_pedal: toNumeric(woundData.abi_left_pedal),
-        abi_left_post_tibial: toNumeric(woundData.abi_left_post_tibial),
-        abi_right_toe: toNumeric(woundData.abi_right_toe),
-        abi_right_pedal: toNumeric(woundData.abi_right_pedal),
-        abi_right_post_tibial: toNumeric(woundData.abi_right_post_tibial),
-        prognosis: woundData.prognosis,
-      };
-
-      console.log('Insertando valoración inicial completa:', sanitizedWoundData);
-      
-      const notificationData = [
-        {
-          title: 'Nueva Valoración Inicial',
-          body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando autorización.`,
-          voice_text: `Atención Administrador: Se ha recibido una nueva valoración inicial para el paciente ${patient?.fullName}. Por favor, revise y valide el registro.`,
-          target_role: 'Administrador'
-        },
-        {
-          title: 'Nueva Valoración Inicial',
-          body: `El enfermero ha registrado una valoración inicial para ${patient?.fullName}. Esperando su autorización para seguir el procedimiento.`,
-          voice_text: `Atención Doctor: Se ha registrado una nueva valoración inicial para su paciente ${patient?.fullName}. El paciente está esperando su autorización para seguir el procedimiento.`,
-          target_role: 'Doctor'
+      // 3. Preparar Datos de Historia Clínica (Patient)
+      const patientUpdateData = {
+        family_history: formData.get('familyHistory') as string,
+        pathological_history: formData.get('pathologicalHistory') as string,
+        non_pathological_history: formData.get('nonPathologicalHistory') as string,
+        current_condition: formData.get('currentCondition') as string,
+        physical_exploration: {
+          peso: formData.get('weight') as string,
+          talla: formData.get('height') as string,
+          ta: `${formData.get('bloodPressureSystolic')}/${formData.get('bloodPressureDiastolic')}`,
+          fc: formData.get('heartRate') as string,
+          fr: formData.get('respiratoryRate') as string,
+          oxygenation: formData.get('oxygenation') as string,
+          adicionales: `Temp: ${formData.get('temp')}°C, Glucosa: ${formData.get('glycemiaFasting')} / ${formData.get('glycemiaPostprandial')}`
         }
-      ];
+      };
 
       if (!navigator.onLine) {
-        const tempId = crypto.randomUUID();
-        const newWound: Wound = {
-          id: tempId,
-          patientId: patientId,
-          location: woundData.location,
-          description: woundData.description,
-          proposedPlan: woundData.proposed_plan,
-          status: 'pending_doctor',
-          initialPhotos: uploadedPhotoUrls,
-          createdAt: new Date().toISOString(),
-          visitCount: 0,
-          targetVisits: 10
-        } as Wound;
-        
+        syncService.addToQueue('patients', 'UPDATE', { ...patientUpdateData, id: patientId });
         syncService.addToQueue('wounds', 'INSERT', sanitizedWoundData);
-        syncService.addToQueue('notifications', 'INSERT', notificationData);
-        onSave(newWound);
+        toast.success('Guardado en cola (Offline)', { id: 'assessment-save' });
+        setIsSuccess(true);
       } else {
+        // Actualizar paciente
+        await supabase.from('patients').update(patientUpdateData).eq('id', patientId);
+        // Insertar herida
         const { data, error } = await supabase.from('wounds').insert([sanitizedWoundData]).select().single();
         if (error) throw error;
-        if (data) {
-          const newWound: Wound = {
-            id: data.id,
-            patientId: data.patient_id,
-            location: data.location,
-            description: data.description,
-            proposedPlan: data.proposed_plan,
-            status: data.status,
-            initialPhotos: data.initial_photos,
-            createdAt: data.created_at,
-            visitCount: 0,
-            targetVisits: 10
-          } as Wound;
-          onSave(newWound);
-        }
-        await supabase.from('notifications').insert(notificationData);
+        
+        await supabase.from('notifications').insert([{
+          title: 'Nueva Valoración de Etapa 2',
+          body: `Se ha completado la historia clínica y valoración inicial para ${patient?.fullName}.`,
+          voice_text: `Atención: Nueva valoración inicial recibida para ${patient?.fullName}. Por favor revise el plan de tratamiento.`,
+          target_role: 'Doctor'
+        }]);
+
+        toast.success('Valoración guardada correctamente', { id: 'assessment-save' });
+        setIsSuccess(true);
+        if (data) onSave(data as any);
       }
 
-      toast.success('Valoración guardada correctamente', { id: 'assessment-save' });
-      setIsSuccess(true);
-      setTimeout(() => {
-        navigateTo('patient-detail', patientId);
-      }, 2000);
+      setTimeout(() => navigateTo('patient-detail', patientId), 2000);
     } catch (error: any) {
       console.error('Error saving assessment:', error);
-      const errorMessage = error.message || 'Error desconocido';
-      toast.error(`Error al guardar la valoración: ${errorMessage}`, { id: 'assessment-save' });
+      toast.error(`Error: ${error.message}`, { id: 'assessment-save' });
     } finally {
       setIsSubmitting(false);
     }
@@ -5303,10 +5211,48 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+              <Activity className="w-4 h-4" />
+            </div>
+            1. Historia Clínica (Antecedentes)
+          </h3>
+          <div className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Heredo-Familiares</label>
+              <textarea name="familyHistory" rows={2} placeholder="Ej. Diabetes, Hipertensión en familiares..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales Patológicos</label>
+              <textarea name="pathologicalHistory" rows={2} placeholder="Ej. Cirugías, Alergias, Enfermedades crónicas..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales No Patológicos</label>
+              <textarea name="nonPathologicalHistory" rows={2} placeholder="Ej. Tabaquismo, Alcohol, Sedentarismo..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">
+              <FileText className="w-4 h-4" />
+            </div>
+            2. Padecimiento Actual
+          </h3>
+          <div className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Motivo de Consulta y Evolución *</label>
+              <textarea required name="description" rows={4} placeholder="Describa el inicio y evolución de la lesión..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               <Activity className="w-4 h-4" />
             </div>
-            1. Exploración Física
+            3. Exploración Física (Signos Vitales)
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             <div>
@@ -5361,15 +5307,20 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
                 <input name="glycemiaPostprandial" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
             </div>
+
+            <div className="md:col-span-full">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Hallazgos por Regiones (Cabeza, Cuello, Tórax...)</label>
+              <textarea name="regionsExploration" rows={3} placeholder="Describa hallazgos en la exploración física general..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+            </div>
           </div>
         </section>
 
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 overflow-hidden">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600">
               <Activity className="w-4 h-4" />
             </div>
-            2. Índice Tobillo - Brazo (ABI)
+            4. Índice Tobillo - Brazo (ABI)
           </h3>
           <div className="overflow-x-auto -mx-10 px-10">
             <table className="w-full border-collapse">
@@ -5419,12 +5370,16 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
 
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
               <Maximize className="w-4 h-4" />
             </div>
-            3. Dimensiones de la Herida
+            5. Dimensiones de la Herida
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <div className="md:col-span-6">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Localización Anatómica Exacta *</label>
+              <input required name="location" type="text" placeholder="Ej. Maleolo interno pie derecho" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all shadow-sm" />
+            </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Ancho (cm)</label>
               <input name="width" type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
@@ -5454,10 +5409,10 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
 
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
               <CheckSquare className="w-4 h-4" />
             </div>
-            4. Evaluación Detallada
+            6. Evaluación Detallada del Lecho
           </h3>
           
           <div className="space-y-10">
@@ -5515,11 +5470,44 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
                 <input name="shape" type="text" placeholder="Ej. Ovalada, Irregular" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Nivel de Dolor (0-10)</label>
-                <input name="painLevel" type="range" min="0" max="10" className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary mt-4" />
-                <div className="flex justify-between text-[10px] font-black text-slate-400 mt-2">
-                  <span>0 - Sin dolor</span>
-                  <span>10 - Máximo</span>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 flex justify-between">
+                  Nivel de Dolor (0-10)
+                  <span className={`text-sm font-black px-3 py-1 rounded-full ${painLevel > 7 ? 'bg-red-100 text-red-600' : painLevel > 4 ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                    Nivel: {painLevel}
+                  </span>
+                </label>
+                <div className="relative pt-6 pb-2">
+                  <div 
+                    className="absolute top-0 -translate-x-1/2 pointer-events-none transition-all duration-300 z-10"
+                    style={{ left: `${painLevel * 10}%` }}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg ${painLevel > 7 ? 'bg-red-500 text-white' : painLevel > 4 ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                      {painLevel}
+                    </div>
+                  </div>
+                  <input 
+                    name="painLevel" 
+                    type="range" 
+                    min="0" 
+                    max="10" 
+                    value={painLevel}
+                    onChange={(e) => setPainLevel(parseInt(e.target.value))}
+                    className="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary hover:bg-slate-300 transition-colors" 
+                  />
+                  <div className="flex justify-between text-[10px] font-black text-slate-400 mt-4">
+                    <span className="flex flex-col items-center">
+                      <div className="w-4 h-4 rounded-full bg-emerald-500 mb-1" />
+                      0 - Sin dolor
+                    </span>
+                    <span className="flex flex-col items-center">
+                      <div className="w-4 h-4 rounded-full bg-orange-500 mb-1" />
+                      5 - Moderado
+                    </span>
+                    <span className="flex flex-col items-center">
+                      <div className="w-4 h-4 rounded-full bg-red-500 mb-1" />
+                      10 - Máximo
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -5532,9 +5520,9 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                 <Camera className="w-4 h-4" />
               </div>
-              5. Fotos Iniciales
+              5. Fotos Iniciales de la Herida (Máx 10)
             </h3>
-            <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full uppercase tracking-widest">{photos.length}/5 fotos</span>
+            <span className="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full uppercase tracking-widest">{photos.length}/10 fotos</span>
           </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
@@ -5543,14 +5531,17 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
                 <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 <button 
                   type="button"
-                  onClick={() => setPhotos(photos.filter((_, i) => i !== idx))}
+                  onClick={() => {
+                    setPhotos(photos.filter((_, i) => i !== idx));
+                    setPhotoFiles(photoFiles.filter((_, i) => i !== idx));
+                  }}
                   className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             ))}
-            {photos.length < 5 && (
+            {photos.length < 10 && (
               <>
                 <input 
                   type="file" 
@@ -5574,7 +5565,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
                   className="aspect-square border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-50 hover:border-primary transition-all group"
                 >
                   <Camera className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Tomar Foto</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Cámara</span>
                 </button>
               </>
             )}
@@ -5584,12 +5575,27 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         {showCamera && (
           <CameraCapture 
             onCapture={(dataUrl) => {
-              setPhotos(prev => [...prev, dataUrl].slice(0, 5));
+              const file = base64ToFile(dataUrl, `camera_${Date.now()}.png`);
+              setPhotoFiles(prev => [...prev, file].slice(0, 10));
+              setPhotos(prev => [...prev, dataUrl].slice(0, 10));
               setShowCamera(false);
             }}
             onClose={() => setShowCamera(false)}
           />
         )}
+
+        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+              <FileText className="w-4 h-4" />
+            </div>
+            5. Padecimiento Actual
+          </h3>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Descripción Detallada</label>
+            <textarea name="currentCondition" rows={4} placeholder="Describa el motivo de consulta, tiempo de evolución y síntomas actuales..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+          </div>
+        </section>
 
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
@@ -5755,9 +5761,22 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds, onSave }: { 
     if (files) {
       const newFiles = Array.from(files);
       const newPhotos = newFiles.map((file: File) => URL.createObjectURL(file));
-      setPhotoFiles(prev => [...prev, ...newFiles].slice(0, 5));
-      setPhotos(prev => [...prev, ...newPhotos].slice(0, 5));
+      setPhotoFiles(prev => [...prev, ...newFiles].slice(0, 10));
+      setPhotos(prev => [...prev, ...newPhotos].slice(0, 10));
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const base64ToFile = (dataUrl: string, filename: string): File => {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -5984,7 +6003,9 @@ function TreatmentFormView({ woundId, navigateTo, patients, wounds, onSave }: { 
         {showCamera && (
           <CameraCapture 
             onCapture={(dataUrl) => {
-              setPhotos(prev => [...prev, dataUrl].slice(0, 5));
+              const file = base64ToFile(dataUrl, `treatment_${Date.now()}.png`);
+              setPhotoFiles(prev => [...prev, file].slice(0, 10));
+              setPhotos(prev => [...prev, dataUrl].slice(0, 10));
               setShowCamera(false);
             }}
             onClose={() => setShowCamera(false)}
@@ -6865,7 +6886,6 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       genitalesExteriores: ''
     }
   });
-  const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdPatientId, setCreatedPatientId] = useState<string | null>(null);
@@ -6880,20 +6900,10 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       phone: formData.phone || '',
       religion: formData.religion || '',
       education_level: formData.educationLevel || '',
-      family_history: formData.familyHistory || '',
-      pathological_history: formData.pathologicalHistory || '',
-      non_pathological_history: formData.nonPathologicalHistory || '',
       gender: formData.gender || '',
       marital_status: formData.maritalStatus || '',
       occupation: formData.occupation || '',
       address: formData.address || '',
-      pathological_history_details: formData.pathologicalHistoryDetails,
-      non_path_history_details: formData.nonPathologicalHistoryDetails,
-      gyneco_obstetric_history: formData.gynecoObstetricHistory,
-      current_condition: formData.currentCondition,
-      physical_exploration: formData.physicalExploration,
-      regions_segments: formData.regionsSegments,
-      initial_wound_photo: formData.initialWoundPhoto || '',
       privacy_notice_signed: formData.privacyNoticeSigned || false,
       privacy_notice_signature: formData.privacyNoticeSignature || '',
       privacy_notice_date: formData.privacyNoticeDate || '',
@@ -6905,7 +6915,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
     };
 
     if (!navigator.onLine) {
-      // Modo Offline
+      // Modo Offline Simplificado
       const tempId = crypto.randomUUID();
       const newPatient: Patient = {
         id: tempId,
@@ -6914,13 +6924,13 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         phone: patientData.phone,
         religion: patientData.religion,
         educationLevel: patientData.education_level,
-        familyHistory: patientData.family_history,
-        pathologicalHistory: patientData.pathological_history,
-        nonPathologicalHistory: patientData.non_pathological_history,
         gender: patientData.gender,
         maritalStatus: patientData.marital_status,
         occupation: patientData.occupation,
         address: patientData.address,
+        familyHistory: '',
+        pathologicalHistory: '',
+        nonPathologicalHistory: '',
         privacyNoticeSigned: patientData.privacy_notice_signed,
         privacyNoticeSignature: patientData.privacy_notice_signature,
         privacyNoticeDate: patientData.privacy_notice_date,
@@ -6932,34 +6942,6 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       };
       
       syncService.addToQueue('patients', 'INSERT', patientData);
-      
-      // Crear herida automática en offline si hay datos
-      if (patientData.current_condition || patientData.initial_wound_photo) {
-        const automaticWoundData = {
-          patient_id: tempId,
-          location: patientData.regions_segments || 'Región por especificar',
-          description: patientData.current_condition || 'Registro inicial de paciente',
-          status: 'pending_doctor',
-          initial_photos: patientData.initial_wound_photo ? [patientData.initial_wound_photo] : [],
-          proposed_plan: 'Plan pendiente de valoración detallada. Registrado automáticamente durante el alta del paciente.'
-        };
-        syncService.addToQueue('wounds', 'INSERT', automaticWoundData);
-      }
-
-      syncService.addToQueue('notifications', 'INSERT', [
-        {
-          title: 'Nuevo Paciente Registrado (Offline)',
-          body: `Se ha dado de alta a ${newPatient.fullName}.`,
-          voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}.`,
-          target_role: 'Administrador'
-        },
-        {
-          title: 'Nuevo Paciente Registrado (Offline)',
-          body: `Se ha dado de alta a ${newPatient.fullName}.`,
-          voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
-          target_role: 'Doctor'
-        }
-      ]);
       setCreatedPatientId(tempId);
       onSave(newPatient);
       setIsSubmitting(false);
@@ -6967,115 +6949,23 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       return;
     }
 
-    toast.loading('Subiendo firmas y fotos...', { id: 'patient-save' });
+    toast.loading('Guardando paciente...', { id: 'patient-save' });
     try {
-      // Subir firmas a Storage si existen
+      // Subir firmas si existen
       if (patientData.privacy_notice_signature && patientData.privacy_notice_signature.startsWith('data:image')) {
         const url = await storageService.uploadBase64('signatures', `privacy_${Date.now()}.png`, patientData.privacy_notice_signature);
-        if (url) {
-          patientData.privacy_notice_signature = url;
-        } else {
-          console.warn('Fallo la subida de firma de aviso de privacidad, se guardará sin firma');
-          patientData.privacy_notice_signature = '';
-        }
+        if (url) patientData.privacy_notice_signature = url;
       }
       if (patientData.consent_form_signature && patientData.consent_form_signature.startsWith('data:image')) {
         const url = await storageService.uploadBase64('signatures', `consent_${Date.now()}.png`, patientData.consent_form_signature);
-        if (url) {
-          patientData.consent_form_signature = url;
-        } else {
-          console.warn('Fallo la subida de firma de consentimiento, se guardará sin firma');
-          patientData.consent_form_signature = '';
-        }
+        if (url) patientData.consent_form_signature = url;
       }
+
+      console.log('Insertando datos del paciente (Etapa 1):', patientData);
       
-      // Subir foto inicial si existe
-      if (patientData.initial_wound_photo && patientData.initial_wound_photo.startsWith('data:image')) {
-        toast.loading('Subiendo evidencia fotográfica...', { id: 'patient-save' });
-        console.log('Subiendo evidencia fotográfica inicial...');
-        const url = await storageService.uploadBase64('photos', `patient_${Date.now()}.png`, patientData.initial_wound_photo);
-        if (url) {
-          patientData.initial_wound_photo = url;
-        } else {
-          // Si falla la subida de la foto, mostramos advertencia pero permitimos continuar sin la foto
-          // para no bloquear el registro del paciente
-          toast.error('No se pudo subir la foto, el registro continuará sin ella', { duration: 4000 });
-          patientData.initial_wound_photo = '';
-        }
-      }
-
-      toast.loading('Guardando expediente...', { id: 'patient-save' });
-      console.log('Insertando datos del paciente en Supabase:', patientData);
-      
-      // Sanitizar datos para la tabla de Supabase (solo columnas que existen en la DB)
-      const sanitizedData: any = {
-        full_name: patientData.full_name,
-        date_of_birth: patientData.date_of_birth,
-        gender: patientData.gender,
-        phone: patientData.phone,
-        address: patientData.address,
-        marital_status: patientData.marital_status,
-        occupation: patientData.occupation,
-        religion: patientData.religion,
-        education_level: formData.educationLevel || '',
-        family_history: patientData.family_history,
-        pathological_history: patientData.pathological_history,
-        non_pathological_history: patientData.non_pathological_history,
-        initial_wound_photo: patientData.initial_wound_photo,
-        current_condition: formData.currentCondition || '',
-        physical_exploration: formData.physicalExploration || '',
-        regions_segments: formData.regionsSegments || '',
-        privacy_notice_signed: patientData.privacy_notice_signed,
-        privacy_notice_date: patientData.privacy_notice_date,
-        privacy_notice_signature: patientData.privacy_notice_signature,
-        privacy_notice_type: patientData.privacy_notice_type,
-        consent_form_signed: patientData.consent_form_signed,
-        consent_form_date: patientData.consent_form_date,
-        consent_form_signature: patientData.consent_form_signature,
-        consent_form_type: patientData.consent_form_type
-      };
-
-      // Si la fecha fue capturada manualmente o contiene texto, intentamos normalizarla
-      if (sanitizedData.date_of_birth) {
-        let dob = sanitizedData.date_of_birth.trim().toUpperCase();
-        
-        // Mapeo de meses en español
-        const months: { [key: string]: string } = {
-          'ENERO': '01', 'FEBRERO': '02', 'MARZO': '03', 'ABRIL': '04', 'MAYO': '05', 'JUNIO': '06',
-          'JULIO': '07', 'AGOSTO': '08', 'SEPTIEMBRE': '09', 'OCTUBRE': '10', 'NOVIEMBRE': '11', 'DICIEMBRE': '12'
-        };
-
-        // Caso: "20 DE NOVIEMBRE DE 1970" o "20 NOVIEMBRE 1970"
-        for (const monthName in months) {
-          if (dob.includes(monthName)) {
-            const parts = dob.split(/\s+DE\s+|\s+/);
-            const day = parts[0].padStart(2, '0');
-            const year = parts[parts.length - 1];
-            if (day && year && year.length === 4) {
-              sanitizedData.date_of_birth = `${year}-${months[monthName]}-${day}`;
-            }
-            break;
-          }
-        }
-
-        // Caso: DD/MM/AAAA
-        if (sanitizedData.date_of_birth.includes('/')) {
-          const parts = sanitizedData.date_of_birth.split('/');
-          if (parts.length === 3) {
-            const day = parts[0].padStart(2, '0');
-            const month = parts[1].padStart(2, '0');
-            const year = parts[2];
-            if (year.length === 4) {
-              sanitizedData.date_of_birth = `${year}-${month}-${day}`;
-            }
-          }
-        }
-      }
-
-      console.log('Insertando datos del paciente en Supabase:', sanitizedData);
       const { data, error } = await supabase
         .from('patients')
-        .insert([sanitizedData])
+        .insert([patientData])
         .select()
         .single();
       
@@ -7089,13 +6979,13 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           phone: data.phone,
           religion: data.religion,
           educationLevel: data.education_level,
-          familyHistory: data.family_history,
-          pathologicalHistory: data.pathological_history,
-          nonPathologicalHistory: data.non_pathological_history,
           gender: data.gender,
           maritalStatus: data.marital_status,
           occupation: data.occupation,
           address: data.address,
+          familyHistory: data.family_history || '',
+          pathologicalHistory: data.pathological_history || '',
+          nonPathologicalHistory: data.non_pathological_history || '',
           privacyNoticeSigned: data.privacy_notice_signed,
           privacyNoticeSignature: data.privacy_notice_signature,
           privacyNoticeDate: data.privacy_notice_date,
@@ -7110,41 +7000,10 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           {
             title: 'Nuevo Paciente Registrado',
             body: `Se ha dado de alta a ${newPatient.fullName}.`,
-            voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}.`,
+            voice_text: `Atención: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
             target_role: 'Administrador'
-          },
-          {
-            title: 'Nuevo Paciente Registrado',
-            body: `Se ha dado de alta a ${newPatient.fullName}.`,
-            voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
-            target_role: 'Doctor'
           }
         ]);
-
-        // Crear automáticamente una valoración pendiente para que el doctor pueda autorizar
-        // si se proporcionó información de padecimiento actual
-        if (patientData.current_condition || patientData.initial_wound_photo) {
-          const automaticWoundData = {
-            patient_id: data.id,
-            location: (patientData as any).regions_segments || 'Región por especificar',
-            description: (patientData as any).current_condition || 'Registro inicial de paciente',
-            status: 'pending_doctor',
-            initial_photos: patientData.initial_wound_photo ? [patientData.initial_wound_photo] : [],
-            proposed_plan: 'Plan pendiente de valoración detallada. Registrado automáticamente durante el alta del paciente.'
-          };
-          
-          const { error: woundError } = await supabase.from('wounds').insert([automaticWoundData]);
-          if (!woundError) {
-            await supabase.from('notifications').insert([
-              {
-                title: 'Plan de Tratamiento Pendiente',
-                body: `Se ha generado un registro para ${newPatient.fullName}. Requiere su valoración y autorización.`,
-                voice_text: `Doctor: El paciente ${newPatient.fullName} ya tiene un registro clínico inicial. Por favor, revise y autorice el tratamiento para comenzar las visitas.`,
-                target_role: 'Doctor'
-              }
-            ]);
-          }
-        }
 
         setCreatedPatientId(data.id);
         onSave(newPatient);
@@ -7153,43 +7012,37 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       }
     } catch (error: any) {
       console.error('Error saving patient:', error);
-      const errorMessage = error.message || 'Error desconocido';
-      toast.error(`Error al registrar el paciente: ${errorMessage}`, { id: 'patient-save' });
+      toast.error(`Error: ${error.message}`, { id: 'patient-save' });
     } finally {
       setIsSubmitting(false);
     }
   };
+
   if (isSuccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center animate-in fade-in zoom-in duration-500">
         <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-100">
           <CheckCircle className="w-12 h-12" />
         </div>
-        <h2 className="text-3xl font-black text-slate-900 mb-2">¡Paciente Registrado!</h2>
-        <p className="text-slate-500 font-medium max-w-md mx-auto">
-          El nuevo paciente ha sido dado de alta exitosamente en el sistema.
+        <h2 className="text-3xl font-black text-slate-900 mb-2">¡Etapa 1 Completada!</h2>
+        <p className="text-slate-500 font-medium max-w-md mx-auto mb-8">
+          El paciente ha sido identificado exitosamente. Ahora puedes proceder a llenar la historia clínica y la valoración inicial (Etapa 2).
         </p>
-        <div className="mt-8 flex flex-col items-center gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <button 
             onClick={() => navigateTo('new-assessment', createdPatientId || undefined)}
             className="bg-primary text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-105 transition-all"
           >
             <PlusCircle className="w-5 h-5" />
-            Añadir Valoración de Herida
+            Ir a Etapa 2: Historia Clínica
           </button>
           <button 
             onClick={() => navigateTo('patient-detail', createdPatientId || undefined)}
             className="bg-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-slate-300 transition-all"
           >
             <FileText className="w-5 h-5" />
-            Ir al Expediente
+            Finalizar por ahora
           </button>
-        </div>
-          <div className="flex items-center gap-2 text-slate-400 font-bold text-sm">
-            <Clock className="w-4 h-4 animate-spin-slow" />
-            Abriendo expediente...
-          </div>
         </div>
       </div>
     );
@@ -7201,554 +7054,111 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         <button onClick={() => navigateTo('patients')} className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-primary flex items-center gap-2 mb-6 transition-colors">
           <ChevronRight className="w-4 h-4 rotate-180" /> Cancelar
         </button>
-        <h2 className="text-4xl font-black tracking-tighter text-slate-900">Alta de Nuevo Paciente</h2>
-        <p className="text-slate-500 font-medium">Paso {step} de 4: {step === 1 ? 'Ficha de Identificación' : step === 2 ? 'Antecedentes' : step === 3 ? 'Exploración Física' : 'Padecimiento Actual'}</p>
-        
-        <div className="flex gap-2 mt-6">
-          {[1, 2, 3, 4].map(s => (
-            <div key={s} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${s <= step ? 'bg-primary' : 'bg-slate-200'}`} />
-          ))}
-        </div>
+        <h2 className="text-4xl font-black tracking-tighter text-slate-900">Alta de Paciente</h2>
+        <p className="text-slate-500 font-medium text-lg mt-1">Etapa 1: Identificación y Datos de Contacto</p>
       </header>
 
-      <div className="space-y-10" onKeyDown={e => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') e.preventDefault(); }}>
-        
-        {step === 1 && (
-          <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <User className="w-4 h-4" />
-              </div>
-              Ficha de Identificación
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Nombre Completo</label>
-                <input type="text" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento</label>
-                <input 
-                  type="text" 
-                  placeholder="DD/MM/AAAA o AAAA-MM-DD"
-                  value={formData.dateOfBirth} 
-                  onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} 
-                  className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" 
-                />
-                <p className="text-[10px] text-slate-400 mt-1 ml-1 px-1 italic">Captura manual habilitada</p>
-              </div>
-              
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Teléfono</label>
-                <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Sexo</label>
-                <div className="relative">
-                  <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none pr-12">
-                    <option value="">Seleccionar...</option>
-                    <option value="Masculino">Masculino</option>
-                    <option value="Femenino">Femenino</option>
-                    <option value="No Binario">No Binario</option>
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                    <ChevronRight className="w-5 h-5 rotate-90" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Estado Civil</label>
-                <div className="relative">
-                  <select value={formData.maritalStatus} onChange={e => setFormData({...formData, maritalStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none pr-12">
-                    <option value="">Seleccionar...</option>
-                    <option value="Soltero/a">Soltero/a</option>
-                    <option value="Casado/a">Casado/a</option>
-                    <option value="Viudo/a">Viudo/a</option>
-                    <option value="Divorciado/a">Divorciado/a</option>
-                    <option value="Unión Libre">Unión Libre</option>
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                    <ChevronRight className="w-5 h-5 rotate-90" />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Religión</label>
-                <input type="text" value={formData.religion} onChange={e => setFormData({...formData, religion: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Escolaridad</label>
-                <input type="text" value={formData.educationLevel} onChange={e => setFormData({...formData, educationLevel: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Ocupación</label>
-                <input type="text" value={formData.occupation} onChange={e => setFormData({...formData, occupation: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Dirección</label>
-                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
+      <form onSubmit={handleSubmit} className="space-y-10">
+        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <User className="w-4 h-4" />
             </div>
-          </section>
-        )}
-
-        {step === 2 && (
-          <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <Activity className="w-4 h-4" />
-              </div>
-              Antecedentes
-            </h3>
-            <div className="space-y-8">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Heredo Familiares</label>
-                <textarea rows={3} value={formData.familyHistory ?? ''} onChange={e => setFormData({...formData, familyHistory: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
-              </div>
-
-              <div className="border-t border-slate-100 pt-8">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Personales Patológicos</label>
-                
-                <div className="space-y-6">
-                  {/* Endocrino */}
-                  <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                    <h4 className="text-sm font-black text-slate-900 mb-4 uppercase tracking-wider">Endocrino</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                      {['diabetes', 'hipertiroidismo', 'hipotiroidismo'].map(key => (
-                        <label key={key} className="flex items-center gap-3 p-3 rounded-xl border border-white bg-white shadow-sm cursor-pointer hover:border-primary transition-all">
-                          <input 
-                            type="checkbox" 
-                            checked={(formData.pathologicalHistoryDetails?.endocrino as any)?.[key]} 
-                            onChange={e => setFormData({
-                              ...formData, 
-                              pathologicalHistoryDetails: {
-                                ...formData.pathologicalHistoryDetails!,
-                                endocrino: {
-                                  ...formData.pathologicalHistoryDetails!.endocrino!,
-                                  [key]: e.target.checked
-                                }
-                              }
-                            })}
-                            className="w-5 h-5 rounded-lg border-slate-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-xs font-bold text-slate-700 capitalize">{key}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        type="text" 
-                        placeholder="Tiempo de evolución" 
-                        value={formData.pathologicalHistoryDetails?.endocrino?.tiempo ?? ''}
-                        onChange={e => setFormData({
-                          ...formData,
-                          pathologicalHistoryDetails: {
-                            ...formData.pathologicalHistoryDetails!,
-                            endocrino: { ...formData.pathologicalHistoryDetails!.endocrino!, tiempo: e.target.value }
-                          }
-                        })}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Tratamiento" 
-                        value={formData.pathologicalHistoryDetails?.endocrino?.tratamiento ?? ''}
-                        onChange={e => setFormData({
-                          ...formData,
-                          pathologicalHistoryDetails: {
-                            ...formData.pathologicalHistoryDetails!,
-                            endocrino: { ...formData.pathologicalHistoryDetails!.endocrino!, tratamiento: e.target.value }
-                          }
-                        })}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Cardiovascular */}
-                  <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                    <h4 className="text-sm font-black text-slate-900 mb-4 uppercase tracking-wider">Cardiovascular</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      {['hipertension', 'palpitaciones', 'fiebreReumatica', 'varices'].map(key => (
-                        <label key={key} className="flex items-center gap-3 p-3 rounded-xl border border-white bg-white shadow-sm cursor-pointer hover:border-primary transition-all">
-                          <input 
-                            type="checkbox" 
-                            checked={(formData.pathologicalHistoryDetails?.cardiovascular as any)?.[key]} 
-                            onChange={e => setFormData({
-                              ...formData, 
-                              pathologicalHistoryDetails: {
-                                ...formData.pathologicalHistoryDetails!,
-                                cardiovascular: {
-                                  ...formData.pathologicalHistoryDetails!.cardiovascular!,
-                                  [key]: e.target.checked
-                                }
-                              }
-                            })}
-                            className="w-5 h-5 rounded-lg border-slate-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-xs font-bold text-slate-700 capitalize">{key === 'hipertension' ? 'HTA' : key === 'fiebreReumatica' ? 'F. Reumática' : key}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        type="text" 
-                        placeholder="Tiempo de evolución" 
-                        value={formData.pathologicalHistoryDetails?.cardiovascular?.tiempo}
-                        onChange={e => setFormData({
-                          ...formData,
-                          pathologicalHistoryDetails: {
-                            ...formData.pathologicalHistoryDetails!,
-                            cardiovascular: { ...formData.pathologicalHistoryDetails!.cardiovascular!, tiempo: e.target.value }
-                          }
-                        })}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Tratamiento" 
-                        value={formData.pathologicalHistoryDetails?.cardiovascular?.tratamiento}
-                        onChange={e => setFormData({
-                          ...formData,
-                          pathologicalHistoryDetails: {
-                            ...formData.pathologicalHistoryDetails!,
-                            cardiovascular: { ...formData.pathologicalHistoryDetails!.cardiovascular!, tratamiento: e.target.value }
-                          }
-                        })}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Respiratorio */}
-                  <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                    <h4 className="text-sm font-black text-slate-900 mb-4 uppercase tracking-wider">Respiratorio</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      {['asma', 'bronquitis', 'neumonia', 'tuberculosis'].map(key => (
-                        <label key={key} className="flex items-center gap-3 p-3 rounded-xl border border-white bg-white shadow-sm cursor-pointer hover:border-primary transition-all">
-                          <input 
-                            type="checkbox" 
-                            checked={(formData.pathologicalHistoryDetails?.respiratorio as any)?.[key]} 
-                            onChange={e => setFormData({
-                              ...formData, 
-                              pathologicalHistoryDetails: {
-                                ...formData.pathologicalHistoryDetails!,
-                                respiratorio: {
-                                  ...formData.pathologicalHistoryDetails!.respiratorio!,
-                                  [key]: e.target.checked
-                                }
-                              }
-                            })}
-                            className="w-5 h-5 rounded-lg border-slate-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-xs font-bold text-slate-700 capitalize">{key}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        type="text" 
-                        placeholder="Tiempo de evolución" 
-                        value={formData.pathologicalHistoryDetails?.respiratorio?.tiempo}
-                        onChange={e => setFormData({
-                          ...formData,
-                          pathologicalHistoryDetails: {
-                            ...formData.pathologicalHistoryDetails!,
-                            respiratorio: { ...formData.pathologicalHistoryDetails!.respiratorio!, tiempo: e.target.value }
-                          }
-                        })}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium"
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="Tratamiento" 
-                        value={formData.pathologicalHistoryDetails?.respiratorio?.tratamiento}
-                        onChange={e => setFormData({
-                          ...formData,
-                          pathologicalHistoryDetails: {
-                            ...formData.pathologicalHistoryDetails!,
-                            respiratorio: { ...formData.pathologicalHistoryDetails!.respiratorio!, tratamiento: e.target.value }
-                          }
-                        })}
-                        className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Alergias</label>
-                      <input type="text" value={formData.pathologicalHistoryDetails?.alergias} onChange={e => setFormData({...formData, pathologicalHistoryDetails: {...formData.pathologicalHistoryDetails!, alergias: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fracturas</label>
-                      <input type="text" value={formData.pathologicalHistoryDetails?.fracturas} onChange={e => setFormData({...formData, pathologicalHistoryDetails: {...formData.pathologicalHistoryDetails!, fracturas: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-100 pt-8">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">No Patológicos</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <label className="flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/30 cursor-pointer hover:bg-slate-50 transition-all">
-                    <input 
-                      type="checkbox" 
-                      checked={formData.nonPathologicalHistoryDetails?.sports} 
-                      onChange={e => setFormData({
-                        ...formData, 
-                        nonPathologicalHistoryDetails: {
-                          ...formData.nonPathologicalHistoryDetails!,
-                          sports: e.target.checked
-                        }
-                      })}
-                      className="w-5 h-5 rounded-lg border-slate-300 text-primary focus:ring-primary"
-                    />
-                    <span className="text-sm font-bold text-slate-700">¿Realiza algún deporte?</span>
-                  </label>
-                  
-                  {formData.nonPathologicalHistoryDetails?.sports && (
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Frecuencia de Deporte</label>
-                      <input type="text" value={formData.nonPathologicalHistoryDetails?.sportsFrequency} onChange={e => setFormData({...formData, nonPathologicalHistoryDetails: {...formData.nonPathologicalHistoryDetails!, sportsFrequency: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1">Frecuencia de Baño</label>
-                    <input type="text" value={formData.nonPathologicalHistoryDetails?.bathFrequency} onChange={e => setFormData({...formData, nonPathologicalHistoryDetails: {...formData.nonPathologicalHistoryDetails!, bathFrequency: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 mb-1">Frecuencia de Lavado Dental</label>
-                    <input type="text" value={formData.nonPathologicalHistoryDetails?.dentalFrequency} onChange={e => setFormData({...formData, nonPathologicalHistoryDetails: {...formData.nonPathologicalHistoryDetails!, dentalFrequency: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                  </div>
-                </div>
-                <textarea rows={2} placeholder="Otros antecedentes no patológicos..." value={formData.nonPathologicalHistory} onChange={e => setFormData({...formData, nonPathologicalHistory: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner mt-6"></textarea>
-              </div>
-
-              {formData.gender === 'Femenino' && (
-                <div className="border-t border-slate-100 pt-8">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Gineco-Obstétricos</label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Menarca</label>
-                      <input type="text" value={formData.gynecoObstetricHistory?.menarche} onChange={e => setFormData({...formData, gynecoObstetricHistory: {...formData.gynecoObstetricHistory!, menarche: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">FUM</label>
-                      <input type="date" value={formData.gynecoObstetricHistory?.lastMenstrualPeriod} onChange={e => setFormData({...formData, gynecoObstetricHistory: {...formData.gynecoObstetricHistory!, lastMenstrualPeriod: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Gestas</label>
-                      <input type="text" value={formData.gynecoObstetricHistory?.embarazos} onChange={e => setFormData({...formData, gynecoObstetricHistory: {...formData.gynecoObstetricHistory!, embarazos: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 mb-1">Partos</label>
-                      <input type="text" value={formData.gynecoObstetricHistory?.partos} onChange={e => setFormData({...formData, gynecoObstetricHistory: {...formData.gynecoObstetricHistory!, partos: e.target.value}})} className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium" />
-                    </div>
-                  </div>
-                </div>
-              )}
+            Identificación
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Nombre Completo *</label>
+              <input required type="text" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
-          </section>
-        )}
-
-        {step === 3 && (
-          <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <Activity className="w-4 h-4" />
-              </div>
-              Exploración Física
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Tensión Arterial</label>
-                <input type="text" placeholder="120/80" value={formData.physicalExploration?.ta} onChange={e => setFormData({...formData, physicalExploration: {...formData.physicalExploration!, ta: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Frec. Cardiaca</label>
-                <input type="text" placeholder="70 lpm" value={formData.physicalExploration?.fc} onChange={e => setFormData({...formData, physicalExploration: {...formData.physicalExploration!, fc: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Frec. Resp.</label>
-                <input type="text" placeholder="16 rpm" value={formData.physicalExploration?.fr} onChange={e => setFormData({...formData, physicalExploration: {...formData.physicalExploration!, fr: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Temperatura</label>
-                <input type="text" placeholder="36.5 °C" value={formData.physicalExploration?.adicionales} onChange={e => setFormData({...formData, physicalExploration: {...formData.physicalExploration!, adicionales: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Peso (kg)</label>
-                <input type="text" value={formData.physicalExploration?.peso} onChange={e => setFormData({...formData, physicalExploration: {...formData.physicalExploration!, peso: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Talla (m)</label>
-                <input type="text" value={formData.physicalExploration?.talla} onChange={e => setFormData({...formData, physicalExploration: {...formData.physicalExploration!, talla: e.target.value}})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">IMC</label>
-                <input type="text" readOnly value={formData.physicalExploration?.imc} className="w-full border border-slate-200 rounded-2xl p-4 font-medium bg-slate-100 outline-none" />
-              </div>
+            
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento *</label>
+              <input 
+                required
+                type="date" 
+                value={formData.dateOfBirth} 
+                onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} 
+                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none" 
+              />
             </div>
-            <div className="mt-8 space-y-6">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Regiones y Segmentos</label>
-              {Object.keys(formData.regionsSegments || {}).map(key => (
-                <div key={key}>
-                  <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">{key.replace(/([A-Z])/g, ' $1')}</label>
-                  <textarea 
-                    rows={2} 
-                    value={(formData.regionsSegments as any)?.[key]} 
-                    onChange={e => setFormData({
-                      ...formData, 
-                      regionsSegments: {
-                        ...formData.regionsSegments!,
-                        [key]: e.target.value
-                      }
-                    })} 
-                    className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"
-                  ></textarea>
-                </div>
-              ))}
+            
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Teléfono</label>
+              <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
-          </section>
-        )}
 
-        {step === 4 && (
-          <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <FileText className="w-4 h-4" />
-              </div>
-              Padecimiento Actual
-            </h3>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Descripción del Padecimiento</label>
-                <textarea rows={8} value={formData.currentCondition} onChange={e => setFormData({...formData, currentCondition: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all resize-none shadow-inner"></textarea>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Evidencia Fotográfica Inicial (Opcional)</label>
-                <div className="flex flex-col items-center gap-6 p-8 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/30">
-                  {formData.initialWoundPhoto ? (
-                    <div className="relative group">
-                      <img src={formData.initialWoundPhoto} alt="Evidencia" className="w-full max-w-sm rounded-2xl shadow-lg border-4 border-white" />
-                      <button 
-                        type="button"
-                        onClick={() => setFormData({...formData, initialWoundPhoto: ''})}
-                        className="absolute -top-3 -right-3 w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 transition-all"
-                      >
-                        <X className="w-6 h-6" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center text-center py-6">
-                      <div className="w-20 h-20 bg-primary/10 text-primary rounded-3xl flex items-center justify-center mb-4">
-                        <Camera className="w-10 h-10" />
-                      </div>
-                      <p className="text-slate-500 font-medium mb-6 max-w-xs">Toma una foto de la herida o carga un archivo desde tu dispositivo</p>
-                      
-                      <div className="flex flex-wrap justify-center gap-4">
-                        <label className="bg-primary text-white px-8 py-4 rounded-xl font-black text-sm cursor-pointer hover:bg-primary/90 transition-all flex items-center gap-3">
-                          <Plus className="w-5 h-5" />
-                          Subir Archivo
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            className="hidden" 
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setFormData({...formData, initialWoundPhoto: reader.result as string});
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </label>
-                        
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const input = document.createElement('input');
-                            input.type = 'file';
-                            input.accept = 'image/*';
-                            input.capture = 'environment';
-                            input.onchange = (e: any) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setFormData({...formData, initialWoundPhoto: reader.result as string});
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            };
-                            input.click();
-                          }}
-                          className="bg-secondary text-primary px-8 py-4 rounded-xl font-black text-sm hover:bg-secondary/80 transition-all flex items-center gap-3"
-                        >
-                          <Camera className="w-5 h-5" />
-                          Tomar Foto
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Sexo</label>
+              <select value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50">
+                <option value="">Seleccionar...</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Otro">Otro</option>
+              </select>
             </div>
-          </section>
-        )}
 
-        <div className="flex flex-wrap justify-between gap-4">
-          <div className="flex gap-4">
-            {step > 1 && (
-              <button 
-                type="button"
-                onClick={() => setStep(step - 1)}
-                className="bg-slate-100 text-slate-600 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
-              >
-                Anterior
-              </button>
-            )}
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Estado Civil</label>
+              <select value={formData.maritalStatus} onChange={e => setFormData({...formData, maritalStatus: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50">
+                <option value="">Seleccionar...</option>
+                <option value="Soltero/a">Soltero/a</option>
+                <option value="Casado/a">Casado/a</option>
+                <option value="Unión Libre">Unión Libre</option>
+                <option value="Divorciado/a">Divorciado/a</option>
+                <option value="Viudo/a">Viudo/a</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Dirección</label>
+              <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+            </div>
           </div>
-          
-          <div className="flex gap-4">
-            {step < 4 ? (
-              <button 
-                type="button"
-                onClick={() => setStep(step + 1)}
-                className="bg-primary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-primary/30 hover:bg-primary-dark transition-all"
-              >
-                Siguiente
-              </button>
-            ) : (
-              <button 
-                type="button"
-                onClick={() => handleSubmit()}
-                disabled={isSubmitting}
-                className="bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all disabled:opacity-50"
-              >
-                {isSubmitting ? 'Guardando...' : 'Finalizar Registro'}
-              </button>
-            )}
+        </section>
+
+        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+          <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            Documentos Legales
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <button 
+              type="button"
+              onClick={() => {
+                // Lógica para abrir firma de aviso
+                toast('Completa el registro para firmar documentos en el detalle del paciente.', { icon: 'ℹ️' });
+              }}
+              className="p-8 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-all group"
+            >
+              <PenTool className="w-8 h-8 mb-3 transition-transform group-hover:scale-110" />
+              <span className="font-black text-[10px] uppercase tracking-widest text-center">Firma pendiente: Aviso y Consentimiento</span>
+            </button>
+            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 flex flex-col justify-center">
+              <p className="text-xs text-slate-500 font-medium italic text-center">
+                Nota: Podrás recolectar las firmas digitales una vez registrado el paciente desde su expediente.
+              </p>
+            </div>
           </div>
+        </section>
+
+        <div className="flex justify-end pt-4">
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="w-full md:w-auto bg-primary text-white px-12 py-5 rounded-2xl font-black shadow-2xl shadow-primary/30 hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            {isSubmitting ? <Clock className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            Completar Etapa 1
+          </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
+
 
 function CertificatesListView({ navigateTo, certificates, currentRole, onDelete }: { navigateTo: (view: View, pId?: string, wId?: string, qId?: string, cId?: string) => void, certificates: MedicalCertificate[], currentRole: Role, onDelete: (id: string) => void }) {
   const [search, setSearch] = useState('');

@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS patients (
   family_history TEXT,
   pathological_history TEXT,
   non_pathological_history TEXT,
-  initial_wound_photo TEXT,
+  initial_photos TEXT[], -- Cambiado de initial_wound_photo TEXT para soportar múltiples fotos
   current_condition TEXT,
   physical_exploration TEXT,
   regions_segments TEXT,
