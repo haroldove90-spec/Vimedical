@@ -123,6 +123,60 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
+function ImageViewer({ isOpen, imageUrl, onClose }: { isOpen: boolean; imageUrl: string | null; onClose: () => void }) {
+  if (!isOpen || !imageUrl) return null;
+
+  return (
+    <div className="fixed inset-0 z-[110] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+      <button 
+        onClick={onClose}
+        className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors p-2 bg-white/10 rounded-full hover:bg-white/20 z-10"
+      >
+        <X className="w-8 h-8" />
+      </button>
+      
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="relative max-w-full max-h-full flex items-center justify-center"
+      >
+        <img 
+          src={imageUrl} 
+          alt="Vista ampliada" 
+          className="max-w-full max-h-[85vh] object-contain rounded-3xl shadow-2xl border-4 border-white/10"
+          referrerPolicy="no-referrer"
+        />
+        
+        <div className="absolute -bottom-16 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl flex items-center gap-4 border border-white/10">
+          <button 
+            onClick={() => {
+              const link = document.createElement('a');
+              link.href = imageUrl;
+              link.download = `evidencia_${Date.now()}.png`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="flex items-center gap-2 text-white font-black text-xs uppercase tracking-widest hover:text-secondary transition-colors"
+          >
+            <Download className="w-5 h-5" />
+            Descargar
+          </button>
+          <div className="w-px h-4 bg-white/20" />
+          <button 
+            onClick={() => window.open(imageUrl, '_blank')}
+            className="flex items-center gap-2 text-white font-black text-xs uppercase tracking-widest hover:text-secondary transition-colors"
+          >
+            <Maximize className="w-5 h-5" />
+            Original
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function ConfirmationModal({ 
   isOpen, 
   title, 
@@ -2605,7 +2659,7 @@ function ClinicalHistoryDetailView({
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Patient>({ ...patient });
   const [newComment, setNewComment] = useState('');
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   const handleSave = () => {
     onUpdate(formData);
@@ -2685,26 +2739,12 @@ function ClinicalHistoryDetailView({
 
   return (
     <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8">
-      {/* Zoom Modal */}
-      {zoomedImage && (
-        <div 
-          className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-300"
-          onClick={() => setZoomedImage(null)}
-        >
-          <button 
-            className="absolute top-6 right-6 text-white hover:text-secondary transition-colors"
-            onClick={() => setZoomedImage(null)}
-          >
-            <X className="w-8 h-8" />
-          </button>
-          <img 
-            src={zoomedImage} 
-            alt="Zoom herida" 
-            className="max-w-full max-h-full rounded-2xl shadow-2xl animate-in zoom-in duration-300"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {/* ImageViewer replaces the old modal */}
+      <ImageViewer 
+        isOpen={selectedPhoto !== null} 
+        imageUrl={selectedPhoto} 
+        onClose={() => setSelectedPhoto(null)} 
+      />
 
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -2814,8 +2854,8 @@ function ClinicalHistoryDetailView({
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Evidencia Inicial de esta Herida</p>
                       <div className="flex gap-3 overflow-x-auto pb-2">
                         {(wound.initialPhotos || []).map((photo, idx) => (
-                          <div key={idx} className="w-24 h-24 rounded-xl overflow-hidden shadow-sm border-2 border-white cursor-pointer hover:scale-105 transition-transform flex-shrink-0" onClick={() => setZoomedImage(photo)}>
-                            <img src={photo} alt={`Inicial ${idx}`} className="w-full h-full object-cover" />
+                          <div key={idx} className="w-24 h-24 rounded-xl overflow-hidden shadow-sm border-2 border-white cursor-pointer hover:scale-105 transition-transform flex-shrink-0" onClick={() => setSelectedPhoto(photo)}>
+                            <img src={photo} alt={`Inicial ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           </div>
                         ))}
                         {(wound.initialPhotos || []).length === 0 && (
@@ -2859,8 +2899,8 @@ function ClinicalHistoryDetailView({
                             {log.photos && log.photos.length > 0 && (
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 {log.photos.map((photo, idx) => (
-                                  <div key={idx} className="aspect-square rounded-xl overflow-hidden shadow-sm hover:ring-2 hover:ring-primary transition-all cursor-pointer" onClick={() => setZoomedImage(photo)}>
-                                    <img src={photo} alt={`Evidencia ${idx}`} className="w-full h-full object-cover" />
+                                  <div key={idx} className="aspect-square rounded-xl overflow-hidden shadow-sm hover:ring-2 hover:ring-primary transition-all cursor-pointer" onClick={() => setSelectedPhoto(photo)}>
+                                    <img src={photo} alt={`Evidencia ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                   </div>
                                 ))}
                               </div>
@@ -2957,10 +2997,10 @@ function ClinicalHistoryDetailView({
                     src={patient.initialWoundPhoto} 
                     alt="Foto inicial herida" 
                     className="w-full h-64 object-cover rounded-2xl cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setZoomedImage(patient.initialWoundPhoto!)}
+                    onClick={() => setSelectedPhoto(patient.initialWoundPhoto!)}
                   />
                   <button 
-                    onClick={() => setZoomedImage(patient.initialWoundPhoto!)}
+                    onClick={() => setSelectedPhoto(patient.initialWoundPhoto!)}
                     className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/20 rounded-2xl"
                   >
                     <div className="bg-white/90 p-3 rounded-full shadow-lg">
@@ -4129,6 +4169,7 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
   const pendingDoctor = wounds.filter(w => w.status === 'pending_doctor');
   const recentPatients = patients.slice(0, 5);
   const [comments, setComments] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -4290,7 +4331,7 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
                               alt={`Evidencia ${idx + 1}`} 
                               className="w-24 h-24 object-cover rounded-xl border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
                               referrerPolicy="no-referrer"
-                              onClick={() => window.open(photo, '_blank')}
+                              onClick={() => setSelectedPhoto(photo)}
                             />
                           ))}
                           {wound.initialPhotos.length === 0 && (
@@ -4391,6 +4432,12 @@ function DoctorDashboard({ navigateTo, patients, wounds, treatmentLogs, sendNoti
           </div>
         </div>
       </div>
+
+      <ImageViewer 
+        isOpen={selectedPhoto !== null} 
+        imageUrl={selectedPhoto} 
+        onClose={() => setSelectedPhoto(null)} 
+      />
     </div>
   );
 }
@@ -4562,9 +4609,8 @@ function SignaturePad({ onSave, onCancel, title }: { onSave: (signature: string)
   );
 }
 
-// --- M1: Gestión de Pacientes ---
-
 function PatientsView({ navigateTo, patients, onDelete, wounds }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], onDelete: (id: string) => void, wounds: Wound[] }) {
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const exportToExcel = () => {
     const data = patients.map(p => ({
       'ID': p.id.substring(0, 8),
@@ -4684,6 +4730,35 @@ function PatientsView({ navigateTo, patients, onDelete, wounds }: { navigateTo: 
                   <span className="text-sm font-bold">{patient.phone}</span>
                 </div>
               </div>
+
+              {/* Evidencias fotográficas (Miniaturas) */}
+              {(() => {
+                const patientWound = wounds.find(w => w.patientId === patient.id);
+                if (patientWound && patientWound.initialPhotos && patientWound.initialPhotos.length > 0) {
+                  return (
+                    <div className="mt-6 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                      {patientWound.initialPhotos.slice(0, 4).map((photo, idx) => (
+                        <div 
+                          key={idx} 
+                          className="relative group/img"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPhoto(photo);
+                          }}
+                        >
+                          <img 
+                            src={photo} 
+                            alt="Evidencia" 
+                            className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm group-hover/img:scale-110 transition-transform cursor-zoom-in"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div className="pt-6 mt-6 flex flex-col gap-3 border-t border-slate-100 relative z-10">
@@ -4741,6 +4816,12 @@ function PatientsView({ navigateTo, patients, onDelete, wounds }: { navigateTo: 
           </div>
         ))}
       </div>
+
+      <ImageViewer 
+        isOpen={selectedPhoto !== null} 
+        imageUrl={selectedPhoto} 
+        onClose={() => setSelectedPhoto(null)} 
+      />
     </div>
   );
 }
@@ -5200,6 +5281,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         pain_level: painLevel,
         shape: formData.get('shape') as string,
         prognosis: formData.get('prognosis') as string,
+        proposed_plan: formData.get('proposed_plan') as string,
         abi_arm: toNumeric(formData.get('abiArm')),
         abi_left_toe: toNumeric(formData.get('abiLeftToe')),
         abi_right_toe: toNumeric(formData.get('abiRightToe'))
@@ -5731,6 +5813,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
 
 function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs, currentProfile }: { woundId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], currentProfile: UserProfile | null }) {
   const wound = wounds.find(w => w.id === woundId);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const treatments = treatmentLogs.filter(t => t.woundId === woundId).sort((a, b) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime());
 
   if (!wound) return <div>Herida no encontrada</div>;
@@ -5790,7 +5873,10 @@ function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs,
         <div className="flex gap-8 overflow-x-auto pb-8 snap-x scrollbar-hide">
           {/* Foto Inicial */}
           <div className="min-w-[320px] snap-center">
-            <div className="aspect-[4/5] bg-slate-800 rounded-[2rem] overflow-hidden border-2 border-secondary relative group">
+            <div 
+              className="aspect-[4/5] bg-slate-800 rounded-[2rem] overflow-hidden border-2 border-secondary relative group cursor-pointer"
+              onClick={() => setSelectedPhoto(wound.initialPhotos[0])}
+            >
               <img src={wound.initialPhotos[0]} alt="Inicial" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-8">
                 <p className="text-[10px] font-black text-secondary uppercase tracking-[0.2em] mb-1">Valoración Inicial</p>
@@ -5801,7 +5887,10 @@ function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs,
           {/* Fotos de Tratamientos */}
           {treatments.map((t, idx) => (
             <div key={t.id} className="min-w-[320px] snap-center">
-              <div className="aspect-[4/5] bg-slate-800 rounded-[2rem] overflow-hidden border border-slate-700 relative group">
+              <div 
+                className="aspect-[4/5] bg-slate-800 rounded-[2rem] overflow-hidden border border-slate-700 relative group cursor-pointer"
+                onClick={() => setSelectedPhoto(t.photos[0])}
+              >
                 <img src={t.photos[0]} alt="Herida" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" referrerPolicy="no-referrer" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-8">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Visita {treatments.length - idx}</p>
@@ -5811,6 +5900,12 @@ function WoundDetailView({ woundId, navigateTo, patients, wounds, treatmentLogs,
             </div>
           ))}
         </div>
+
+        <ImageViewer 
+          isOpen={selectedPhoto !== null} 
+          imageUrl={selectedPhoto} 
+          onClose={() => setSelectedPhoto(null)} 
+        />
       </section>
     </div>
   );

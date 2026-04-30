@@ -24,9 +24,20 @@ export const requestNotificationPermission = async () => {
 };
 
 export const playNotificationSound = () => {
-  // Using a standard notification sound URL
-  const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-  audio.play().catch(e => console.error("Error playing sound:", e));
+  try {
+    // Using a standard notification sound URL
+    const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+    const playPromise = audio.play();
+    
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        // Silently handle autplay block - this is expected if no user interaction yet
+        console.log("Autoplay of notification sound blocked until user interaction.");
+      });
+    }
+  } catch (e) {
+    console.warn("Could not play notification sound:", e);
+  }
 };
 
 export const speakMessage = (message: string) => {
@@ -35,15 +46,19 @@ export const speakMessage = (message: string) => {
     return;
   }
 
-  // Cancel any ongoing speech
-  window.speechSynthesis.cancel();
+  try {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(message);
-  utterance.lang = "es-ES"; // Spanish
-  utterance.rate = 1.0;
-  utterance.pitch = 1.0;
-  
-  window.speechSynthesis.speak(utterance);
+    const utterance = new SpeechSynthesisUtterance(message);
+    utterance.lang = "es-ES"; // Spanish
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn("Speech synthesis failed:", e);
+  }
 };
 
 export const showNotification = (title: string, body: string) => {
