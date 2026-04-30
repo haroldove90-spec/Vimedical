@@ -7,7 +7,7 @@ import {
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Filter, Save, ShieldCheck
+  ChevronLeft, ArrowUpRight, ArrowDownRight, Filter, Save, ShieldCheck, Zap, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -5056,94 +5056,202 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
         )}
 
         {activeTab === 'history' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
-            <div className="lg:col-span-1 space-y-8">
-              <section className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-lg shadow-slate-200/30">
-                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" />
-                  Signos Vitales
-                </h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">T. Arterial</p>
-                    <p className="font-black text-slate-900">
-                      {patient.physicalExploration?.ta || 
-                       (latestWound?.bloodPressureSystolic 
-                        ? `${latestWound.bloodPressureSystolic}/${latestWound.bloodPressureDiastolic}` 
-                        : 'N/A')}
-                    </p>
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-1 space-y-8">
+                <section className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-lg shadow-slate-200/30">
+                  <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
+                    Signos Vitales
+                  </h3>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">T. Arterial</p>
+                      <p className="font-black text-slate-900">
+                        {patient.physicalExploration?.ta || 
+                         (latestWound?.bloodPressureSystolic 
+                          ? `${latestWound.bloodPressureSystolic}/${latestWound.bloodPressureDiastolic}` 
+                          : 'N/A')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">F. Cardiaca</p>
+                      <p className="font-black text-slate-900">{patient.physicalExploration?.fc || latestWound?.heartRate || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">F. Resp.</p>
+                      <p className="font-black text-slate-900">{patient.physicalExploration?.fr || latestWound?.respiratoryRate || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Peso</p>
+                      <p className="font-black text-slate-900">{patient.physicalExploration?.peso || latestWound?.weight || 'N/A'} kg</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Talla</p>
+                      <p className="font-black text-slate-900">{patient.physicalExploration?.talla || latestWound?.height || 'N/A'} m</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">IMC</p>
+                      <p className="font-black text-slate-900">
+                        {patient.physicalExploration?.imc || 
+                         ((latestWound?.weight && latestWound?.height) 
+                          ? (Number(latestWound.weight) / (Number(latestWound.height) * Number(latestWound.height))).toFixed(1) 
+                          : 'N/A')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">F. Cardiaca</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.fc || latestWound?.heartRate || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">F. Resp.</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.fr || latestWound?.respiratoryRate || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Peso</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.peso || latestWound?.weight || 'N/A'} kg</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Talla</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.talla || latestWound?.height || 'N/A'} m</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">IMC</p>
-                    <p className="font-black text-slate-900">
-                      {patient.physicalExploration?.imc || 
-                       ((latestWound?.weight && latestWound?.height) 
-                        ? (Number(latestWound.weight) / (Number(latestWound.height) * Number(latestWound.height))).toFixed(1) 
-                        : 'N/A')}
-                    </p>
-                  </div>
-                </div>
-              </section>
+                </section>
 
-              <section className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl">
-                <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-secondary" />
-                  Antecedentes
-                </h3>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Heredo-Familiares</p>
-                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.familyHistory || 'No refiere'}</p>
+                <section className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl overflow-hidden relative">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                  <h3 className="text-xl font-black mb-6 flex items-center gap-2 relative z-10">
+                    <Shield className="w-5 h-5 text-secondary" />
+                    Antecedentes
+                  </h3>
+                  <div className="space-y-6 relative z-10">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Heredo-Familiares</p>
+                      <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.familyHistory || 'No refiere'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Personales Patológicos</p>
+                      <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.pathologicalHistory || 'No refiere'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2">Personales No Patológicos</p>
+                      <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.nonPathologicalHistory || 'No refiere'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales Patológicos</p>
-                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.pathologicalHistory || 'No refiere'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales No Patológicos</p>
-                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.nonPathologicalHistory || 'No refiere'}</p>
-                  </div>
-                </div>
-              </section>
-            </div>
+                </section>
+              </div>
 
-            <div className="lg:col-span-2 space-y-8">
-              <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
-                <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                    <FileText className="w-4 h-4" />
+              <div className="lg:col-span-2 space-y-8">
+                <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+                  <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    Padecimiento Actual y Exploración
+                  </h3>
+                  <div className="space-y-8">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Motivo de Consulta y Evolución</p>
+                      <p className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                        {patient.currentCondition || 'No se ha registrado el padecimiento actual.'}
+                      </p>
+                    </div>
+                    
+                    <div className="pt-8 border-t border-slate-100">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Nota de Exploración / Hallazgos</h4>
+                      <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                        <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
+                          {patient.physicalExploration?.adicionales || (typeof patient.physicalExploration === 'string' ? patient.physicalExploration : 'Sin hallazgos adicionales registrados.')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-8 border-t border-slate-100">
+                      <div className="p-6 bg-violet-50/30 rounded-[2rem] border border-violet-100/50">
+                        <h4 className="text-[10px] font-black text-violet-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <Activity className="w-3.5 h-3.5" />
+                          ABI (Fisiológico)
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center"><span className="text-[10px] font-black text-slate-400 uppercase">Brazo</span> <span className="font-black text-slate-900">{latestWound?.abiArm || 'N/A'}</span></div>
+                          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-violet-100">
+                            <div className="space-y-1">
+                              <p className="text-[9px] font-black text-slate-400 uppercase">Pie Izq.</p>
+                              <p className="text-[10px] font-bold text-slate-600">D: {latestWound?.abiLeftToe || '-'}</p>
+                              <p className="text-[10px] font-bold text-slate-600">P: {latestWound?.abiLeftPedal || '-'}</p>
+                              <p className="text-[10px] font-bold text-slate-600">T: {latestWound?.abiLeftPostTibial || '-'}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-[9px] font-black text-slate-400 uppercase">Pie Der.</p>
+                              <p className="text-[10px] font-bold text-slate-600">D: {latestWound?.abiRightToe || '-'}</p>
+                              <p className="text-[10px] font-bold text-slate-600">P: {latestWound?.abiRightPedal || '-'}</p>
+                              <p className="text-[10px] font-bold text-slate-600">T: {latestWound?.abiRightPostTibial || '-'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-6 bg-emerald-50/30 rounded-[2rem] border border-emerald-100/50">
+                        <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <Maximize className="w-3.5 h-3.5" />
+                          Características Herida
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center"><span className="text-[10px] font-black text-slate-400 uppercase">Localización</span> <span className="font-black text-slate-900 text-[10px]">{latestWound?.location || 'N/A'}</span></div>
+                          <div className="grid grid-cols-2 gap-2 pt-3 border-t border-emerald-100">
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Medidas</p>
+                              <p className="text-[11px] font-black text-slate-900">{latestWound?.width}x{latestWound?.length}x{latestWound?.depth} <span className="text-[9px] text-slate-400">cm</span></p>
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Dolor</p>
+                              <p className="text-[11px] font-black text-slate-900">{latestWound?.painLevel}/10</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  Padecimiento Actual
-                </h3>
-                <p className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
-                  {patient.currentCondition || 'No se ha registrado el padecimiento actual.'}
-                </p>
-                
-                <div className="mt-10 pt-10 border-t border-slate-100">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Nota de Exploración / Adicionales</h4>
-                  <div className="bg-slate-50 p-6 rounded-2xl">
-                    <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
-                      {patient.physicalExploration?.adicionales || (typeof patient.physicalExploration === 'string' ? patient.physicalExploration : 'Sin notas adicionales.')}
-                    </p>
+                </section>
+
+                <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+                  <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    Evaluación Detallada del Lecho
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Tejidos y Lecho</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {latestWound?.tissueType ? Object.entries(latestWound.tissueType).map(([key, val]) => (
+                            val && <span key={key} className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600 uppercase">{key}: {val}</span>
+                          )) : <span className="text-xs text-slate-400 italic">No especificado</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Etiología</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {latestWound?.etiology ? Object.entries(latestWound.etiology).map(([key, val]) => (
+                            val && <span key={key} className="px-3 py-1 bg-primary/10 rounded-lg text-[10px] font-black text-primary uppercase">{key.replace(/([A-Z])/g, ' $1')}</span>
+                          )) : <span className="text-xs text-slate-400 italic">No especificado</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Complicaciones / Signos</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {latestWound?.characteristics ? Object.entries(latestWound.characteristics).map(([key, val]) => (
+                            val && <span key={key} className="px-3 py-1 bg-orange-100 rounded-lg text-[10px] font-black text-orange-600 uppercase">{key}: {val}</span>
+                          )) : <span className="text-xs text-slate-400 italic">Sin signos clínicos registrados</span>}
+                        </div>
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Clasificación Clínica</h4>
+                         <div className="text-xs font-black text-slate-800 space-y-1">
+                           {latestWound?.classification && Object.entries(latestWound.classification).map(([key, val]) => (
+                             key !== 'sinbad' && (typeof val === 'string' || typeof val === 'boolean') && val && (
+                               <p key={key}><span className="text-slate-400 uppercase text-[9px] mr-2">{key}:</span> {val === true ? 'Sí' : val}</p>
+                             )
+                           ))}
+                           {latestWound?.classification?.sinbad && (
+                             <p><span className="text-slate-400 uppercase text-[9px] mr-2">SINBAD:</span> 
+                               {Object.entries(latestWound.classification.sinbad).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join('')}
+                             </p>
+                           )}
+                         </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              </div>
             </div>
           </div>
         )}
