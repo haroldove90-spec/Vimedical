@@ -8326,48 +8326,69 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
     
     try {
       console.log('RegisterNurseView: Starting registration for', formData.email);
-      console.log('RegisterNurseView: Form data:', { ...formData, password: '***' });
       
-      // Timeout de seguridad para la petición (aumentado a 25s)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.error('RegisterNurseView: Request timeout reached');
-        controller.abort();
-      }, 25000);
-
-      console.log('RegisterNurseView: Sending POST request to /api/create-user...');
-      // Usar el endpoint de la API para crear el usuario y el perfil de forma segura
-      const response = await fetch('/api/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email.trim(),
-          password: formData.password.trim(),
-          fullName: formData.fullName.trim(),
-          role: 'Enfermero',
-          license: formData.license.trim()
-        }),
-        signal: controller.signal
+      // Intentar registro directo con Supabase (más compatible con Vercel/Producción)
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email.trim(),
+        password: formData.password.trim(),
+        options: {
+          data: {
+            full_name: formData.fullName.trim(),
+            role: 'Enfermero',
+          }
+        }
       });
 
-      console.log('RegisterNurseView: Response received, status:', response.status);
-      clearTimeout(timeoutId);
-      
-      const responseText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (jsonErr) {
-        console.error('RegisterNurseView: Failed to parse JSON response. Response text:', responseText);
-        throw new Error('El servidor respondió con un formato inesperado: ' + responseText.substring(0, 100));
-      }
+      if (signUpError) {
+        console.warn('RegisterNurseView: Client-side signUp failed, trying API fallback...', signUpError.message);
+        
+        // Si el registro directo falla (ej. por políticas de Supabase), intentamos el API de respaldo
+        const response = await fetch('/api/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: formData.email.trim(),
+            password: formData.password.trim(),
+            fullName: formData.fullName.trim(),
+            role: 'Enfermero',
+            license: formData.license.trim()
+          })
+        });
 
-      if (!response.ok) {
-        console.error('RegisterNurseView: API error:', result.error || result);
-        throw new Error(result.error || 'Error al registrarse');
-      }
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorResult;
+          try {
+            errorResult = JSON.parse(errorText);
+          } catch {
+            errorResult = { error: errorText };
+          }
+          throw new Error(errorResult.error || `Error del servidor (${response.status})`);
+        }
 
-      console.log('RegisterNurseView: User and profile created successfully');
+        const result = await response.json();
+        console.log('RegisterNurseView: API registration success:', result);
+      } else {
+        console.log('RegisterNurseView: Client-side signUp success:', signUpData);
+        
+        // Creamos el perfil manualmente si no hay un trigger en Supabase
+        if (signUpData.user) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              user_id: signUpData.user.id,
+              full_name: formData.fullName.trim(),
+              email: formData.email.trim(),
+              role: 'Enfermero',
+              license: formData.license.trim(),
+              status: 'active'
+            }, { onConflict: 'user_id' });
+          
+          if (profileError) {
+            console.warn('RegisterNurseView: Profile creation warning:', profileError.message);
+          }
+        }
+      }
 
       // Notificar al administrador
       try {
@@ -8378,21 +8399,17 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
           'Administrador'
         );
       } catch (notifyErr) {
-        console.warn('RegisterNurseView: Could not send notification:', notifyErr);
+        console.warn('RegisterNurseView: Error sending notification:', notifyErr);
       }
 
-      toast.success('Registro exitoso. Ahora puedes iniciar sesión.');
+      toast.success('¡Registro completado con éxito!');
       onBack();
+      
     } catch (err: any) {
       console.error('RegisterNurseView: Registration failed:', err);
-      if (err.name === 'AbortError') {
-        setError('La petición tardó demasiado. Por favor, verifica tu conexión e intenta de nuevo.');
-      } else {
-        setError(err.message || 'Error al registrarse');
-      }
-      toast.error(err.message || 'Error en el registro');
+      setError(err.message || 'Ocurrió un error inesperado durante el registro.');
+      toast.error(err.message || 'Error al registrarse');
     } finally {
-      console.log('RegisterNurseView: Setting isSubmitting to false');
       setIsSubmitting(false);
     }
   };
