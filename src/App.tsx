@@ -5079,6 +5079,12 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
     return new File([u8arr], filename, { type: mime });
   };
 
+  const toNumeric = (val: any): number | null => {
+    if (val === null || val === undefined || val === '') return null;
+    const num = parseFloat(val);
+    return isNaN(num) ? null : num;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (photos.length === 0) {
@@ -5107,26 +5113,26 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave }: { patie
         description: formData.get('currentCondition') as string || '', // Padecimiento Actual
         status: 'pending_doctor',
         initial_photos: uploadedPhotoUrls,
-        weight: parseFloat(formData.get('weight') as string) || null,
-        height: parseFloat(formData.get('height') as string) || null,
-        temp: parseFloat(formData.get('temp') as string) || null,
+        weight: toNumeric(formData.get('weight')),
+        height: toNumeric(formData.get('height')),
+        temp: toNumeric(formData.get('temp')),
         blood_pressure_systolic: formData.get('bloodPressureSystolic') as string,
         blood_pressure_diastolic: formData.get('bloodPressureDiastolic') as string,
-        pulse: parseInt(formData.get('pulse') as string) || null,
-        heart_rate: parseInt(formData.get('heartRate') as string) || null,
-        respiratory_rate: parseInt(formData.get('respiratoryRate') as string) || null,
-        oxygenation: parseFloat(formData.get('oxygenation') as string) || null,
-        glycemia_fasting: parseFloat(formData.get('glycemiaFasting') as string) || null,
-        glycemia_postprandial: parseFloat(formData.get('glycemiaPostprandial') as string) || null,
-        width: parseFloat(formData.get('width') as string) || null,
-        length: parseFloat(formData.get('length') as string) || null,
-        depth: parseFloat(formData.get('depth') as string) || null,
+        pulse: toNumeric(formData.get('pulse')),
+        heart_rate: toNumeric(formData.get('heartRate')),
+        respiratory_rate: toNumeric(formData.get('respiratoryRate')),
+        oxygenation: toNumeric(formData.get('oxygenation')),
+        glycemia_fasting: toNumeric(formData.get('glycemiaFasting')),
+        glycemia_postprandial: toNumeric(formData.get('glycemiaPostprandial')),
+        width: toNumeric(formData.get('width')),
+        length: toNumeric(formData.get('length')),
+        depth: toNumeric(formData.get('depth')),
         pain_level: painLevel,
         shape: formData.get('shape') as string,
         prognosis: formData.get('prognosis') as string,
-        abi_arm: parseFloat(formData.get('abiArm') as string) || null,
-        abi_left_toe: parseFloat(formData.get('abiLeftToe') as string) || null,
-        abi_right_toe: parseFloat(formData.get('abiRightToe') as string) || null
+        abi_arm: toNumeric(formData.get('abiArm')),
+        abi_left_toe: toNumeric(formData.get('abiLeftToe')),
+        abi_right_toe: toNumeric(formData.get('abiRightToe'))
       };
 
       // 3. Preparar Datos de Historia Clínica (Patient)
