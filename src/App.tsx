@@ -655,14 +655,31 @@ export default function App() {
       console.log('App: Path detected:', path);
       
       if (path === '/enfermeros') {
-        setCurrentView('register-nurse');
-        localStorage.setItem('currentView', 'register-nurse');
-      } else if (path === '/' || path === '') {
-        // En la raíz, limpiar el estado de registro si no estamos activamente en esa URL
-        if (localStorage.getItem('currentView') === 'register-nurse') {
-          // Si el usuario navegó a la raíz, volvemos al dashboard/login normal
-          localStorage.removeItem('currentView');
+        if (!isLoggedIn) {
+          setCurrentView('register-nurse');
+          localStorage.setItem('currentView', 'register-nurse');
+        } else {
+          // Si ya está logueado, redirigir a raíz y dashboard
+          console.log('App: User logged in, redirecting from /enfermeros to dashboard');
+          window.history.pushState({}, '', '/');
           setCurrentView('dashboard');
+          localStorage.setItem('currentView', 'dashboard');
+        }
+      } else if (path === '/' || path === '') {
+        // En la raíz
+        if (isLoggedIn) {
+          // Si está logueado, asegurar que estamos en dashboard si no hay otra vista específica
+          const savedView = localStorage.getItem('currentView') as View;
+          if (savedView === 'register-nurse' || !savedView) {
+            setCurrentView('dashboard');
+            localStorage.setItem('currentView', 'dashboard');
+          }
+        } else {
+          // No logueado, si venía de registro pero está en raíz, resetear a dashboard (que mostrará login)
+          if (localStorage.getItem('currentView') === 'register-nurse') {
+            localStorage.removeItem('currentView');
+            setCurrentView('dashboard');
+          }
         }
       }
     };
@@ -670,7 +687,7 @@ export default function App() {
     handleLocationChange();
     window.addEventListener('popstate', handleLocationChange);
     return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
+  }, [isLoggedIn]); // Añadimos isLoggedIn como dependencia para re-evaluar la ruta al cambiar estado de sesión
 
   // 3. Efectos de Autenticación
   useEffect(() => {
