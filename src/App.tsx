@@ -9,6 +9,7 @@ import {
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
   ChevronLeft, ArrowUpRight, ArrowDownRight, Filter, Save, ShieldCheck
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   LineChart, 
   Line, 
@@ -2094,7 +2095,7 @@ export default function App() {
             />
           )}
           
-          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} onDelete={handleDeletePatient} />}
+          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} onDelete={handleDeletePatient} wounds={wounds} />}
           {currentView === 'patient-detail' && selectedPatientId && (
             <PatientDetailView 
               patientId={selectedPatientId} 
@@ -4563,7 +4564,7 @@ function SignaturePad({ onSave, onCancel, title }: { onSave: (signature: string)
 
 // --- M1: Gestión de Pacientes ---
 
-function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: View, pId?: string) => void, patients: Patient[], onDelete: (id: string) => void }) {
+function PatientsView({ navigateTo, patients, onDelete, wounds }: { navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], onDelete: (id: string) => void, wounds: Wound[] }) {
   const exportToExcel = () => {
     const data = patients.map(p => ({
       'ID': p.id.substring(0, 8),
@@ -4685,26 +4686,56 @@ function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: V
               </div>
             </div>
 
-            <div className="pt-4 mt-4 flex justify-between items-center border-t border-slate-100 relative z-10">
+            <div className="pt-6 mt-6 flex flex-col gap-3 border-t border-slate-100 relative z-10">
               <div className="flex gap-2">
                 <button 
-                  onClick={(e) => { e.stopPropagation(); navigateTo('clinical-history-detail', patient.id); }}
-                  className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                  title="Editar"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateTo('patient-detail', patient.id);
+                  }}
+                  className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
                 >
-                  <Edit className="w-4 h-4" />
+                  <Eye className="w-3.5 h-3.5" />
+                  Ver Perfil
                 </button>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onDelete(patient.id); }}
-                  className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded-lg transition-all"
-                  title="Eliminar"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Buscar la primera herida del paciente para iniciar curación
+                    const patientWounds = wounds.filter(w => w.patientId === patient.id);
+                    if (patientWounds.length > 0) {
+                      navigateTo('new-treatment', patient.id, patientWounds[0].id);
+                    } else {
+                      navigateTo('new-assessment', patient.id);
+                    }
+                  }}
+                  className="flex-1 py-3 bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                 >
-                  <Trash className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5" />
+                  Nueva Curación
                 </button>
               </div>
-              <div onClick={() => navigateTo('patient-detail', patient.id)} className="flex items-center gap-1 cursor-pointer group/link">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest group-hover/link:text-primary transition-colors">Ver Expediente</span>
-                <ChevronRight className="w-5 h-5 text-slate-300 group-hover/link:text-primary group-hover/link:translate-x-1 transition-all" />
+              <div className="flex justify-between items-center px-2">
+                <div className="flex gap-1">
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); navigateTo('clinical-history-detail', patient.id); }}
+                    className="p-2 text-slate-300 hover:text-primary transition-all"
+                    title="Editar"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(patient.id); }}
+                    className="p-2 text-slate-300 hover:text-red-500 transition-all"
+                    title="Eliminar"
+                  >
+                    <Trash className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div onClick={() => navigateTo('patient-detail', patient.id)} className="flex items-center gap-1 cursor-pointer group/link">
+                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest group-hover/link:text-primary transition-colors">Expediente Completo</span>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover/link:text-primary group-hover/link:translate-x-1 transition-all" />
+                </div>
               </div>
             </div>
           </div>
@@ -4720,6 +4751,9 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
   const [activeTab, setActiveTab] = useState<'wounds' | 'history' | 'charts'>('wounds');
 
   if (!patient) return <div>Paciente no encontrado</div>;
+
+  // Detección de Historia Clínica / Valoración Inicial Faltante
+  const needsAssessment = !patient.familyHistory || patientWounds.length === 0;
 
   // Datos para la gráfica de progreso (ejemplo basado en el área de las heridas)
   const chartData = patientWounds.flatMap(w => 
@@ -4746,19 +4780,30 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
               <h2 className="text-4xl font-black tracking-tighter text-slate-900">{patient.fullName}</h2>
               <p className="text-slate-500 font-medium mt-1">{patient.occupation || 'Sin ocupación'} • {patient.gender} • {patient.dateOfBirth}</p>
             </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => navigateTo('consent-form', patient.id)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${patient.consentFormSigned ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
-              >
-                Consentimiento {patient.consentFormSigned ? '✓' : '✗'}
-              </button>
-              <button 
-                onClick={() => navigateTo('privacy-notice', patient.id)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${patient.privacyNoticeSigned ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
-              >
-                Privacidad {patient.privacyNoticeSigned ? '✓' : '✗'}
-              </button>
+            <div className="flex gap-3">
+              {needsAssessment && (
+                <button 
+                  onClick={() => navigateTo('new-assessment', patientId)}
+                  className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-200 hover:bg-amber-200 transition-all flex items-center gap-2"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  Falta Historia Clínica
+                </button>
+              )}
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => navigateTo('consent-form', patient.id)}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${patient.consentFormSigned ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+                >
+                  Consentimiento {patient.consentFormSigned ? '✓' : '✗'}
+                </button>
+                <button 
+                  onClick={() => navigateTo('privacy-notice', patient.id)}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${patient.privacyNoticeSigned ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+                >
+                  Privacidad {patient.privacyNoticeSigned ? '✓' : '✗'}
+                </button>
+              </div>
             </div>
           </div>
           
@@ -4782,6 +4827,31 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
           </div>
         </div>
       </header>
+      
+      {needsAssessment && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-[2.5rem] p-8 text-white flex flex-col md:flex-row items-center gap-8 shadow-2xl shadow-amber-500/30"
+        >
+          <div className="w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0">
+            <AlertCircle className="w-10 h-10" />
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h3 className="text-2xl font-black mb-2 tracking-tight">Expediente Clínico Incompleto</h3>
+            <p className="font-bold opacity-90 text-sm max-w-xl leading-relaxed">
+              Es necesario registrar los antecedentes patológicos y realizar la valoración inicial de la herida antes de proceder con tratamientos recurrentes.
+            </p>
+          </div>
+          <button 
+            onClick={() => navigateTo('new-assessment', patientId)}
+            className="bg-white text-orange-600 px-8 py-4 rounded-2xl font-black text-sm hover:bg-slate-50 transition-all flex items-center gap-2 shadow-xl"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Iniciar Etapa 2
+          </button>
+        </motion.div>
+      )}
 
       <div className="flex gap-4 border-b border-slate-200 pb-px">
         <button 
