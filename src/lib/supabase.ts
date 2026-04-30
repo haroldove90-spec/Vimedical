@@ -10,7 +10,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    storageKey: 'vimedical-storage-key'
   }
 });
 console.log('Supabase: Client initialized');

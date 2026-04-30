@@ -372,14 +372,6 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
   );
 }
 
-// Helper for unique IDs that works in all environments
-const generateId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
-};
-
 function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -550,13 +542,8 @@ export default function App() {
       if (isAuthChecking) {
         console.warn('App: Initial auth check timed out, forcing ready state');
         setIsAuthChecking(false);
-        // If we timed out, check if we have a cached session to try and load it
-        const hasSession = localStorage.getItem('isLoggedIn') === 'true';
-        if (hasSession && !isLoggedIn) {
-          setIsLoggedIn(true);
-        }
       }
-    }, 5000); // Aumentado a 5s por seguridad
+    }, 3000);
 
     return () => clearTimeout(authTimeout);
   }, [isAuthChecking]);
@@ -2115,7 +2102,6 @@ export default function App() {
               patients={patients}
               wounds={wounds}
               treatmentLogs={treatmentLogs}
-              currentProfile={currentProfile}
             />
           )}
           {currentView === 'wound-detail' && selectedWoundId && (
@@ -4728,18 +4714,12 @@ function PatientsView({ navigateTo, patients, onDelete }: { navigateTo: (view: V
   );
 }
 
-function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentLogs, currentProfile }: { patientId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[], currentProfile: UserProfile | null }) {
+function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentLogs }: { patientId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[] }) {
   const patient = patients.find(p => p.id === patientId);
   const patientWounds = wounds.filter(w => w.patientId === patientId);
   const [activeTab, setActiveTab] = useState<'wounds' | 'history' | 'charts'>('wounds');
 
   if (!patient) return <div>Paciente no encontrado</div>;
-
-  const handleDownloadPDF = () => {
-    const woundIds = patientWounds.map(w => w.id);
-    const patientTreatmentLogs = treatmentLogs.filter(t => woundIds.includes(t.woundId));
-    generateClinicalHistoryPDF(patient, patientWounds, patientTreatmentLogs, currentProfile?.signatureUrl);
-  };
 
   // Datos para la gráfica de progreso (ejemplo basado en el área de las heridas)
   const chartData = patientWounds.flatMap(w => 
@@ -4764,22 +4744,9 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-4xl font-black tracking-tighter text-slate-900">{patient.fullName}</h2>
-              <div className="flex flex-wrap items-center gap-3 mt-1">
-                <p className="text-slate-500 font-medium">{patient.occupation || 'Sin ocupación'} • {patient.gender} • {patient.dateOfBirth}</p>
-                <span className="w-1 h-1 rounded-full bg-slate-300" />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-md">
-                  Reg: {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : 'N/A'}
-                </p>
-              </div>
+              <p className="text-slate-500 font-medium mt-1">{patient.occupation || 'Sin ocupación'} • {patient.gender} • {patient.dateOfBirth}</p>
             </div>
             <div className="flex gap-2">
-              <button 
-                onClick={handleDownloadPDF}
-                className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary text-white shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all flex items-center gap-2"
-              >
-                <Download className="w-3 h-3" />
-                Descargar PDF
-              </button>
               <button 
                 onClick={() => navigateTo('consent-form', patient.id)}
                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${patient.consentFormSigned ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
@@ -4795,7 +4762,7 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mt-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-8">
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Teléfono</p>
               <p className="font-black text-slate-900">{patient.phone}</p>
@@ -4805,19 +4772,8 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
               <p className="font-black text-slate-900">{patient.religion || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Valoración</p>
-              <p className="font-black text-indigo-600">
-                {patient.currentCondition ? 'Completada' : 'Pendiente'}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Curaciones</p>
-              <p className="font-black text-slate-900">
-                {(() => {
-                  const woundIds = patientWounds.map(w => w.id);
-                  return treatmentLogs.filter(t => woundIds.includes(t.woundId)).length;
-                })()} totales
-              </p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Escolaridad</p>
+              <p className="font-black text-slate-900">{patient.educationLevel || 'N/A'}</p>
             </div>
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">ID</p>
@@ -7116,25 +7072,12 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         }
       }
 
-      console.log('Guardando datos del paciente en Supabase:', sanitizedData);
-      
-      let result;
-      if (createdPatientId) {
-        result = await supabase
-          .from('patients')
-          .update(sanitizedData)
-          .eq('id', createdPatientId)
-          .select()
-          .single();
-      } else {
-        result = await supabase
-          .from('patients')
-          .insert([sanitizedData])
-          .select()
-          .single();
-      }
-      
-      const { data, error } = result;
+      console.log('Insertando datos del paciente en Supabase:', sanitizedData);
+      const { data, error } = await supabase
+        .from('patients')
+        .insert([sanitizedData])
+        .select()
+        .single();
       
       if (error) throw error;
 
@@ -7163,36 +7106,24 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           consentFormType: data.consent_form_type
         };
         
-        setCreatedPatientId(data.id);
-        onSave(newPatient);
-
-        // Solo mostrar éxito y notificaciones al completar el registro inicial (Paso 1)
-        // o al completar la valoración final (Paso 4)
-        if (step === 1 || step === 4) {
-          if (step === 1 && !createdPatientId) {
-            await supabase.from('notifications').insert([
-              {
-                title: 'Nuevo Paciente Registrado',
-                body: `Se ha dado de alta a ${newPatient.fullName}.`,
-                voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}.`,
-                target_role: 'Administrador'
-              },
-              {
-                title: 'Nuevo Paciente Registrado',
-                body: `Se ha dado de alta a ${newPatient.fullName}.`,
-                voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
-                target_role: 'Doctor'
-              }
-            ]);
-            toast.success('Ficha de identificación guardada', { id: 'patient-save' });
-          } else if (step === 4) {
-            toast.success('Valoración completada correctamente', { id: 'patient-save' });
+        await supabase.from('notifications').insert([
+          {
+            title: 'Nuevo Paciente Registrado',
+            body: `Se ha dado de alta a ${newPatient.fullName}.`,
+            voice_text: `Atención Administrador: Se ha registrado un nuevo paciente en el sistema: ${newPatient.fullName}.`,
+            target_role: 'Administrador'
+          },
+          {
+            title: 'Nuevo Paciente Registrado',
+            body: `Se ha dado de alta a ${newPatient.fullName}.`,
+            voice_text: `Atención Doctor: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
+            target_role: 'Doctor'
           }
-          setIsSuccess(true);
-        }
+        ]);
 
-        // Crear automáticamente una valoración pendiente si se completó el Paso 4
-        if (step === 4 && (patientData.current_condition || patientData.initial_wound_photo)) {
+        // Crear automáticamente una valoración pendiente para que el doctor pueda autorizar
+        // si se proporcionó información de padecimiento actual
+        if (patientData.current_condition || patientData.initial_wound_photo) {
           const automaticWoundData = {
             patient_id: data.id,
             location: (patientData as any).regions_segments || 'Región por especificar',
@@ -7214,6 +7145,11 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
             ]);
           }
         }
+
+        setCreatedPatientId(data.id);
+        onSave(newPatient);
+        toast.success('Paciente registrado correctamente', { id: 'patient-save' });
+        setIsSuccess(true);
       }
     } catch (error: any) {
       console.error('Error saving patient:', error);
@@ -7223,7 +7159,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
       setIsSubmitting(false);
     }
   };
-  if (isSuccess && step === 1) {
+  if (isSuccess) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center animate-in fade-in zoom-in duration-500">
         <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-100">
@@ -7231,51 +7167,29 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
         </div>
         <h2 className="text-3xl font-black text-slate-900 mb-2">¡Paciente Registrado!</h2>
         <p className="text-slate-500 font-medium max-w-md mx-auto">
-          La ficha de identificación ha sido guardada. Ahora puedes continuar con las etapas de valoración (revisión de antecedentes, exploración física y padecimiento actual).
+          El nuevo paciente ha sido dado de alta exitosamente en el sistema.
         </p>
         <div className="mt-8 flex flex-col items-center gap-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button 
-              onClick={() => {
-                setStep(2);
-                setIsSuccess(false);
-              }}
-              className="bg-primary text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-105 transition-all"
-            >
-              <PlusCircle className="w-5 h-5" />
-              Continuar Valoración (Paso 2, 3 y 4)
-            </button>
-            <button 
-              onClick={() => navigateTo('patient-detail', createdPatientId || undefined)}
-              className="bg-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-slate-300 transition-all"
-            >
-              <FileText className="w-5 h-5" />
-              Finalizar y ver Expediente
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isSuccess && step === 4) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center animate-in fade-in zoom-in duration-500">
-        <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-100">
-          <CheckCircle className="w-12 h-12" />
-        </div>
-        <h2 className="text-3xl font-black text-slate-900 mb-2">¡Valoración Completada!</h2>
-        <p className="text-slate-500 font-medium max-w-md mx-auto">
-          El proceso de alta y la primera valoración del paciente han finalizado correctamente.
-        </p>
-        <div className="mt-8 flex flex-col items-center gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <button 
-            onClick={() => navigateTo('patient-detail', createdPatientId || undefined)}
+            onClick={() => navigateTo('new-assessment', createdPatientId || undefined)}
             className="bg-primary text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-105 transition-all"
           >
-            <FileText className="w-5 h-5" />
-            Ir al Expediente del Paciente
+            <PlusCircle className="w-5 h-5" />
+            Añadir Valoración de Herida
           </button>
+          <button 
+            onClick={() => navigateTo('patient-detail', createdPatientId || undefined)}
+            className="bg-slate-200 text-slate-700 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-slate-300 transition-all"
+          >
+            <FileText className="w-5 h-5" />
+            Ir al Expediente
+          </button>
+        </div>
+          <div className="flex items-center gap-2 text-slate-400 font-bold text-sm">
+            <Clock className="w-4 h-4 animate-spin-slow" />
+            Abriendo expediente...
+          </div>
         </div>
       </div>
     );
@@ -7316,11 +7230,13 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento</label>
                 <input 
-                  type="date" 
+                  type="text" 
+                  placeholder="DD/MM/AAAA o AAAA-MM-DD"
                   value={formData.dateOfBirth} 
                   onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} 
                   className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" 
                 />
+                <p className="text-[10px] text-slate-400 mt-1 ml-1 px-1 italic">Captura manual habilitada</p>
               </div>
               
               <div>
@@ -7809,26 +7725,13 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
           </div>
           
           <div className="flex gap-4">
-            {step === 1 ? (
+            {step < 4 ? (
               <button 
                 type="button"
-                onClick={() => handleSubmit()}
-                disabled={isSubmitting}
-                className="bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all disabled:opacity-50"
+                onClick={() => setStep(step + 1)}
+                className="bg-primary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-primary/30 hover:bg-primary-dark transition-all"
               >
-                {isSubmitting ? 'Registrando...' : 'Registrar Paciente'}
-              </button>
-            ) : step < 4 ? (
-              <button 
-                type="button"
-                onClick={async () => {
-                  await handleSubmit();
-                  setStep(step + 1);
-                }}
-                disabled={isSubmitting}
-                className="bg-primary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-primary/30 hover:bg-primary-dark transition-all disabled:opacity-50"
-              >
-                {isSubmitting ? 'Guardando...' : 'Siguiente'}
+                Siguiente
               </button>
             ) : (
               <button 
@@ -7837,7 +7740,7 @@ function NewPatientFormView({ navigateTo, onSave }: { navigateTo: (view: View, p
                 disabled={isSubmitting}
                 className="bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all disabled:opacity-50"
               >
-                {isSubmitting ? 'Guardando...' : 'Finalizar Valoración'}
+                {isSubmitting ? 'Guardando...' : 'Finalizar Registro'}
               </button>
             )}
           </div>
@@ -8959,13 +8862,13 @@ function NewTreatmentProposalView({ navigateTo, patients, onSave }: { navigateTo
     investment: 2500,
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const patient = patients.find(p => p.id === formData.patientId);
     if (!patient) return;
 
     const newProposal: TreatmentProposal = {
-      id: generateId(),
+      id: crypto.randomUUID(),
       patientId: formData.patientId,
       patientName: patient.fullName,
       date: formData.date,
@@ -8977,7 +8880,8 @@ function NewTreatmentProposalView({ navigateTo, patients, onSave }: { navigateTo
       status: 'pending',
     };
 
-    await onSave(newProposal);
+    onSave(newProposal);
+    toast.success('Propuesta guardada correctamente.');
     navigateTo('treatment-proposals');
   };
 
