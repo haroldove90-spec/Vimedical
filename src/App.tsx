@@ -335,7 +335,7 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
             email: data.user.email,
             role: data.user.user_metadata?.role || 'Enfermero',
             status: 'active'
-          }, { onConflict: 'user_id' }).select().maybeSingle();
+          }).select().maybeSingle();
 
           if (!createError && newProfile) {
             onLogin('Enfermero', {
@@ -832,7 +832,7 @@ export default function App() {
               email: session.user.email,
               role: session.user.user_metadata?.role || 'Enfermero',
               status: 'active'
-            }, { onConflict: 'user_id' }).select().maybeSingle();
+            }).select().maybeSingle();
 
             if (!repairErr && repairedProfile) {
                console.log('App: Profile repaired successfully');
@@ -876,7 +876,7 @@ export default function App() {
               email: session.user.email,
               role: 'Enfermero',
               status: 'active'
-            }, { onConflict: 'user_id' }).select().maybeSingle();
+            }).select().maybeSingle();
 
             if (!repairErr && emergencyProfile) {
               console.log('App: Emergency repair successful');
@@ -1849,14 +1849,32 @@ export default function App() {
     };
 
     try {
-      // Si tenemos user_id, intentamos upsert basado en user_id para evitar duplicados
+      // Si tenemos user_id, intentamos upsert de forma robusta
       if (updatedProfile.user_id) {
-        const { data, error } = await supabase
+        // En lugar de upsert con onConflict que falla sin índice único público
+        const { data: existing } = await supabase
           .from('profiles')
-          .upsert([{ ...supabaseData }], { onConflict: 'user_id' })
-          .select()
-          .single();
-          
+          .select('id')
+          .eq('user_id', updatedProfile.user_id)
+          .maybeSingle();
+
+        let result;
+        if (existing) {
+          result = await supabase
+            .from('profiles')
+            .update({ ...supabaseData })
+            .eq('user_id', updatedProfile.user_id)
+            .select()
+            .single();
+        } else {
+          result = await supabase
+            .from('profiles')
+            .insert([{ ...supabaseData }])
+            .select()
+            .single();
+        }
+        
+        const { data, error } = result;
         if (error) throw error;
         
         if (data) {
@@ -8506,20 +8524,42 @@ function RegisterNurseView({ onBack, sendNotification, onLogin }: { onBack: () =
       
       // Creamos el perfil de forma ROBUSTA
       if (signUpData.user) {
-        const { error: profileError } = await supabase
+        // Primero intentamos ver si ya existe para evitar errores de restricción
+        const { data: existing } = await supabase
           .from('profiles')
-          .upsert({
-            user_id: signUpData.user.id,
-            full_name: formData.fullName.trim(),
-            email: formData.email.trim(),
-            role: 'Enfermero',
-            license: formData.license.trim(),
-            status: 'active'
-          }, { onConflict: 'user_id' });
+          .select('id')
+          .eq('user_id', signUpData.user.id)
+          .maybeSingle();
+
+        let profileError;
+        if (existing) {
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              full_name: formData.fullName.trim(),
+              email: formData.email.trim(),
+              license: formData.license.trim(),
+              status: 'active'
+            })
+            .eq('user_id', signUpData.user.id);
+          profileError = error;
+        } else {
+          const { error } = await supabase
+            .from('profiles')
+            .insert({
+              user_id: signUpData.user.id,
+              full_name: formData.fullName.trim(),
+              email: formData.email.trim(),
+              role: 'Enfermero',
+              license: formData.license.trim(),
+              status: 'active'
+            });
+          profileError = error;
+        }
         
         if (profileError) {
-          console.error('RegisterNurseView: Profile creation FAILED:', profileError.message);
-          throw new Error('Tu cuenta se creó pero hubo un error al crear tu perfil clínico: ' + profileError.message);
+          console.error('RegisterNurseView: Profile creation/update FAILED:', profileError.message);
+          throw new Error('Tu cuenta se creó pero hubo un error al procesar tu perfil: ' + profileError.message);
         }
       } else {
         throw new Error('No se pudo obtener la información del usuario tras el registro.');

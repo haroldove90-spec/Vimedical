@@ -120,11 +120,30 @@ async function startServer() {
         status: 'active'
       };
 
-      const { data: profileData, error: profileError } = await supabaseAdmin
+      // Robust check-then-action
+      const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
-        .upsert(profileToUpsert, { onConflict: 'user_id' })
-        .select()
-        .single();
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      let opResult;
+      if (existingProfile) {
+        opResult = await supabaseAdmin
+          .from('profiles')
+          .update(profileToUpsert)
+          .eq('user_id', userId)
+          .select()
+          .single();
+      } else {
+        opResult = await supabaseAdmin
+          .from('profiles')
+          .insert(profileToUpsert)
+          .select()
+          .single();
+      }
+
+      const { data: profileData, error: profileError } = opResult;
 
       if (profileError) {
         console.error("API: Profile operation error:", profileError);
