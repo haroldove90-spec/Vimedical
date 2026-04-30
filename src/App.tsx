@@ -5554,13 +5554,17 @@ function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, o
         if (error) throw error;
         
         await supabase.from('notifications').insert([{
-          title: 'Nueva Valoración de Etapa 2',
-          body: `Se ha completado la historia clínica y valoración inicial para ${patient?.fullName}.`,
-          voice_text: `Atención: Nueva valoración inicial recibida para ${patient?.fullName}. Por favor revise el plan de tratamiento.`,
+          title: submitStatus === 'approved' ? 'Valoración Actualizada' : 'Nueva Valoración de Etapa 2',
+          body: submitStatus === 'approved' 
+            ? `Se ha actualizado el historial clínico de ${patient?.fullName}.` 
+            : `Se ha completado la historia clínica y valoración inicial para ${patient?.fullName}.`,
+          voice_text: submitStatus === 'approved'
+            ? `Historial clínico actualizado para ${patient?.fullName}.`
+            : `Atención: Nueva valoración inicial recibida para ${patient?.fullName}. Por favor revise el plan de tratamiento.`,
           target_role: 'Doctor'
         }]);
 
-        toast.success('Valoración guardada correctamente', { id: 'assessment-save' });
+        toast.success(submitStatus === 'approved' ? 'Historial actualizado correctamente' : 'Valoración enviada a aprobación', { id: 'assessment-save' });
         setIsSuccess(true);
         if (data) onSave(data as any);
       }
@@ -5575,14 +5579,19 @@ function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, o
   };
 
   if (isSuccess) {
+    const isUpdate = (document.activeElement as HTMLButtonElement)?.innerText?.includes('Actualizar');
+    // Note: This is an approximation since activeElement might be gone, 
+    // but we can check the status from somewhere or just use a generic message.
+    // Better: use state to track which button was clicked or the final status.
+    
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center animate-in fade-in zoom-in duration-500">
         <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-emerald-100">
           <CheckCircle className="w-12 h-12" />
         </div>
-        <h2 className="text-3xl font-black text-slate-900 mb-2">¡Valoración Enviada!</h2>
+        <h2 className="text-3xl font-black text-slate-900 mb-2">¡Operación Exitosa!</h2>
         <p className="text-slate-500 font-medium max-w-md mx-auto">
-          La valoración inicial ha sido registrada exitosamente y enviada para aprobación médica.
+          Los datos han sido guardados correctamente en el expediente del paciente.
         </p>
         <div className="mt-8 flex items-center gap-2 text-primary font-bold">
           <Clock className="w-5 h-5 animate-spin-slow" />
@@ -8443,7 +8452,7 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
                 required
                 value={formData.fullName}
                 onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
+                className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
                 placeholder="Ej. Juan Pérez"
               />
             </div>
@@ -8454,43 +8463,45 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
                 required
                 value={formData.license}
                 onChange={(e) => setFormData({...formData, license: e.target.value})}
-                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
+                className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
                 placeholder="Número de cédula"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Correo Electrónico</label>
-            <input 
-              type="email" 
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
-              placeholder="correo@ejemplo.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Contraseña</label>
-            <div className="relative">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Correo Electrónico</label>
               <input 
-                type={showPassword ? "text" : "password"} 
+                type="email" 
                 required
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner pr-12"
-                placeholder="Mínimo 6 caracteres"
-                minLength={6}
+                value={formData.email}
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
+                placeholder="correo@ejemplo.com"
               />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Contraseña</label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner pr-12"
+                  placeholder="••••••••"
+                  minLength={6}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
 
