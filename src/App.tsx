@@ -597,7 +597,7 @@ export default function App() {
           }
         }
         
-        // Timeout para la búsqueda de perfil (aumentado a 40s y con reintento)
+        // Timeout para la búsqueda de perfil (aumentado a 60s y con reintento)
         let timeoutId: any;
         const createTimeout = (ms: number) => new Promise((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error('TIMEOUT')), ms);
@@ -614,21 +614,21 @@ export default function App() {
               if (attempt > 1) {
                 console.log(`App: Reintentando búsqueda de perfil (intento ${attempt})...`);
                 // Esperar un poco antes del reintento
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
               
-              const fetchTimeout = createTimeout(40000);
+              const fetchTimeout = createTimeout(60000);
               const fetchPromise = supabase
                 .from('profiles')
                 .select('*')
-                .eq('user_id', session.user.id)
-                .limit(1);
+                .or(`user_id.eq.${session.user.id},id.eq.${session.user.id}`)
+                .maybeSingle();
 
               result = await Promise.race([fetchPromise, fetchTimeout]);
-              clearTimeout(timeoutId);
+              if (timeoutId) clearTimeout(timeoutId);
               break; // Éxito
             } catch (err: any) {
-              clearTimeout(timeoutId);
+              if (timeoutId) clearTimeout(timeoutId);
               lastError = err;
               if (err.message !== 'TIMEOUT') break; // Si no es timeout, no reintentamos
               if (attempt === 2) throw err; // Si falló el último reintento por timeout
@@ -638,7 +638,7 @@ export default function App() {
           console.timeEnd(`profile_fetch_${session.user.id}`);
           if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
 
-          const { data: profiles, error } = result;
+          const { data: profileData, error } = result;
 
           if (error) {
             console.error('App: Error fetching profile:', error);
@@ -658,8 +658,6 @@ export default function App() {
             }
             return;
           }
-
-          const profileData = profiles && profiles.length > 0 ? profiles[0] : null;
 
           if (profileData) {
             console.log('App: Profile found:', profileData.full_name);

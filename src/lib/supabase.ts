@@ -6,5 +6,12 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sptgoslrysifac
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwdGdvc2xyeXNpZmFjeWNuY3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNDk4MDcsImV4cCI6MjA4ODcyNTgwN30.HAc0HVh2_h0UdSXt1McVpNnxUjtPqUkekD5h-zMS_zs';
 
 console.log('Supabase: URL:', supabaseUrl);
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'vimedical-storage-key'
+  }
+});
 console.log('Supabase: Client initialized');
