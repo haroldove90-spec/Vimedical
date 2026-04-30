@@ -294,48 +294,85 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
       }
 
       if (data.user) {
-        console.log('LoginView: Login successful, fetching profile...');
+        console.log('LoginView: Login successful, fetching profile for UID:', data.user.id);
         
-        // Fetch profile directly here to speed up transition and improve reliability
-        const { data: profileData, error: profileError } = await supabase
+        // Fetch profile directly with a short timeout to prevent hanging
+        const profilePromise = supabase
           .from('profiles')
           .select('*')
-          .or(`user_id.eq.${data.user.id},id.eq.${data.user.id}`)
+          .eq('user_id', data.user.id)
           .maybeSingle();
+          
+        const timeoutPromise = new Promise<{data: any, error: any}>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout al cargar el perfil. Reintenta.')), 8000)
+        );
 
-        if (profileError) {
-          console.error('LoginView: Error fetching profile:', profileError);
-          // If profile fetch fails, we still can't really proceed reliably
-          // but App.tsx might catch it. However, let's try to be helpful.
-          setError('Error al cargar tu perfil. Por favor intenta de nuevo.');
-          return;
-        }
+        try {
+          const { data: profileData, error: profileError } = await Promise.race([profilePromise, timeoutPromise]) as any;
 
-        if (profileData) {
-          let normalizedRole: Role = 'Enfermero';
-          const dbRole = profileData.role?.toLowerCase();
-          if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
-          else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+          if (profileError) {
+            console.error('LoginView: Error fetching profile:', profileError);
+            setError('Error al cargar tu perfil clínico: ' + profileError.message);
+            return;
+          }
 
-          const profile: UserProfile = {
-            id: profileData.id,
-            role: normalizedRole,
-            fullName: profileData.full_name,
-            email: profileData.email,
-            phone: profileData.phone,
-            license: profileData.license,
-            specialty: profileData.specialty,
-            photoUrl: profileData.photo_url,
-            signatureUrl: profileData.signature_url,
-            bio: profileData.bio,
-            status: profileData.status as 'active' | 'suspended'
-          };
+          if (profileData) {
+            console.log('LoginView: Profile found:', profileData);
+            let normalizedRole: Role = 'Enfermero';
+            const dbRole = profileData.role?.toLowerCase();
+            if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
+            else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
 
-          toast.success('¡Bienvenido de nuevo!');
-          onLogin(normalizedRole, profile);
-        } else {
-          console.warn('LoginView: No profile found for user');
-          setError('No se encontró un perfil clínico asociado a esta cuenta.');
+            const profile: UserProfile = {
+              id: profileData.id,
+              role: normalizedRole,
+              fullName: profileData.full_name,
+              email: profileData.email,
+              phone: profileData.phone,
+              license: profileData.license,
+              specialty: profileData.specialty,
+              photoUrl: profileData.photo_url,
+              signatureUrl: profileData.signature_url,
+              bio: profileData.bio,
+              status: profileData.status as 'active' | 'suspended'
+            };
+
+            toast.success('¡Bienvenido de nuevo!');
+            onLogin(normalizedRole, profile);
+          } else {
+            console.warn('LoginView: No profile found for user UID:', data.user.id);
+            // Reintento rápido por ID
+            const { data: profileById } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .maybeSingle();
+              
+            if (profileById) {
+               console.log('LoginView: Profile found by ID:', profileById);
+               let normalizedRole: Role = 'Enfermero';
+               const dbRole = profileById.role?.toLowerCase();
+               if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
+               else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+
+               const profile: UserProfile = {
+                 id: profileById.id,
+                 role: normalizedRole,
+                 fullName: profileById.full_name,
+                 email: profileById.email,
+                 phone: profileById.phone,
+                 license: profileById.license,
+                 status: 'active'
+               };
+               onLogin(normalizedRole, profile);
+               return;
+            }
+
+            setError('No se encontró un perfil clínico asociado a esta cuenta. Por favor contacta a soporte.');
+          }
+        } catch (fetchErr: any) {
+          console.error('LoginView: Profile fetch failed/timed out', fetchErr);
+          setError('No pudimos cargar tu perfil a tiempo. Por favor intenta "Limpiar sesión y reintentar".');
         }
       }
     } catch (err: any) {
@@ -437,9 +474,11 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
               <button 
                 type="button"
                 onClick={async () => {
+                  console.log('LoginView: Manual session clear requested');
                   await supabase.auth.signOut();
                   localStorage.clear();
-                  window.location.reload();
+                  sessionStorage.clear();
+                  window.location.href = '/';
                 }}
                 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors"
               >
@@ -8421,6 +8460,42 @@ function RegisterNurseView({ onBack, sendNotification, onLogin }: { onBack: () =
         if (signUpError.message.toLowerCase().includes('already registered') || 
             signUpError.message.toLowerCase().includes('already in use') || 
             signUpError.message.toLowerCase().includes('already been registered')) {
+          
+          console.log('RegisterNurseView: User already exists in Auth, checking for profile...');
+          // Si ya existe en Auth, tal vez le falta el perfil
+          const { data: existingUser } = await supabase.auth.signInWithPassword({
+            email: formData.email.trim(),
+            password: formData.password.trim()
+          });
+
+          if (existingUser.user) {
+             const userUid = existingUser.user.id;
+             // Intentar crear el perfil si no existe
+             const { error: upsertErr } = await supabase
+               .from('profiles')
+               .upsert({
+                 user_id: userUid,
+                 full_name: formData.fullName.trim(),
+                 email: formData.email.trim(),
+                 role: 'Enfermero',
+                 license: formData.license.trim(),
+                 status: 'active'
+               }, { onConflict: 'user_id' });
+             
+             if (!upsertErr) {
+               toast.success('Perfil actualizado. Iniciando sesión...');
+               onLogin('Enfermero', {
+                 id: userUid,
+                 role: 'Enfermero',
+                 fullName: formData.fullName.trim(),
+                 email: formData.email.trim(),
+                 license: formData.license.trim(),
+                 status: 'active'
+               });
+               return;
+             }
+          }
+          
           throw new Error('Este correo ya está registrado. Por favor, intenta iniciar sesión.');
         }
 
@@ -8493,10 +8568,20 @@ function RegisterNurseView({ onBack, sendNotification, onLogin }: { onBack: () =
       }
 
       if (signUpData.user) {
-        console.log('RegisterNurseView: SignUp successful, checking for profile...');
+        console.log('RegisterNurseView: SignUp successful, ensuring profile exists for UID:', signUpData.user.id);
         
-        // Esperar un momento para que el trigger de Supabase cree el perfil
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Intentar crear/actualizar el perfil de nuevo por si acaso falló el anterior o el trigger
+        await supabase.from('profiles').upsert({
+          user_id: signUpData.user.id,
+          full_name: formData.fullName.trim(),
+          email: formData.email.trim(),
+          role: 'Enfermero',
+          license: formData.license.trim(),
+          status: 'active'
+        }, { onConflict: 'user_id' });
+
+        // Esperar un momento
+        await new Promise(resolve => setTimeout(resolve, 800));
         
         const { data: profileData } = await supabase
           .from('profiles')
@@ -8652,9 +8737,11 @@ function RegisterNurseView({ onBack, sendNotification, onLogin }: { onBack: () =
               <button 
                 type="button"
                 onClick={async () => {
+                  console.log('RegisterView: Manual session clear requested');
                   await supabase.auth.signOut();
                   localStorage.clear();
-                  window.location.reload();
+                  sessionStorage.clear();
+                  window.location.href = '/';
                 }}
                 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors"
               >
