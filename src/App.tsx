@@ -960,7 +960,16 @@ export default function App() {
           consentFormType: p.consent_form_type,
           clinicalComments: p.clinical_comments || [],
           currentCondition: p.current_condition,
-          physicalExploration: p.physical_exploration,
+          physicalExploration: (() => {
+            if (!p.physical_exploration) return undefined;
+            if (typeof p.physical_exploration === 'object') return p.physical_exploration;
+            try {
+              return JSON.parse(p.physical_exploration);
+            } catch (e) {
+              // Si no es JSON, devolver como string en un objeto para compatibilidad
+              return { adicionales: p.physical_exploration };
+            }
+          })(),
           createdAt: p.created_at
         }));
         const finalPatients = [...formattedPatients];
@@ -4831,7 +4840,8 @@ function PatientsView({ navigateTo, patients, onDelete, wounds }: { navigateTo: 
 
 function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentLogs }: { patientId: string, navigateTo: (view: View, pId?: string, wId?: string) => void, patients: Patient[], wounds: Wound[], treatmentLogs: TreatmentLog[] }) {
   const patient = patients.find(p => p.id === patientId);
-  const patientWounds = wounds.filter(w => w.patientId === patientId);
+  const patientWounds = wounds.filter(w => w.patientId === patientId).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  const latestWound = patientWounds[0];
   const [activeTab, setActiveTab] = useState<'wounds' | 'history' | 'charts'>('wounds');
 
   if (!patient) return <div>Paciente no encontrado</div>;
@@ -5056,27 +5066,37 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">T. Arterial</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.ta || 'N/A'}</p>
+                    <p className="font-black text-slate-900">
+                      {patient.physicalExploration?.ta || 
+                       (latestWound?.bloodPressureSystolic 
+                        ? `${latestWound.bloodPressureSystolic}/${latestWound.bloodPressureDiastolic}` 
+                        : 'N/A')}
+                    </p>
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">F. Cardiaca</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.fc || 'N/A'}</p>
+                    <p className="font-black text-slate-900">{patient.physicalExploration?.fc || latestWound?.heartRate || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">F. Resp.</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.fr || 'N/A'}</p>
+                    <p className="font-black text-slate-900">{patient.physicalExploration?.fr || latestWound?.respiratoryRate || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Peso</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.peso || 'N/A'} kg</p>
+                    <p className="font-black text-slate-900">{patient.physicalExploration?.peso || latestWound?.weight || 'N/A'} kg</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Talla</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.talla || 'N/A'} m</p>
+                    <p className="font-black text-slate-900">{patient.physicalExploration?.talla || latestWound?.height || 'N/A'} m</p>
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">IMC</p>
-                    <p className="font-black text-slate-900">{patient.physicalExploration?.imc || 'N/A'}</p>
+                    <p className="font-black text-slate-900">
+                      {patient.physicalExploration?.imc || 
+                       ((latestWound?.weight && latestWound?.height) 
+                        ? (Number(latestWound.weight) / (Number(latestWound.height) * Number(latestWound.height))).toFixed(1) 
+                        : 'N/A')}
+                    </p>
                   </div>
                 </div>
               </section>
@@ -5088,16 +5108,16 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
                 </h3>
                 <div className="space-y-6">
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Patológicos</p>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {patient.pathologicalHistoryDetails?.endocrino?.diabetes && <span className="px-2 py-1 bg-white/10 rounded-lg text-[10px] font-bold uppercase">Diabetes</span>}
-                      {patient.pathologicalHistoryDetails?.cardiovascular?.hipertension && <span className="px-2 py-1 bg-white/10 rounded-lg text-[10px] font-bold uppercase">HTA</span>}
-                    </div>
-                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.pathologicalHistory}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Heredo-Familiares</p>
+                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.familyHistory || 'No refiere'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">No Patológicos</p>
-                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.nonPathologicalHistory}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales Patológicos</p>
+                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.pathologicalHistory || 'No refiere'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales No Patológicos</p>
+                    <p className="text-sm text-slate-300 font-medium leading-relaxed">{patient.nonPathologicalHistory || 'No refiere'}</p>
                   </div>
                 </div>
               </section>
@@ -5116,18 +5136,11 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
                 </p>
                 
                 <div className="mt-10 pt-10 border-t border-slate-100">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Regiones y Segmentos</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {patient.regionsSegments ? Object.entries(patient.regionsSegments).map(([key, value]) => (
-                      value && (
-                        <div key={key} className="bg-slate-50 p-4 rounded-xl">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{key.replace(/([A-Z])/g, ' $1')}</p>
-                          <p className="text-sm text-slate-700 font-medium">{value}</p>
-                        </div>
-                      )
-                    )) : (
-                      <p className="text-slate-500 italic text-sm">Sin datos de exploración por regiones.</p>
-                    )}
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Nota de Exploración / Adicionales</h4>
+                  <div className="bg-slate-50 p-6 rounded-2xl">
+                    <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
+                      {patient.physicalExploration?.adicionales || (typeof patient.physicalExploration === 'string' ? patient.physicalExploration : 'Sin notas adicionales.')}
+                    </p>
                   </div>
                 </div>
               </section>
@@ -5291,12 +5304,26 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
       };
 
       // 3. Preparar Datos de Historia Clínica (Patient)
-      const patientUpdateData = {
+      const physicalExplorationData = {
+        peso: formData.get('weight') as string,
+        talla: formData.get('height') as string,
+        imc: (toNumeric(formData.get('weight')) && toNumeric(formData.get('height'))) 
+              ? (toNumeric(formData.get('weight'))! / (toNumeric(formData.get('height'))! * toNumeric(formData.get('height'))!)).toFixed(1) 
+              : 'N/A',
+        imcPercent: '',
+        ta: `${formData.get('bloodPressureSystolic')}/${formData.get('bloodPressureDiastolic')}`,
+        fc: formData.get('heartRate') as string,
+        fr: formData.get('respiratoryRate') as string,
+        oxygenation: formData.get('oxygenation') as string,
+        adicionales: `Temp: ${formData.get('temp')}°C, Glucosa: ${formData.get('glycemiaFasting')} / ${formData.get('glycemiaPostprandial')}. Hallazgos: ${formData.get('regionsExploration') || "Ninguno"}`
+      };
+
+      const patientUpdateData: any = {
         family_history: formData.get('familyHistory') as string,
         pathological_history: formData.get('pathologicalHistory') as string,
         non_pathological_history: formData.get('nonPathologicalHistory') as string,
         current_condition: formData.get('currentCondition') as string,
-        physical_exploration: `Peso: ${formData.get('weight')}kg, Talla: ${formData.get('height')}m, TA: ${formData.get('bloodPressureSystolic')}/${formData.get('bloodPressureDiastolic')}, FC: ${formData.get('heartRate')}, FR: ${formData.get('respiratoryRate')}, O2: ${formData.get('oxygenation')}%, Temp: ${formData.get('temp')}°C, Glucosa: ${formData.get('glycemiaFasting')} / ${formData.get('glycemiaPostprandial')}. Hallazgos: ${formData.get('regionsExploration') || "Ninguno"}`
+        physical_exploration: JSON.stringify(physicalExplorationData)
       };
 
       if (!navigator.onLine) {
@@ -5316,7 +5343,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
             pathologicalHistory: patientUpdateData.pathological_history,
             nonPathologicalHistory: patientUpdateData.non_pathological_history,
             currentCondition: patientUpdateData.current_condition,
-            physicalExploration: patientUpdateData.physical_exploration
+            physicalExploration: physicalExplorationData
           });
         }
 
