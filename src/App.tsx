@@ -581,7 +581,32 @@ export default function App() {
     });
   };
 
-  // 2. Efectos de Autenticación
+  // 2. Ruta inicial basada en URL
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const path = window.location.pathname;
+      console.log('App: Path detected:', path);
+      
+      if (path === '/enfermeros') {
+        setCurrentView('register-nurse');
+        // Asegurarnos de persistir para que la detección de login no nos saque
+        localStorage.setItem('currentView', 'register-nurse');
+      } else if (path === '/' || path === '') {
+        // En la raíz, si no hay sesión, dejar que el flujo normal maneje el Login
+        // Si hay sesión, el dashboard es el default
+        const savedView = localStorage.getItem('currentView');
+        if (savedView === 'register-nurse') {
+          setCurrentView('register-nurse');
+        }
+      }
+    };
+
+    handleLocationChange();
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  // 3. Efectos de Autenticación
   useEffect(() => {
     if (isAuthChecking) {
       const timer = setTimeout(() => setShowLoadingHelp(true), 10000);
@@ -1285,7 +1310,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    (window as any).navigateToRegister = () => navigateTo('register-nurse');
+    (window as any).navigateToRegister = () => {
+      window.history.pushState({}, '', '/enfermeros');
+      navigateTo('register-nurse');
+    };
   }, [navigateTo]);
 
   const handleAddWound = (newWound: Wound) => {
@@ -8366,6 +8394,12 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
 
         if (!response.ok) {
           const errorText = await response.text();
+          console.error('RegisterNurseView: API response not OK:', response.status, errorText);
+          
+          if (response.status === 404 || errorText.includes('NOT_FOUND')) {
+            throw new Error('El servicio de registro automático no está disponible en este momento. Por favor, contacta al administrador.');
+          }
+          
           let errorResult;
           try {
             errorResult = JSON.parse(errorText);
@@ -8412,6 +8446,7 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
       }
 
       toast.success('¡Registro completado con éxito!');
+      window.history.pushState({}, '', '/');
       onBack();
       
     } catch (err: any) {
@@ -8509,7 +8544,10 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
             <div className="flex gap-4">
               <button 
                 type="button"
-                onClick={onBack}
+                onClick={() => {
+                  window.history.pushState({}, '', '/');
+                  onBack();
+                }}
                 className="flex-1 bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
               >
                 Cancelar
