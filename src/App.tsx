@@ -372,6 +372,14 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
   );
 }
 
+// Helper for unique IDs that works in all environments
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+};
+
 function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -542,8 +550,13 @@ export default function App() {
       if (isAuthChecking) {
         console.warn('App: Initial auth check timed out, forcing ready state');
         setIsAuthChecking(false);
+        // If we timed out, check if we have a cached session to try and load it
+        const hasSession = localStorage.getItem('isLoggedIn') === 'true';
+        if (hasSession && !isLoggedIn) {
+          setIsLoggedIn(true);
+        }
       }
-    }, 3000);
+    }, 5000); // Aumentado a 5s por seguridad
 
     return () => clearTimeout(authTimeout);
   }, [isAuthChecking]);
@@ -8946,13 +8959,13 @@ function NewTreatmentProposalView({ navigateTo, patients, onSave }: { navigateTo
     investment: 2500,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const patient = patients.find(p => p.id === formData.patientId);
     if (!patient) return;
 
     const newProposal: TreatmentProposal = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       patientId: formData.patientId,
       patientName: patient.fullName,
       date: formData.date,
@@ -8964,8 +8977,7 @@ function NewTreatmentProposalView({ navigateTo, patients, onSave }: { navigateTo
       status: 'pending',
     };
 
-    onSave(newProposal);
-    toast.success('Propuesta guardada correctamente.');
+    await onSave(newProposal);
     navigateTo('treatment-proposals');
   };
 
