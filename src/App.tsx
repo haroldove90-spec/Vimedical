@@ -260,7 +260,7 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
     setError('');
     setIsSubmitting(true);
 
-    // Timeout de seguridad de 15 segundos
+    // Timeout de seguridad de 30 segundos
     const timeoutId = setTimeout(() => {
       setIsSubmitting(current => {
         if (current) {
@@ -270,7 +270,7 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
         }
         return current;
       });
-    }, 15000);
+    }, 30000);
 
     try {
       console.log('LoginView: Calling signInWithPassword for', email);
@@ -772,7 +772,7 @@ export default function App() {
           
           // Intento simplificado y rápido
           try {
-            const fetchTimeout = createTimeout(10000); // 10 segundos es suficiente
+            const fetchTimeout = createTimeout(20000); // Aumentado a 20 segundos
             const fetchPromise = supabase
               .from('profiles')
               .select('*')
@@ -785,7 +785,7 @@ export default function App() {
             if (timeoutId) clearTimeout(timeoutId);
             if (err.message === 'TIMEOUT') {
               console.warn('App: Fast fetch timed out, trying ONE more time with simplified query');
-              const secondTimeout = createTimeout(15000);
+              const secondTimeout = createTimeout(30000); // Segundo intento de 30 segundos
               const secondFetch = supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
               result = await Promise.race([secondFetch, secondTimeout]);
               if (timeoutId) clearTimeout(timeoutId);
@@ -949,6 +949,7 @@ export default function App() {
               setIsLoggedIn(true);
               setIsAuthChecking(false);
               localStorage.setItem('isLoggedIn', 'true');
+              localStorage.setItem('currentRole', 'Enfermero');
               localStorage.setItem('currentProfile', JSON.stringify(profile));
               return;
             }
