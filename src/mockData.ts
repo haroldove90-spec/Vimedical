@@ -222,6 +222,8 @@ export type Wound = {
   abiRightToe?: string;
   abiRightPedal?: string;
   abiRightPostTibial?: string;
+  diagnosis?: string;
+  prognosis?: string;
 };
 
 export type TreatmentLog = {

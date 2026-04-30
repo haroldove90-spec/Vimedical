@@ -1021,7 +1021,15 @@ export default function App() {
           abiLeftPostTibial: w.abi_left_post_tibial,
           abiRightToe: w.abi_right_toe,
           abiRightPedal: w.abi_right_pedal,
-          abiRightPostTibial: w.abi_right_post_tibial
+          abiRightPostTibial: w.abi_right_post_tibial,
+          diagnosis: w.diagnosis,
+          width: w.width,
+          length: w.length,
+          depth: w.depth,
+          painLevel: w.pain_level,
+          tissueType: w.tissue_type,
+          characteristics: w.characteristics,
+          prognosis: w.prognosis
         }));
         const finalWounds = [...formattedWounds];
         setWounds(finalWounds);
@@ -2174,6 +2182,7 @@ export default function App() {
               patientId={selectedPatientId} 
               navigateTo={navigateTo} 
               patients={patients}
+              wounds={wounds}
               onSave={handleAddWound}
               onUpdatePatient={handleUpdatePatient}
             />
@@ -4871,19 +4880,26 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
               <h2 className="text-4xl font-black tracking-tighter text-slate-900">{patient.fullName}</h2>
               <p className="text-slate-500 font-medium mt-1">{patient.occupation || 'Sin ocupación'} • {patient.gender} • {patient.dateOfBirth}</p>
             </div>
-            <div className="flex gap-3">
-              {needsAssessment && (
-                <button 
-                  onClick={() => navigateTo('new-assessment', patientId)}
-                  className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-200 hover:bg-amber-200 transition-all flex items-center gap-2"
-                >
-                  <AlertCircle className="w-4 h-4" />
-                  Falta Historia Clínica
-                </button>
-              )}
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => navigateTo('consent-form', patient.id)}
+                <div className="flex gap-3">
+                  {needsAssessment && (
+                    <button 
+                      onClick={() => navigateTo('new-assessment', patientId)}
+                      className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-200 hover:bg-amber-200 transition-all flex items-center gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4" />
+                      Falta Historia Clínica
+                    </button>
+                  )}
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => navigateTo('new-assessment', patientId)}
+                      className="bg-secondary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-secondary/90 transition-all flex items-center gap-2 shadow-lg shadow-secondary/20"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      NUEVA CURACION PROPUESTA DE TRATAMIENTO
+                    </button>
+                    <button 
+                      onClick={() => navigateTo('consent-form', patient.id)}
                   className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${patient.consentFormSigned ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
                 >
                   Consentimiento {patient.consentFormSigned ? '✓' : '✗'}
@@ -4972,11 +4988,11 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
               <div className="flex justify-between items-center">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">Registro de Heridas</h3>
                 <button 
-                  onClick={() => navigateTo('new-assessment', patient.id)}
+                  onClick={() => navigateTo('new-treatment-proposal', patient.id)}
                   className="bg-secondary text-white px-6 py-3 rounded-xl font-black text-sm flex items-center gap-2 shadow-lg shadow-secondary/20 hover:bg-secondary-dark transition-all"
                 >
                   <PlusCircle className="w-5 h-5" />
-                  Nueva Curación
+                  NUEVA CURACION PROPUESTA DE TRATAMIENTO
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-6">
@@ -5107,18 +5123,58 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
         )}
 
         {activeTab === 'history' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-1 space-y-8">
-              <section className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-lg shadow-slate-200/30">
-                  <h3 className="text-2xl font-black text-slate-900 mb-8 flex items-center gap-3">
-                    <Activity className="w-6 h-6 text-primary" />
-                    Signos Vitales
+          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header with Title and Update Button */}
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Historial Clínico Completo</h2>
+                <p className="text-slate-500 font-medium mt-1">Revisión consolidada de la última valoración</p>
+              </div>
+              <button 
+                onClick={() => navigateTo('new-assessment', patient.id)}
+                className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                <RefreshCw className="w-5 h-5" />
+                ACTUALIZAR HISTORIAL
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Background & Vital Signs */}
+              <div className="lg:col-span-4 space-y-8">
+                {/* 1. Antecedentes */}
+                <section className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl overflow-hidden relative group">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/20 transition-colors" />
+                  <h3 className="text-2xl font-black mb-10 flex items-center gap-3 relative z-10">
+                    <Shield className="w-7 h-7 text-secondary" />
+                    1. Historia Clínica (Antecedentes)
                   </h3>
-                  <div className="grid grid-cols-2 gap-x-8 gap-y-10">
+                  <div className="space-y-10 relative z-10">
+                    <div>
+                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.25em] mb-3">Heredo-Familiares</p>
+                      <p className="text-2xl text-slate-200 font-medium leading-relaxed">{patient.familyHistory || 'No refiere'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.25em] mb-3">Personales Patológicos</p>
+                      <p className="text-2xl text-slate-200 font-medium leading-relaxed">{patient.pathologicalHistory || 'No refiere'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.25em] mb-3">Personales No Patológicos</p>
+                      <p className="text-2xl text-slate-200 font-medium leading-relaxed">{patient.nonPathologicalHistory || 'No refiere'}</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 3. Exploración Física (Signos Vitales) */}
+                <section className="bg-white border border-slate-200 rounded-[3rem] p-10 shadow-xl shadow-slate-200/40">
+                  <h3 className="text-2xl font-black text-slate-900 mb-10 flex items-center gap-3">
+                    <Activity className="w-7 h-7 text-primary" />
+                    3. Exploración Física (S. Vitales)
+                  </h3>
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-12">
                     <div>
                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">T. Arterial</p>
-                      <p className="text-2xl font-black text-slate-900">
+                      <p className="text-3xl font-black text-slate-900">
                         {patient.physicalExploration?.ta || 
                          (latestWound?.bloodPressureSystolic 
                           ? `${latestWound.bloodPressureSystolic}/${latestWound.bloodPressureDiastolic}` 
@@ -5127,23 +5183,23 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F. Cardiaca</p>
-                      <p className="text-2xl font-black text-slate-900">{patient.physicalExploration?.fc || latestWound?.heartRate || 'N/A'}</p>
+                      <p className="text-3xl font-black text-slate-900">{patient.physicalExploration?.fc || latestWound?.heartRate || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F. Resp.</p>
-                      <p className="text-2xl font-black text-slate-900">{patient.physicalExploration?.fr || latestWound?.respiratoryRate || 'N/A'}</p>
+                      <p className="text-3xl font-black text-slate-900">{patient.physicalExploration?.fr || latestWound?.respiratoryRate || 'N/A'}</p>
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Peso</p>
-                      <p className="text-2xl font-black text-slate-900">{patient.physicalExploration?.peso || latestWound?.weight || 'N/A'} kg</p>
+                      <p className="text-3xl font-black text-slate-900">{patient.physicalExploration?.peso || latestWound?.weight || 'N/A'} <span className="text-sm">kg</span></p>
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Talla</p>
-                      <p className="text-2xl font-black text-slate-900">{patient.physicalExploration?.talla || latestWound?.height || 'N/A'} m</p>
+                      <p className="text-3xl font-black text-slate-900">{patient.physicalExploration?.talla || latestWound?.height || 'N/A'} <span className="text-sm">m</span></p>
                     </div>
                     <div>
                       <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">IMC</p>
-                      <p className="text-2xl font-black text-slate-900">
+                      <p className="text-3xl font-black text-slate-900">
                         {patient.physicalExploration?.imc || 
                          ((latestWound?.weight && latestWound?.height) 
                           ? (Number(latestWound.weight) / (Number(latestWound.height) * Number(latestWound.height))).toFixed(1) 
@@ -5152,154 +5208,135 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
                     </div>
                   </div>
                 </section>
-
-                <section className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl overflow-hidden relative">
-                  <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                  <h3 className="text-2xl font-black mb-10 flex items-center gap-3 relative z-10">
-                    <Shield className="w-6 h-6 text-secondary" />
-                    Antecedentes
-                  </h3>
-                  <div className="space-y-10 relative z-10">
-                    <div>
-                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Heredo-Familiares</p>
-                      <p className="text-lg text-slate-300 font-medium leading-relaxed">{patient.familyHistory || 'No refiere'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Personales Patológicos</p>
-                      <p className="text-lg text-slate-300 font-medium leading-relaxed">{patient.pathologicalHistory || 'No refiere'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Personales No Patológicos</p>
-                      <p className="text-lg text-slate-300 font-medium leading-relaxed">{patient.nonPathologicalHistory || 'No refiere'}</p>
-                    </div>
-                  </div>
-                </section>
               </div>
 
-              <div className="lg:col-span-2 space-y-8">
-                <section className="bg-white border border-slate-200 rounded-[2.5rem] p-12 shadow-xl shadow-slate-200/50">
+              {/* Right Column: Wound details, evolution and plan */}
+              <div className="lg:col-span-8 space-y-8">
+                {/* 2. Padecimiento Actual */}
+                <section className="bg-white border border-slate-200 rounded-[3rem] p-12 shadow-xl shadow-slate-200/40">
                   <h3 className="text-2xl font-black text-slate-900 mb-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                      <FileText className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                      <FileText className="w-6 h-6" />
                     </div>
-                    Padecimiento Actual y Exploración
+                    2. Padecimiento Actual
                   </h3>
-                  <div className="space-y-10">
-                    <div>
-                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Motivo de Consulta y Evolución</p>
-                      <p className="text-xl text-slate-700 font-medium leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
-                        {patient.currentCondition || 'No se ha registrado el padecimiento actual.'}
-                      </p>
-                    </div>
-                    
-                    <div className="pt-10 border-t border-slate-100">
-                      <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Nota de Exploración / Hallazgos</h4>
-                      <div className="bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100">
-                        <p className="text-lg text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
-                          {patient.physicalExploration?.adicionales || (typeof patient.physicalExploration === 'string' ? patient.physicalExploration : 'Sin hallazgos adicionales registrados.')}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-10 border-t border-slate-100">
-                      <div className="p-8 bg-violet-50/30 rounded-[2.5rem] border border-violet-100/50">
-                        <h4 className="text-[11px] font-black text-violet-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                          <Activity className="w-4 h-4" />
-                          ABI (Fisiológico)
-                        </h4>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center"><span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Brazo</span> <span className="text-xl font-black text-slate-900">{latestWound?.abiArm || 'N/A'}</span></div>
-                          <div className="grid grid-cols-2 gap-6 pt-6 border-t border-violet-100">
-                            <div className="space-y-2">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pie Izq.</p>
-                              <p className="text-xs font-bold text-slate-600 border-l-2 border-violet-200 pl-2">Dedo: {latestWound?.abiLeftToe || '-'}</p>
-                              <p className="text-xs font-bold text-slate-600 border-l-2 border-violet-200 pl-2">Pedial: {latestWound?.abiLeftPedal || '-'}</p>
-                              <p className="text-xs font-bold text-slate-600 border-l-2 border-violet-200 pl-2">T. Pos: {latestWound?.abiLeftPostTibial || '-'}</p>
-                            </div>
-                            <div className="space-y-2">
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pie Der.</p>
-                              <p className="text-xs font-bold text-slate-600 border-l-2 border-violet-200 pl-2">Dedo: {latestWound?.abiRightToe || '-'}</p>
-                              <p className="text-xs font-bold text-slate-600 border-l-2 border-violet-200 pl-2">Pedial: {latestWound?.abiRightPedal || '-'}</p>
-                              <p className="text-xs font-bold text-slate-600 border-l-2 border-violet-200 pl-2">T. Pos: {latestWound?.abiRightPostTibial || '-'}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-8 bg-emerald-50/30 rounded-[2.5rem] border border-emerald-100/50">
-                        <h4 className="text-[11px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                          <Maximize className="w-4 h-4" />
-                          Características Herida
-                        </h4>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center"><span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Localización</span> <span className="text-base font-black text-slate-900">{latestWound?.location || 'N/A'}</span></div>
-                          <div className="grid grid-cols-2 gap-4 pt-6 border-t border-emerald-100">
-                            <div className="bg-white/50 p-4 rounded-2xl">
-                              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Medidas (cm)</p>
-                              <p className="text-lg font-black text-slate-900">{latestWound?.width} x {latestWound?.length} x {latestWound?.depth}</p>
-                            </div>
-                            <div className="bg-white/50 p-4 rounded-2xl">
-                              <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Dolor (EVA)</p>
-                              <p className="text-lg font-black text-slate-900">{latestWound?.painLevel}/10</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="bg-slate-50/50 p-10 rounded-[2.5rem] border border-slate-100">
+                    <p className="text-3xl text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
+                      {patient.currentCondition || 'No se ha registrado el padecimiento actual.'}
+                    </p>
                   </div>
                 </section>
 
-                <section className="bg-white border border-slate-200 rounded-[2.5rem] p-12 shadow-xl shadow-slate-200/50">
-                  <h3 className="text-2xl font-black text-slate-900 mb-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
-                      <Activity className="w-5 h-5 shadow-sm" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* 4. Dimensiones de la Herida */}
+                  <section className="bg-white border border-slate-200 rounded-[3rem] p-10 shadow-xl shadow-slate-200/40">
+                    <h3 className="text-2xl font-black text-slate-900 mb-10 flex items-center gap-3">
+                      <Maximize className="w-7 h-7 text-emerald-600" />
+                      4. Dimensión Herida
+                    </h3>
+                    <div className="space-y-8">
+                      <div className="p-8 bg-emerald-50/30 rounded-[2rem] border border-emerald-100/50">
+                        <div className="flex justify-between items-center mb-6"><span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Localización</span> <span className="text-xl font-black text-slate-900">{latestWound?.location || 'N/A'}</span></div>
+                        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-emerald-100">
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase mb-2">Medidas (cm)</p>
+                            <p className="text-3xl font-black text-slate-900">{latestWound?.width}x{latestWound?.length}x{latestWound?.depth}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase mb-2">Dolor (EVA)</p>
+                            <div className="flex items-center gap-3">
+                              <p className="text-3xl font-black text-slate-900">{latestWound?.painLevel}/10</p>
+                              <div className={`w-4 h-4 rounded-full ${Number(latestWound?.painLevel) > 7 ? 'bg-red-500' : Number(latestWound?.painLevel) > 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    Análisis Clínico Detallado
+                  </section>
+
+                  {/* 5. Evaluación Detallada del Lecho */}
+                  <section className="bg-white border border-slate-200 rounded-[3rem] p-10 shadow-xl shadow-slate-200/40">
+                    <h3 className="text-2xl font-black text-slate-900 mb-10 flex items-center gap-3">
+                      <Activity className="w-7 h-7 text-amber-600" />
+                      5. Evaluación Detallada Lecho
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 italic">
+                        <div className="flex justify-between items-center mb-4">
+                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Nivel del Dolor (EVA)</h4>
+                          <span className="text-xl font-black text-slate-900">{latestWound?.painLevel}/10</span>
+                        </div>
+                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Tejidos y Hallazgos</h4>
+                         <div className="flex flex-wrap gap-2 text-[11px] font-black text-slate-700">
+                            {latestWound?.tissueType && Object.entries(latestWound.tissueType).map(([k,v]) => v && <span key={k} className="bg-white px-3 py-1 rounded-lg border border-slate-200 uppercase">{k}: {v}</span>)}
+                            {latestWound?.characteristics && Object.entries(latestWound.characteristics).map(([k,v]) => v && <span key={k} className="bg-orange-50 text-orange-700 px-3 py-1 rounded-lg border border-orange-100 uppercase">{k}</span>)}
+                         </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* 5. Fotos Iniciales de la Herida */}
+                <section className="bg-white border border-slate-200 rounded-[3rem] p-10 shadow-xl shadow-slate-200/40">
+                  <div className="flex items-center justify-between mb-10">
+                    <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                      <Camera className="w-7 h-7 text-blue-500" />
+                      5. Fotos Iniciales (Evidencia)
+                    </h3>
+                    <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest leading-none">
+                      {latestWound?.initialPhotos?.length || 0} Fotos
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                    {latestWound?.initialPhotos?.map((img, i) => (
+                      <div key={i} className="aspect-square rounded-3xl overflow-hidden bg-slate-100 border-4 border-white shadow-md relative group cursor-zoom-in">
+                        <img src={img} alt={`Evidencia herida ${i}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      </div>
+                    ))}
+                    {(!latestWound?.initialPhotos || latestWound.initialPhotos.length === 0) && (
+                      <div className="col-span-full py-16 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-400">
+                        <Camera className="w-12 h-12 mb-4 opacity-20" />
+                        <p className="font-black uppercase tracking-widest text-sm">Sin evidencia fotográfica</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* 6. Diagnóstico y Plan */}
+                <section className="bg-indigo-900 rounded-[3rem] p-12 text-white shadow-2xl relative overflow-hidden">
+                  <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-secondary to-primary/50" />
+                  <h3 className="text-3xl font-black mb-10 flex items-center gap-4">
+                    <Zap className="w-8 h-8 text-secondary" />
+                    6. Diagnóstico y Plan
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     <div className="space-y-8">
                       <div>
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Tejidos en el Lecho</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {latestWound?.tissueType ? Object.entries(latestWound.tissueType).map(([key, val]) => (
-                            val && <span key={key} className="px-4 py-2 bg-slate-100 rounded-xl text-xs font-black text-slate-600 uppercase tracking-wider">{key}: {val}</span>
-                          )) : <span className="text-base text-slate-400 italic font-medium">No especificado</span>}
+                        <p className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em] mb-4">Diagnóstico / Ubicación</p>
+                        <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/10">
+                          <p className="text-2xl font-bold text-white leading-relaxed">
+                            {latestWound?.diagnosis || 'No se registró diagnóstico específico.'}
+                          </p>
                         </div>
                       </div>
-                      <div className="pt-8 border-t border-slate-50">
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Etiología Sugerida</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {latestWound?.etiology ? Object.entries(latestWound.etiology).map(([key, val]) => (
-                            val && <span key={key} className="px-4 py-2 bg-primary/10 rounded-xl text-xs font-black text-primary uppercase tracking-wider">{key.replace(/([A-Z])/g, ' $1')}</span>
-                          )) : <span className="text-base text-slate-400 italic font-medium">No especificado</span>}
+                      <div className="flex items-center gap-6 p-6 bg-white/5 rounded-3xl border border-white/10">
+                        <div className="w-14 h-14 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary">
+                          <History className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Pronóstico</p>
+                          <p className="text-xl font-black text-white">{latestWound?.prognosis || 'Reservado'}</p>
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-8">
                       <div>
-                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Signos y Exudado</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {latestWound?.characteristics ? Object.entries(latestWound.characteristics).map(([key, val]) => (
-                            val && <span key={key} className="px-4 py-2 bg-orange-100 rounded-xl text-xs font-black text-orange-600 uppercase tracking-wider">{key}: {val}</span>
-                          )) : <span className="text-base text-slate-400 italic font-medium">Sin datos registrados</span>}
+                        <p className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em] mb-4">Plan Terapéutico Propuesto</p>
+                        <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/10 h-full">
+                          <p className="text-2xl font-medium text-indigo-50 leading-loose whitespace-pre-wrap">
+                            {latestWound?.proposedPlan || 'No se ha definido un plan de tratamiento aún.'}
+                          </p>
                         </div>
                       </div>
-                      <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Clasificación de Escala</h4>
-                         <div className="text-sm font-black text-slate-800 space-y-2">
-                           {latestWound?.classification && Object.entries(latestWound.classification).map(([key, val]) => (
-                             key !== 'sinbad' && (typeof val === 'string' || typeof val === 'boolean') && val && (
-                               <p key={key} className="flex justify-between items-center"><span className="text-slate-400 uppercase text-[10px] tracking-widest">{key}:</span> <span>{val === true ? 'Positivo' : val}</span></p>
-                             )
-                           ))}
-                           {latestWound?.classification?.sinbad && (
-                             <p className="flex justify-between items-center"><span className="text-slate-400 uppercase text-[10px] tracking-widest">SINBAD:</span> 
-                               <span className="text-primary font-black">{Object.entries(latestWound.classification.sinbad).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).sort().join(' ')}</span>
-                             </p>
-                           )}
-                         </div>
-                      </div>
-                    </div>
                   </div>
                 </section>
               </div>
@@ -5368,8 +5405,10 @@ function PatientDetailView({ patientId, navigateTo, patients, wounds, treatmentL
 
 // --- M2: Formulario de Valoración Guiado ---
 
-function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdatePatient }: { patientId: string, navigateTo: (view: View, pId?: string) => void, patients: Patient[], onSave: (w: Wound) => void, onUpdatePatient: (p: Patient) => void }) {
+function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, onUpdatePatient }: { patientId: string, navigateTo: (view: View, pId?: string) => void, patients: Patient[], wounds: Wound[], onSave: (w: Wound) => void, onUpdatePatient: (p: Patient) => void }) {
   const patient = patients.find(p => p.id === patientId);
+  const existingWounds = wounds.filter(w => w.patientId === patientId).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  const latestWound = existingWounds[0];
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -5455,6 +5494,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
         depth: toNumeric(formData.get('depth')),
         pain_level: painLevel,
         shape: formData.get('shape') as string,
+        diagnosis: formData.get('diagnosis') as string,
         prognosis: formData.get('prognosis') as string,
         proposed_plan: formData.get('proposed_plan') as string,
         abi_arm: toNumeric(formData.get('abiArm')),
@@ -5571,15 +5611,15 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
           <div className="space-y-6">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Heredo-Familiares</label>
-              <textarea name="familyHistory" rows={2} placeholder="Ej. Diabetes, Hipertensión en familiares..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+              <textarea name="familyHistory" defaultValue={patient?.familyHistory} rows={2} placeholder="Ej. Diabetes, Hipertensión en familiares..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales Patológicos</label>
-              <textarea name="pathologicalHistory" rows={2} placeholder="Ej. Cirugías, Alergias, Enfermedades crónicas..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+              <textarea name="pathologicalHistory" defaultValue={patient?.pathologicalHistory} rows={2} placeholder="Ej. Cirugías, Alergias, Enfermedades crónicas..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Personales No Patológicos</label>
-              <textarea name="nonPathologicalHistory" rows={2} placeholder="Ej. Tabaquismo, Alcohol, Sedentarismo..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+              <textarea name="nonPathologicalHistory" defaultValue={patient?.nonPathologicalHistory} rows={2} placeholder="Ej. Tabaquismo, Alcohol, Sedentarismo..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
             </div>
           </div>
         </section>
@@ -5594,7 +5634,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
           <div className="space-y-6">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Motivo de Consulta y Evolución *</label>
-              <textarea required name="currentCondition" rows={4} placeholder="Describa el inicio y evolución de la lesión, síntomas y tiempo de evolución..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
+              <textarea required name="currentCondition" defaultValue={patient?.currentCondition} rows={4} placeholder="Describa el inicio y evolución de la lesión, síntomas y tiempo de evolución..." className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all resize-none"></textarea>
             </div>
           </div>
         </section>
@@ -5609,42 +5649,42 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Peso (kg)</label>
-              <input name="weight" type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="weight" type="number" step="0.1" defaultValue={patient?.physicalExploration?.peso || latestWound?.weight} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Talla (m)</label>
-              <input name="height" type="number" step="0.01" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="height" type="number" step="0.01" defaultValue={patient?.physicalExploration?.talla || latestWound?.height} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Temp. (°C)</label>
-              <input name="temp" type="number" step="0.1" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="temp" type="number" step="0.1" defaultValue={latestWound?.temp} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Pulso</label>
-              <input name="pulse" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="pulse" type="number" defaultValue={latestWound?.pulse} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F.C.</label>
-              <input name="heartRate" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="heartRate" type="number" defaultValue={patient?.physicalExploration?.fc || latestWound?.heartRate} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">F.R.</label>
-              <input name="respiratoryRate" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="respiratoryRate" type="number" defaultValue={patient?.physicalExploration?.fr || latestWound?.respiratoryRate} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Oxigenación (%)</label>
-              <input name="oxygenation" type="number" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="oxygenation" type="number" defaultValue={patient?.physicalExploration?.oxygenation || latestWound?.oxygenation} className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             
             <div className="col-span-2 md:col-span-2 lg:col-span-3 grid grid-cols-2 gap-4 border border-slate-100 p-6 rounded-[2rem] bg-slate-50/50">
               <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Tensión Arterial</div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Sistólica</label>
-                <input name="bloodPressureSystolic" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="bloodPressureSystolic" type="text" defaultValue={latestWound?.bloodPressureSystolic} className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Diastólica</label>
-                <input name="bloodPressureDiastolic" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="bloodPressureDiastolic" type="text" defaultValue={latestWound?.bloodPressureDiastolic} className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
             </div>
 
@@ -5652,11 +5692,11 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
               <div className="col-span-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Glicemia</div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Ayuno</label>
-                <input name="glycemiaFasting" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="glycemiaFasting" type="number" defaultValue={latestWound?.glycemiaFasting} className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase text-center mb-2">Posprandial</label>
-                <input name="glycemiaPostprandial" type="number" className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
+                <input name="glycemiaPostprandial" type="number" defaultValue={latestWound?.glycemiaPostprandial} className="w-full border border-slate-200 rounded-xl p-3 text-center focus:ring-2 focus:ring-primary outline-none bg-white font-medium" />
               </div>
             </div>
 
@@ -5694,25 +5734,25 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
               <tbody>
                 <tr>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiArm" type="text" placeholder="Brazo" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiArm" type="text" defaultValue={latestWound?.abiArm} placeholder="Brazo" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiLeftToe" type="text" placeholder="Dedo" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiLeftToe" type="text" defaultValue={latestWound?.abiLeftToe} placeholder="Dedo" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiLeftPedial" type="text" placeholder="Pedial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiLeftPedial" type="text" defaultValue={latestWound?.abiLeftPedal} placeholder="Pedial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiLeftTibial" type="text" placeholder="Tibial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiLeftTibial" type="text" defaultValue={latestWound?.abiLeftPostTibial} placeholder="Tibial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiRightToe" type="text" placeholder="Dedo" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiRightToe" type="text" defaultValue={latestWound?.abiRightToe} placeholder="Dedo" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiRightPedial" type="text" placeholder="Pedial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiRightPedial" type="text" defaultValue={latestWound?.abiRightPedal} placeholder="Pedial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                   <td className="border border-slate-200 p-0">
-                    <input name="abiRightTibial" type="text" placeholder="Tibial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
+                    <input name="abiRightTibial" type="text" defaultValue={latestWound?.abiRightPostTibial} placeholder="Tibial" className="w-full h-full p-4 text-center outline-none focus:bg-primary/5 font-medium" />
                   </td>
                 </tr>
               </tbody>
@@ -5730,7 +5770,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
             <div className="md:col-span-6">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Localización Anatómica Exacta *</label>
-              <input required name="location" type="text" placeholder="Ej. Maleolo interno pie derecho" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all shadow-sm" />
+              <input required name="location" type="text" defaultValue={latestWound?.location} placeholder="Ej. Maleolo interno pie derecho" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 transition-all shadow-sm" />
             </div>
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Ancho (cm)</label>
@@ -5938,17 +5978,17 @@ function AssessmentFormView({ patientId, navigateTo, patients, onSave, onUpdateP
 
 
 
-        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">
+        <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50 shadow-slate-200/50">
           <h3 className="text-xl font-black text-slate-900 mb-8 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               <Activity className="w-4 h-4" />
             </div>
-            7. Diagnóstico y Plan
+            6. Diagnóstico y Plan
           </h3>
           <div className="space-y-8">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Diagnóstico / Ubicación</label>
-              <input name="location" type="text" placeholder="Ej. Dehiscencia de herida quirúrgica abdominal" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
+              <input name="diagnosis" type="text" placeholder="Ej. Dehiscencia de herida quirúrgica abdominal" className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" />
             </div>
             
             <div>
