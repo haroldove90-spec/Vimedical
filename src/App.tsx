@@ -294,9 +294,49 @@ function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserProfile) =
       }
 
       if (data.user) {
-        console.log('LoginView: Login successful, waiting for profile fetch in App.tsx');
-        toast.success('Bienvenido de nuevo');
-        // El listener en App.tsx se encargará de cambiarLoggedIn a true
+        console.log('LoginView: Login successful, fetching profile...');
+        
+        // Fetch profile directly here to speed up transition and improve reliability
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`user_id.eq.${data.user.id},id.eq.${data.user.id}`)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('LoginView: Error fetching profile:', profileError);
+          // If profile fetch fails, we still can't really proceed reliably
+          // but App.tsx might catch it. However, let's try to be helpful.
+          setError('Error al cargar tu perfil. Por favor intenta de nuevo.');
+          return;
+        }
+
+        if (profileData) {
+          let normalizedRole: Role = 'Enfermero';
+          const dbRole = profileData.role?.toLowerCase();
+          if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
+          else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+
+          const profile: UserProfile = {
+            id: profileData.id,
+            role: normalizedRole,
+            fullName: profileData.full_name,
+            email: profileData.email,
+            phone: profileData.phone,
+            license: profileData.license,
+            specialty: profileData.specialty,
+            photoUrl: profileData.photo_url,
+            signatureUrl: profileData.signature_url,
+            bio: profileData.bio,
+            status: profileData.status as 'active' | 'suspended'
+          };
+
+          toast.success('¡Bienvenido de nuevo!');
+          onLogin(normalizedRole, profile);
+        } else {
+          console.warn('LoginView: No profile found for user');
+          setError('No se encontró un perfil clínico asociado a esta cuenta.');
+        }
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
@@ -1886,6 +1926,12 @@ export default function App() {
           <RegisterNurseView 
             onBack={() => setCurrentView('dashboard')}
             sendNotification={sendNotification}
+            onLogin={(role, profile) => {
+              setCurrentRole(role);
+              if (profile) setCurrentProfileData(profile);
+              setIsLoggedIn(true);
+              setCurrentView('dashboard');
+            }}
           />
         ) : (
           <LoginView onLogin={(role, profile) => {
@@ -8340,7 +8386,7 @@ function NurseDashboard({ navigateTo, patients, wounds, treatments, profile, onS
   );
 }
 
-function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void> }) {
+function RegisterNurseView({ onBack, sendNotification, onLogin }: { onBack: () => void, sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>, onLogin: (role: Role, profile?: UserProfile) => void }) {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -8446,7 +8492,37 @@ function RegisterNurseView({ onBack, sendNotification }: { onBack: () => void, s
         console.warn('RegisterNurseView: Error sending notification:', notifyErr);
       }
 
-      toast.success('¡Registro completado con éxito!');
+      if (signUpData.user) {
+        console.log('RegisterNurseView: SignUp successful, checking for profile...');
+        
+        // Esperar un momento para que el trigger de Supabase cree el perfil
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', signUpData.user.id)
+          .maybeSingle();
+          
+        if (profileData) {
+          const profile: UserProfile = {
+            id: profileData.id,
+            role: 'Enfermero',
+            fullName: profileData.full_name,
+            email: profileData.email,
+            phone: profileData.phone,
+            license: profileData.license,
+            status: 'active'
+          };
+          
+          toast.success('¡Registro completado con éxito!');
+          window.history.pushState({}, '', '/');
+          onLogin('Enfermero', profile);
+          return;
+        }
+      }
+
+      toast.success('¡Registro completado con éxito! Por favor inicia sesión.');
       window.history.pushState({}, '', '/');
       onBack();
       
