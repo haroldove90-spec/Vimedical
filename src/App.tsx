@@ -7,7 +7,7 @@ import {
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
-  ChevronLeft, ArrowUpRight, ArrowDownRight, Filter, Save, ShieldCheck, Zap, History
+  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -5450,25 +5450,29 @@ function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, o
     return isNaN(num) ? null : num;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, submitStatus: 'approved' | 'pending_doctor' = 'pending_doctor') => {
     e.preventDefault();
-    if (photos.length === 0) {
+    if (photos.length === 0 && submitStatus === 'pending_doctor') {
       toast.error('Debe incluir al menos una foto inicial de la herida.');
       return;
     }
     setIsSubmitting(true);
-    toast.loading('Guardando historia clínica y valoración...', { id: 'assessment-save' });
+    toast.loading(submitStatus === 'approved' ? 'Actualizando historial...' : 'Enviando a aprobación...', { id: 'assessment-save' });
 
     try {
-      const form = e.target as HTMLFormElement;
+      const form = e.currentTarget as HTMLFormElement;
       const formData = new FormData(form);
 
-      // 1. Subir fotos
-      const uploadedPhotoUrls: string[] = [];
-      for (const file of photoFiles) {
-        const fileName = `wounds/${patientId}_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
-        const url = await storageService.uploadFile('wounds', fileName, file);
-        if (url) uploadedPhotoUrls.push(url);
+      // 1. Subir fotos (solo si hay nuevas o es necesario)
+      const uploadedPhotoUrls: string[] = [...photos];
+      if (photoFiles.length > 0) {
+        for (const file of photoFiles) {
+          if (file.size > 0) { // Check if it's a real file
+            const fileName = `wounds/${patientId}_${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
+            const url = await storageService.uploadFile('wounds', fileName, file);
+            if (url) uploadedPhotoUrls.push(url);
+          }
+        }
       }
 
       // 2. Preparar Datos de Valoración (Wound)
@@ -5476,7 +5480,7 @@ function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, o
         patient_id: patientId,
         location: formData.get('location') as string || 'No especificada',
         description: formData.get('currentCondition') as string || '', // Padecimiento Actual
-        status: 'pending_doctor',
+        status: submitStatus,
         initial_photos: uploadedPhotoUrls,
         weight: toNumeric(formData.get('weight')),
         height: toNumeric(formData.get('height')),
@@ -5493,7 +5497,6 @@ function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, o
         length: toNumeric(formData.get('length')),
         depth: toNumeric(formData.get('depth')),
         pain_level: painLevel,
-        shape: formData.get('shape') as string,
         diagnosis: formData.get('diagnosis') as string,
         prognosis: formData.get('prognosis') as string,
         proposed_plan: formData.get('proposed_plan') as string,
@@ -6013,18 +6016,39 @@ function AssessmentFormView({ patientId, navigateTo, patients, wounds, onSave, o
           </div>
         </section>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex flex-col md:flex-row justify-end gap-6 pt-10 border-t border-slate-100">
+          <button 
+            type="button" 
+            onClick={(e) => {
+              const form = e.currentTarget.closest('form');
+              if (form) {
+                // Manually trigger handleSubmit with 'approved' status
+                const syntheticEvent = {
+                  preventDefault: () => {},
+                  currentTarget: form,
+                  target: form
+                } as unknown as React.FormEvent<HTMLFormElement>;
+                handleSubmit(syntheticEvent, 'approved');
+              }
+            }}
+            disabled={isSubmitting}
+            className="w-full md:w-auto px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
+          >
+            {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Solo Actualizar Historial
+          </button>
+
           <button 
             type="submit" 
             disabled={isSubmitting}
-            className="w-full md:w-auto bg-secondary text-white px-12 py-5 rounded-2xl font-black text-sm shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all scale-100 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+            className="w-full md:w-auto bg-secondary text-white px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-secondary/30 hover:bg-secondary-dark transition-all scale-100 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
           >
             {isSubmitting ? (
-              <>
-                <Clock className="w-5 h-5 animate-spin" />
-                Enviando...
-              </>
-            ) : 'Enviar a Aprobación'}
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            {isSubmitting ? 'Procesando...' : 'Enviar a Aprobación'}
           </button>
         </div>
       </form>
