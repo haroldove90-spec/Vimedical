@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Patient, Wound, TreatmentLog, Quotation, Diagnostic, MedicalCertificate } from '../mockData';
+import { Patient, Wound, TreatmentLog, Quotation, Diagnostic, MedicalCertificate } from '../types';
 
 // Logo Base64 (ViMedical - Blue/Gold style)
 const VIMEDICAL_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAJnSURBVHgB7VvRbtNAEPyO76p9IDwhiU/gC6jE73CJCjEhPkh8gk/hK+QTfIrE7/CHiEhPCCHxD0iLpH6H2N7i9bpe71zO9pxP7XN00Yy0shzLzuzO7U67C0iRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWKFClSpEiRIkWK/ydw/X0Zf9p/gH/2f+C/fW/uP54z99fP6p57088/6Z4H8u+n0O0Puf/xWp3hUPe+v6p7Hsi/H8m/f0z996f6eSD/fUj996X6OZD//pD670f1/ZD676P6dlD977v6dlB9u6/+76f6dkB966N6b9C+D6hvfVQ3v6X+B6g+3Fd/O+77i7ovD7mvX7rOfz+r78fU307UP07U304q6U1FfbtRf/9X/ZpUN78n1c3vSfX6K1K9/pqm3pSnd7/S1JsKOI46/Z6m/v6Y+m9f6r8f6tux+vte/f1A9f2Y+vtF9fc99fcn9ffv9O059fenaetN+/pWvOmtedM39W3f9E1/6pu+6U990zf96Zt+1Tf96Zt+1Td98f796Zt+1Td98f/96Zt+1Td98X850zf96Zt+1Tf96Zt+1Tf96Zt+1Td98f/96Zt+1Tf96Zt+1Tfg8v/70zf96Zt+1Tf96Zt+1Tf96Zt+1Tfg8v/70zf96Zt+1Tf9iZf/35++6U/f9Ke+6U/f9Ke+6U/f9Ke+6U/f9Ke++f9+1Te6m77oZ9f7KVKkSJEiRYoUKVKkSJEiXv8A2C+hYl+0C2oAAAAASUVORK5CYII=";

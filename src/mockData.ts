@@ -1,253 +1,11 @@
-export type Role = 'Enfermero' | 'Administrador' | 'Doctor';
-
-export type ClinicalComment = {
-  id: string;
-  author: string;
-  role: Role;
-  text: string;
-  createdAt: string;
-};
-
-export type QuotationItem = {
-  id: string;
-  description: string;
-  quantity: number;
-  unitCost: number;
-  total: number;
-};
-
-export type Quotation = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  createdAt: string;
-  items: QuotationItem[];
-  totalAmount: number;
-  status: 'pending' | 'sent' | 'accepted';
-  notes?: string;
-};
-
-export type TreatmentProposal = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  date: string;
-  program: string;
-  numCurations: number;
-  materials: string;
-  investment: number;
-  createdAt: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  nurseId?: string;
-};
-
-export type Diagnostic = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  patientAge: number;
-  date: string;
-  clinicalSummary: string;
-  diagnosis: string;
-  treatmentPlan: string;
-  recommendations: string;
-  doctorName: string;
-  doctorLicense: string;
-  signature?: string;
-  createdAt: string;
-};
-
-export type Patient = {
-  id: string;
-  fullName: string;
-  dateOfBirth: string;
-  phone: string;
-  religion: string;
-  educationLevel: string;
-  familyHistory: string;
-  pathologicalHistory: string;
-  nonPathologicalHistory: string;
-  gender?: string;
-  maritalStatus?: string;
-  occupation?: string;
-  address?: string;
-  initialPhotos?: string[];
-  initialWoundPhoto?: string; // Mantener por compatibilidad temporal
-  clinicalComments?: ClinicalComment[];
-  privacyNoticeSigned?: boolean;
-  privacyNoticeSignature?: string;
-  privacyNoticeDate?: string;
-  privacyNoticeType?: 'casa' | 'hospital';
-  consentFormSigned?: boolean;
-  consentFormSignature?: string;
-  consentFormDate?: string;
-  consentFormType?: 'casa' | 'hospital';
-  registeredBy?: string;
-  createdAt?: string;
-  // New fields from PDF
-  bloodGroup?: string;
-  age?: number;
-  pathologicalHistoryDetails?: {
-    respiratorio?: { asma: boolean, bronquitis: boolean, neumonia: boolean, tuberculosis: boolean, tiempo: string, tratamiento: string };
-    cardiovascular?: { palpitaciones: boolean, fiebreReumatica: boolean, hipertension: boolean, varices: boolean, tiempo: string, tratamiento: string };
-    endocrino?: { diabetes: boolean, hipertiroidismo: boolean, hipotiroidismo: boolean, tiempo: string, tratamiento: string };
-    digestivas?: { gastritis: boolean, colitis: boolean, tiempo: string, tratamiento: string };
-    alergias?: string;
-    fracturas?: string;
-  };
-  nonPathologicalHistoryDetails?: {
-    sports: boolean;
-    sportsFrequency: string;
-    bathFrequency: string;
-    dentalFrequency: string;
-  };
-  gynecoObstetricHistory?: {
-    asintomatico: boolean;
-    menarche?: string;
-    lastMenstrualPeriod?: string;
-    partos: string;
-    cesareas: string;
-    abortos: string;
-    embarazos: string;
-    hijos: string;
-    hormonalesOrales: string;
-    hormonalesParenterales: string;
-  };
-  currentCondition?: string;
-  physicalExploration?: {
-    peso: string;
-    talla: string;
-    imc: string;
-    imcPercent: string;
-    fc: string;
-    fr: string;
-    ta: string;
-    oxygenation: string;
-    adicionales: string;
-  };
-  regionsSegments?: {
-    cuello: string;
-    toraxPulmonar: string;
-    toraxCardiaco: string;
-    abdomen: string;
-    miembrosToracicos: string;
-    miembrosPelvicos: string;
-    columnaVertebral: string;
-    genitalesExteriores: string;
-  };
-};
-
-export type WoundStatus = 'pending_admin' | 'pending_doctor' | 'approved' | 'rejected' | 'completed';
-
-export type Wound = {
-  id: string;
-  patientId: string;
-  location: string;
-  description: string;
-  createdAt: string;
-  status: WoundStatus;
-  initialPhotos: string[];
-  proposedPlan: string;
-  doctorComments?: string;
-  visitCount: number;
-  targetVisits: number;
-  // Exploración Física Inicial (legacy fields, keeping for compatibility)
-  weight?: string;
-  height?: string;
-  temp?: string;
-  bloodPressureSystolic?: string;
-  bloodPressureDiastolic?: string;
-  pulse?: string;
-  heartRate?: string;
-  respiratoryRate?: string;
-  oxygenation?: string;
-  glycemiaFasting?: string;
-  glycemiaPostprandial?: string;
-  // New Assessment fields from PDF
-  width?: string;
-  length?: string;
-  depth?: string;
-  tunneling?: string;
-  sinusTract?: string;
-  undermining?: string;
-  painLevel?: number;
-  shape?: 'Irregular' | 'Oval' | 'Circular' | 'Lineal';
-  tissueType?: {
-    escara: string;
-    necrosis: string;
-    esfacelo: string;
-    granulacion: string;
-    fibrina: string;
-    hiperqueratosis: string;
-    hipergranulacion: string;
-    subcutaneo: string;
-    muscular: string;
-    tendon: string;
-    hueso: string;
-    capsula: string;
-    frictena: string;
-  };
-  etiology?: {
-    porPresion: boolean;
-    venosa: boolean;
-    arterial: boolean;
-    mixta: boolean;
-    diabetica: boolean;
-    quemadura: boolean;
-    quirurgica: boolean;
-    neoplasica: boolean;
-  };
-  classification?: {
-    estadio: string;
-    martorell: boolean;
-    calcifilaxis: boolean;
-    mixta: boolean;
-    sinbad: { s: boolean, i: boolean, n: boolean, b: boolean, a: boolean, d: boolean };
-    thickness: 'Total' | 'Parcial';
-    thicknessDetail?: 'Grado I' | 'Grado II superficial' | 'Grado II profundo' | 'Grado III';
-    origin?: 'Primaria' | 'Secundaria';
-  };
-  characteristics?: {
-    borders: 'Regulares' | 'Irregulares' | 'Oblicuo' | 'Excabado' | 'Evertido' | 'Socavado';
-    perilesionalSkin: 'Sana' | 'Eritema' | 'Hiperpigmentacion' | 'Maceracion' | 'Eritema no Blanqueable' | 'Deshidratada' | 'Hiperqueratosis';
-    exudateType: 'Seroso' | 'Serohematico' | 'Seropurulento' | 'Ematico' | 'Purulento';
-    exudateAmount: 'Nulo' | 'Escaso' | 'Moderado' | 'Abundante';
-    contaminationGrade: 'Contaminada' | 'Infectada' | 'Colonizada' | 'Biofilm' | 'Infeccion Local';
-  };
-  // Índice Tobillo - Brazo
-  abiArm?: string;
-  abiLeftToe?: string;
-  abiLeftPedal?: string;
-  abiLeftPostTibial?: string;
-  abiRightToe?: string;
-  abiRightPedal?: string;
-  abiRightPostTibial?: string;
-  diagnosis?: string;
-  prognosis?: string;
-};
-
-export type TreatmentLog = {
-  id: string;
-  woundId: string;
-  evaluationDate: string;
-  width?: number;
-  length?: number;
-  fluidLeakage: boolean;
-  foreignMaterial: boolean;
-  sloughPresence: boolean;
-  peripheralTractsMeasurements: string;
-  prognosis: 'Favorable' | 'Reservado' | 'Malo';
-  photos: string[]; // Hasta 5 fotos (M4)
-  prontosanSolution: boolean;
-  prontosanGel: boolean;
-  kerlix: boolean;
-  telfa: boolean;
-  avintraAdministered: boolean;
-  notes: string;
-  patientSignature?: string; // Firma de asistencia
-  nurseId?: string;
-  cost?: number;
-};
+import { 
+  Patient, 
+  Wound, 
+  TreatmentLog, 
+  MedicalCertificate, 
+  TreatmentProposal, 
+  Diagnostic 
+} from './types';
 
 export const MOCK_PATIENTS: Patient[] = [
   {
@@ -304,11 +62,9 @@ export const MOCK_WOUNDS: Wound[] = [
     description: 'Dehiscencia de herida quirúrgica post-laparotomía',
     createdAt: '2023-10-01T10:00:00Z',
     status: 'approved',
-    initialPhotos: ['https://picsum.photos/seed/w1_init/400/300'],
+    initialPhotos: ['https://images.unsplash.com/photo-1576091160550-217359f42f8c?q=80&w=2070&auto=format&fit=crop'],
     proposedPlan: 'Lavado con Prontosan, aplicación de Kerlix y Telfa diaria. Avintra según evolución.',
-    doctorComments: 'De acuerdo con el plan. Vigilar signos de infección.',
-    visitCount: 2,
-    targetVisits: 4,
+    doctor_comments: 'De acuerdo con el plan. Vigilar signos de infección.',
   },
   {
     id: 'w2',
@@ -317,10 +73,8 @@ export const MOCK_WOUNDS: Wound[] = [
     description: 'Úlcera de pie diabético grado 2',
     createdAt: '2023-10-08T08:00:00Z',
     status: 'pending_admin',
-    initialPhotos: ['https://picsum.photos/seed/w2_init/400/300'],
+    initialPhotos: ['https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?q=80&w=2070&auto=format&fit=crop'],
     proposedPlan: 'Desbridamiento autolítico, apósito hidrocoloide.',
-    visitCount: 0,
-    targetVisits: 4,
   },
   {
     id: 'w3',
@@ -329,23 +83,8 @@ export const MOCK_WOUNDS: Wound[] = [
     description: 'Úlcera venosa',
     createdAt: '2023-10-09T11:00:00Z',
     status: 'pending_doctor',
-    initialPhotos: ['https://picsum.photos/seed/w3_init/400/300'],
+    initialPhotos: ['https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=2070&auto=format&fit=crop'],
     proposedPlan: 'Terapia compresiva, limpieza con solución salina.',
-    visitCount: 0,
-    targetVisits: 4,
-  },
-  {
-    id: 'w4',
-    patientId: 'p4',
-    location: 'Sacro',
-    description: 'Úlcera por presión estadio III',
-    createdAt: '2023-09-15T09:00:00Z',
-    status: 'completed',
-    initialPhotos: ['https://picsum.photos/seed/w4_init/400/300'],
-    proposedPlan: 'Cambios de posición, parches hidrocelulares.',
-    doctorComments: 'Excelente evolución, proceder al alta.',
-    visitCount: 4,
-    targetVisits: 4,
   }
 ];
 
@@ -353,61 +92,34 @@ export const MOCK_TREATMENTS: TreatmentLog[] = [
   {
     id: 't1',
     woundId: 'w1',
-    evaluationDate: '2023-10-05T09:00:00Z',
-    fluidLeakage: true,
-    foreignMaterial: false,
-    sloughPresence: true,
-    peripheralTractsMeasurements: '2cm borde superior',
-    prognosis: 'Reservado',
-    photos: ['https://picsum.photos/seed/w1_t1_1/400/300', 'https://picsum.photos/seed/w1_t1_2/400/300'],
-    prontosanSolution: true,
-    prontosanGel: true,
-    kerlix: true,
-    telfa: false,
-    avintraAdministered: true,
-    notes: 'Abundante exudado. Se realiza lavado exhaustivo.',
+    patientId: 'p1',
+    date: '2023-10-05T09:00:00Z',
+    type: 'Curación',
+    description: 'Limpieza y cambio de vendaje',
+    photos: ['https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=2080&auto=format&fit=crop'],
+    nurseId: 'n1',
+    nurseName: 'Enf. Carmen',
+    vitalSigns: {
+      ta: '120/80',
+      fc: '80',
+      fr: '18',
+      temp: '36.5',
+      oxygen: '98'
+    }
   }
 ];
-
-export type MedicalCertificate = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  patientAge: number;
-  date: string;
-  doctorName: string;
-  doctorCredentials: string;
-  doctorLicense: string;
-  physicalState: string;
-  woundDetails: string;
-  treatment: string;
-  visualStatus: string;
-  auditoryStatus: string;
-  locomotorStatus: string;
-  neurologicalStatus: string;
-  conclusions: string;
-  signature?: string;
-  createdAt: string;
-};
 
 export const MOCK_CERTIFICATES: MedicalCertificate[] = [
   {
     id: 'cert1',
     patientId: 'p1',
     patientName: 'María González Pérez',
-    patientAge: 61,
     date: '2026-03-16',
+    reason: 'Reposo Médico',
+    diagnosis: 'Dehiscencia de herida quirúrgica',
+    recommendations: 'Curación diaria y reposo absoluto',
     doctorName: 'Victor Ismael Medecigo Escudero',
-    doctorCredentials: 'Médico Cirujano, Maestro en heridas por la Universidad Autónoma de México del Estado de Hidalgo y Universidad Panamericana',
     doctorLicense: '3490622-7218923',
-    physicalState: 'Encamado(a), palidez generalizada de tegumentos',
-    woundDetails: 'con herida por quemadura grado 2, exudativa con material Purulento en miembro sup. Izq.',
-    treatment: 'paracetamol 750 mg tabl. c/ 8 horas, amikacina 500 mg amp. 1 c/ 24 horas por 5 días',
-    visualStatus: 'campo visual y profundidad de campo adecuadas, esteropsis y percepción cromática',
-    auditoryStatus: 'agudeza auditiva limitada',
-    locomotorStatus: 'aparato locomotor (integridad, motilidad y reflejos) sin movilidad y ligeros',
-    neurologicalStatus: 'examen neurológico (coordinación y reflejos) y exploración del estado mental sin alteraciones',
-    conclusions: 'Paciente en proceso de recuperación con manejo antibiótico y analgésico.',
     createdAt: '2026-03-16T10:00:00Z'
   }
 ];
@@ -420,7 +132,7 @@ export const MOCK_PROPOSALS: TreatmentProposal[] = [
     date: '2026-03-16',
     program: 'VIMEDICAL CUIDADOS EN CASA',
     numCurations: 12,
-    materials: 'sin materiales',
+    materials: 'incluídos',
     investment: 2500,
     createdAt: '2026-03-16T10:00:00Z',
     status: 'pending',
@@ -435,10 +147,10 @@ export const MOCK_DIAGNOSTICS: Diagnostic[] = [
     patientName: 'María González Pérez',
     patientAge: 61,
     date: '2026-03-16',
-    clinicalSummary: 'Paciente con herida crónica en miembro inferior izquierdo, presenta signos de colonización crítica.',
-    diagnosis: 'Úlcera venosa complicada con infección local.',
-    treatmentPlan: 'Limpieza con Prontosan, aplicación de apósitos de plata y vendaje multicapa.',
-    recommendations: 'Reposo relativo, elevación de extremidad y control glucémico estricto.',
+    clinicalSummary: 'Paciente con herida crónica en miembro inferior...',
+    diagnosis: 'Úlcera venosa complicada',
+    treatmentPlan: 'Limpieza con Prontosan...',
+    recommendations: 'Reposo relativo...',
     doctorName: 'Victor Ismael Medecigo Escudero',
     doctorLicense: '3490622-7218923',
     createdAt: '2026-03-16T11:00:00Z'
