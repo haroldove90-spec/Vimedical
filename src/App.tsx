@@ -1505,13 +1505,17 @@ export default function App() {
   }, [isLoggedIn, currentRole, loadingProfiles]); // Removed profiles from dependencies
 
   const handleUpdateProfile = async (updatedProfile: UserProfile) => {
-    setCurrentProfileData(updatedProfile);
+    if (currentProfile?.id === updatedProfile.id) {
+      setCurrentProfileData(updatedProfile);
+    }
     setProfiles(prev => {
       const exists = prev.find(p => p.id === updatedProfile.id);
       if (exists) {
         return prev.map(p => p.id === updatedProfile.id ? updatedProfile : p);
       }
-      return [...prev, updatedProfile];
+      const newList = [...prev, updatedProfile];
+      syncService.setCache('profiles', newList);
+      return newList;
     });
 
     const supabaseData: any = {
@@ -2187,8 +2191,10 @@ export default function App() {
                 const profileToDelete = profiles.find(p => p.id === id);
                 if (profileToDelete?.user_id) {
                   try {
-                    const response = await fetch(`/api/delete-user/${profileToDelete.user_id}`, {
-                      method: 'DELETE'
+                    const response = await fetch('/api/delete-user', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: profileToDelete.user_id })
                     });
                     if (!response.ok) throw new Error('Error al eliminar el usuario de autenticación');
                   } catch (err) {
@@ -2202,7 +2208,11 @@ export default function App() {
                   return;
                 }
                 
-                setProfiles(prev => prev.filter(p => p.id !== id));
+                setProfiles(prev => {
+                  const newList = prev.filter(p => p.id !== id);
+                  syncService.setCache('profiles', newList);
+                  return newList;
+                });
                 toast.success('Enfermero eliminado correctamente');
               }}
               onBack={() => navigateTo('dashboard')} 

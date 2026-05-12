@@ -105,10 +105,15 @@ export function NursesManagementView({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Error al crear el enfermero');
+        throw new Error(result.error || result.details || 'Error al crear el enfermero');
       }
 
       const profileData = result.profile;
+      
+      if (!profileData) {
+        throw new Error('El servidor no devolvió los datos del perfil creado.');
+      }
+
       const newNurse: UserProfile = {
         id: profileData.id,
         user_id: profileData.user_id,
