@@ -120,19 +120,34 @@ async function startServer() {
         status: 'active'
       };
 
-      // Robust check-then-action
+      // Create or update profile in profiles table (manual upsert for compatibility)
+      let profileData;
+      let profileError;
+
       const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
         .select('id')
         .eq('user_id', userId)
         .maybeSingle();
 
-      // Upsert profile (handles race conditions with DB trigger)
-      const { data: profileData, error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .upsert(profileToUpsert, { onConflict: 'user_id' })
-        .select()
-        .single();
+      if (existingProfile) {
+        const result = await supabaseAdmin
+          .from('profiles')
+          .update(profileToUpsert)
+          .eq('user_id', userId)
+          .select()
+          .single();
+        profileData = result.data;
+        profileError = result.error;
+      } else {
+        const result = await supabaseAdmin
+          .from('profiles')
+          .insert(profileToUpsert)
+          .select()
+          .single();
+        profileData = result.data;
+        profileError = result.error;
+      }
 
       if (profileError) {
         console.error("API: Profile operation error:", profileError);
