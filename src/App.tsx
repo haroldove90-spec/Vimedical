@@ -1923,16 +1923,25 @@ export default function App() {
             Configuración
           </button>
 
-          {/* Desktop Install Button in Sidebar */}
-          {deferredPrompt && (
-            <button
-              onClick={handleInstall}
-              className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold bg-[#CBB882] text-white hover:bg-[#BBA872] transition-all duration-200 shadow-lg shadow-primary/20 scale-[1.02] mt-4"
-            >
-              <Download className="w-5 h-5" />
-              Instalar Aplicación
-            </button>
-          )}
+          {/* Desktop Install Button in Sidebar - Fixed to be more visible */}
+          <button
+            onClick={() => {
+              if (deferredPrompt) {
+                handleInstall();
+              } else {
+                toast('Para instalar la app, usa el menú de tu navegador (Instalar aplicación) o espera a que aparezca el prompt.', { icon: 'ℹ️' });
+              }
+            }}
+            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 mt-2 ${
+              deferredPrompt 
+                ? 'bg-[#CBB882] text-white shadow-lg shadow-primary/20 scale-[1.02] animate-pulse-subtle' 
+                : 'text-white/40 border border-white/5 bg-white/5 cursor-not-allowed opacity-50'
+            }`}
+            title={deferredPrompt ? "Instalar App" : "Instalación no disponible"}
+          >
+            <Download className="w-5 h-5" />
+            Instalar Aplicación
+          </button>
         </nav>
         
         <div className="p-6 mt-auto">
