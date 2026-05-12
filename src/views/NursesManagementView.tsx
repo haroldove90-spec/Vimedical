@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   ChevronRight, Download, FileText, UserPlus, X, Mail, Phone, Award, Activity, 
-  CheckCircle, AlertTriangle, Trash2, Users 
+  CheckCircle, AlertTriangle, Trash2, Users, Edit3 
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -24,6 +24,8 @@ export function NursesManagementView({
   onDeleteProfile 
 }: NursesManagementViewProps) {
   const [isAddingNurse, setIsAddingNurse] = useState(false);
+  const [isEditingNurse, setIsEditingNurse] = useState(false);
+  const [editingNurse, setEditingNurse] = useState<UserProfile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string, password: string } | null>(null);
@@ -36,7 +38,17 @@ export function NursesManagementView({
     email: '',
     phone: '',
     license: '',
-    specialty: ''
+    specialty: '',
+    role: 'Enfermero' as 'Administrador' | 'Enfermero'
+  });
+
+  const [editNurseData, setEditNurseData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    license: '',
+    specialty: '',
+    role: 'Enfermero' as 'Administrador' | 'Enfermero'
   });
 
   const exportToExcel = () => {
@@ -50,9 +62,9 @@ export function NursesManagementView({
     }));
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Enfermeros");
-    XLSX.writeFile(workbook, `Enfermeros_ViMedical_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Lista de enfermeros exportada a Excel');
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Personal");
+    XLSX.writeFile(workbook, `Personal_ViMedical_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Lista de personal exportada a Excel');
   };
 
   const exportToPDF = () => {
@@ -61,7 +73,7 @@ export function NursesManagementView({
     doc.rect(0, 0, doc.internal.pageSize.getWidth(), 30, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(18);
-    doc.text("ViMedical - Gestión de Enfermeros", 15, 20);
+    doc.text("ViMedical - Gestión de Personal", 15, 20);
     
     const tableData = nurses.map(n => [
       n.fullName,
@@ -78,8 +90,8 @@ export function NursesManagementView({
       headStyles: { fillColor: [15, 23, 42] }
     });
 
-    doc.save(`ViMedical_Enfermeros_${new Date().toISOString().split('T')[0]}.pdf`);
-    toast.success('Lista de enfermeros exportada a PDF');
+    doc.save(`ViMedical_Personal_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success('Lista de personal exportada a PDF');
   };
 
   const handleAddNurse = async (e: React.FormEvent) => {
@@ -95,7 +107,7 @@ export function NursesManagementView({
           email: newNurseData.email,
           password: newNurseData.password,
           fullName: newNurseData.fullName,
-          role: 'Enfermero',
+          role: newNurseData.role,
           license: newNurseData.license,
           phone: newNurseData.phone,
           specialty: newNurseData.specialty
@@ -105,7 +117,7 @@ export function NursesManagementView({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || result.details || 'Error al crear el enfermero');
+        throw new Error(result.error || result.details || 'Error al crear el perfil');
       }
 
       const profileData = result.profile;
@@ -117,7 +129,7 @@ export function NursesManagementView({
       const newNurse: UserProfile = {
         id: profileData.id,
         user_id: profileData.user_id,
-        role: 'Enfermero',
+        role: profileData.role || newNurseData.role,
         fullName: profileData.full_name,
         email: profileData.email,
         phone: profileData.phone,
@@ -136,11 +148,56 @@ export function NursesManagementView({
         email: '',
         phone: '',
         license: '',
-        specialty: ''
+        specialty: '',
+        role: 'Enfermero'
       });
-      toast.success('Enfermero registrado correctamente');
+      toast.success(`${newNurseData.role} registrado correctamente`);
     } catch (err: any) {
       console.error('Error adding nurse:', err);
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEditing = (nurse: UserProfile) => {
+    setEditingNurse(nurse);
+    setEditNurseData({
+      fullName: nurse.fullName,
+      email: nurse.email,
+      phone: nurse.phone || '',
+      license: nurse.license || '',
+      specialty: nurse.specialty || '',
+      role: (nurse.role === 'Administrador' ? 'Administrador' : 'Enfermero') as 'Administrador' | 'Enfermero'
+    });
+    setIsEditingNurse(true);
+  };
+
+  const handleUpdateNurse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNurse) return;
+    
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const updatedNurse: UserProfile = {
+        ...editingNurse,
+        fullName: editNurseData.fullName,
+        email: editNurseData.email,
+        phone: editNurseData.phone,
+        license: editNurseData.license,
+        specialty: editNurseData.specialty,
+        role: editNurseData.role
+      };
+
+      await onUpdateProfile(updatedNurse);
+      setIsEditingNurse(false);
+      setEditingNurse(null);
+      toast.success('Datos actualizados correctamente');
+    } catch (err: any) {
+      console.error('Error updating nurse:', err);
       setError(err.message);
       toast.error(err.message);
     } finally {
@@ -155,8 +212,8 @@ export function NursesManagementView({
           <button onClick={onBack} className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-primary flex items-center gap-2 mb-6 transition-colors">
             <ChevronRight className="w-4 h-4 rotate-180" /> Volver al Panel
           </button>
-          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Enfermeros</h2>
-          <p className="text-slate-500 font-medium">Administra el acceso y perfiles del personal operativo.</p>
+          <h2 className="text-4xl font-black tracking-tighter text-slate-900">Gestión de Personal</h2>
+          <p className="text-slate-500 font-medium">Administra el acceso y perfiles del personal administrativo y operativo.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button 
@@ -176,7 +233,7 @@ export function NursesManagementView({
             className="bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all flex items-center gap-3"
           >
             <UserPlus className="w-5 h-5" />
-            Registrar Enfermero
+            Registrar Personal
           </button>
         </div>
       </header>
@@ -188,7 +245,7 @@ export function NursesManagementView({
               <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
                 <CheckCircle className="w-6 h-6 text-emerald-600" />
               </div>
-              <h4 className="text-lg font-black text-emerald-900">¡Enfermero registrado con éxito!</h4>
+              <h4 className="text-lg font-black text-emerald-900">¡Personal registrado con éxito!</h4>
             </div>
             <button onClick={() => setCreatedCredentials(null)} className="text-emerald-400 hover:text-emerald-600">
               <X className="w-6 h-6" />
@@ -214,7 +271,7 @@ export function NursesManagementView({
             <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <h3 className="text-2xl font-black tracking-tighter text-slate-900">Nuevo Registro</h3>
-                <p className="text-slate-500 text-sm font-medium">Completa los datos para el nuevo enfermero.</p>
+                <p className="text-slate-500 text-sm font-medium">Completa los datos para el nuevo integrante del personal.</p>
               </div>
               <button 
                 onClick={() => setIsAddingNurse(false)} 
@@ -275,6 +332,18 @@ export function NursesManagementView({
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rol / Acceso</label>
+                  <select 
+                    required
+                    value={newNurseData.role}
+                    onChange={e => setNewNurseData({...newNurseData, role: e.target.value as 'Administrador' | 'Enfermero'})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  >
+                    <option value="Enfermero">Enfermero (Operativo)</option>
+                    <option value="Administrador">Administrador (Gestión)</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula Profesional</label>
                   <input 
                     type="text"
@@ -318,6 +387,118 @@ export function NursesManagementView({
         </div>
       )}
 
+      {isEditingNurse && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h3 className="text-2xl font-black tracking-tighter text-slate-900">Editar Personal</h3>
+                <p className="text-slate-500 text-sm font-medium">Modifica los datos del integrante del personal.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsEditingNurse(false);
+                  setEditingNurse(null);
+                }} 
+                className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all font-black"
+                disabled={isSubmitting}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateNurse} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-sm font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" /> {error}
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre Completo</label>
+                  <input 
+                    required
+                    type="text"
+                    value={editNurseData.fullName}
+                    onChange={e => setEditNurseData({...editNurseData, fullName: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
+                  <input 
+                    required
+                    type="email"
+                    value={editNurseData.email}
+                    onChange={e => setEditNurseData({...editNurseData, email: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
+                  <input 
+                    type="tel"
+                    value={editNurseData.phone}
+                    onChange={e => setEditNurseData({...editNurseData, phone: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rol / Acceso</label>
+                  <select 
+                    required
+                    value={editNurseData.role}
+                    onChange={e => setEditNurseData({...editNurseData, role: e.target.value as 'Administrador' | 'Enfermero'})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  >
+                    <option value="Enfermero">Enfermero (Operativo)</option>
+                    <option value="Administrador">Administrador (Gestión)</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cédula Profesional</label>
+                  <input 
+                    type="text"
+                    value={editNurseData.license}
+                    onChange={e => setEditNurseData({...editNurseData, license: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  />
+                </div>
+                <div className="col-span-full space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Especialidad / Área</label>
+                  <input 
+                    type="text"
+                    value={editNurseData.specialty}
+                    onChange={e => setEditNurseData({...editNurseData, specialty: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                  />
+                </div>
+              </div>
+              <div className="pt-6 flex gap-4">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsEditingNurse(false);
+                    setEditingNurse(null);
+                  }}
+                  className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all font-black"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 bg-primary text-white py-4 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-[#CBB882] transition-all font-black flex items-center justify-center"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <span className="animate-spin mr-2">◌</span> : null}
+                  {isSubmitting ? 'Actualizando...' : 'Actualizar Datos'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {nurses.map(nurse => (
           <div key={nurse.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 flex flex-col relative overflow-hidden group">
@@ -336,6 +517,11 @@ export function NursesManagementView({
               <div>
                 <h3 className="text-xl font-black text-slate-900">{nurse.fullName}</h3>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">@{nurse.username || nurse.email?.split('@')[0]}</p>
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-block mb-2 ${
+                  nurse.role === 'Administrador' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'
+                }`}>
+                  {nurse.role || 'Personal'}
+                </span>
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                   nurse.status === 'suspended' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'
                 }`}>
@@ -372,12 +558,22 @@ export function NursesManagementView({
               )}
             </div>
 
-            <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-2 gap-3">
+            <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 gap-3">
+              <button 
+                onClick={() => startEditing(nurse)}
+                className="flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                <Edit3 className="w-4 h-4" />
+                Editar Datos
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <button 
                 onClick={() => {
                   const newStatus = nurse.status === 'suspended' ? 'active' : 'suspended';
                   onUpdateProfile({ ...nurse, status: newStatus });
-                  toast.success(`Enfermero ${newStatus === 'suspended' ? 'suspendido' : 'activado'} correctamente`);
+                  toast.success(`${nurse.role || 'Personal'} ${newStatus === 'suspended' ? 'suspendido' : 'activado'} correctamente`);
                 }}
                 className={`flex items-center justify-center gap-2 p-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
                   nurse.status === 'suspended' 
@@ -421,7 +617,7 @@ export function NursesManagementView({
         {nurses.length === 0 && (
           <div className="col-span-full bg-white border border-dashed border-slate-300 rounded-[2.5rem] p-12 text-center">
             <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-            <p className="text-slate-500 font-medium font-black uppercase tracking-widest text-xs text-slate-400">No hay enfermeros registrados.</p>
+            <p className="text-slate-500 font-medium font-black uppercase tracking-widest text-xs text-slate-400">No hay personal registrado.</p>
           </div>
         )}
       </div>

@@ -1873,7 +1873,7 @@ export default function App() {
               }`}
             >
               <Users className="w-5 h-5" />
-              Enfermeros
+              Personal
             </button>
           )}
 
@@ -2213,7 +2213,7 @@ export default function App() {
                   syncService.setCache('profiles', newList);
                   return newList;
                 });
-                toast.success('Enfermero eliminado correctamente');
+                toast.success('Personal eliminado correctamente');
               }}
               onBack={() => navigateTo('dashboard')} 
             />

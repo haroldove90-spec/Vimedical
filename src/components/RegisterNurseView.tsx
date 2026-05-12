@@ -133,7 +133,7 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
           <div className="w-20 h-20 bg-primary rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-primary/20">
             <img src="https://appdesign.appdesignproyectos.com/vimedical.png" alt="ViMedical" className="w-12 h-12 object-contain mix-blend-multiply" />
           </div>
-          <h1 className="text-3xl font-black tracking-tighter text-slate-900">Registro de Enfermería</h1>
+          <h1 className="text-3xl font-black tracking-tighter text-slate-900">Registro de Personal</h1>
           <p className="text-slate-500 font-medium mt-2">Únete a nuestro equipo de especialistas</p>
         </div>
 
@@ -214,14 +214,14 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
                   window.history.pushState({}, '', '/');
                   onBack();
                 }}
-                className="flex-1 bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
+                className="flex-1 bg-slate-100 text-slate-600 py-5 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all font-black"
               >
                 Cancelar
               </button>
               <button 
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-[2] bg-primary text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                className="flex-[2] bg-primary text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary/20 hover:bg-indigo-700 transition-all disabled:opacity-50 font-black"
               >
                 {isSubmitting ? 'Registrando...' : 'Completar Registro'}
               </button>
@@ -243,6 +243,7 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
             </div>
           </div>
         </form>
+
       </div>
     </div>
   );
