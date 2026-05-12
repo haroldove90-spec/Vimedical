@@ -39,7 +39,7 @@ export function NursesManagementView({
     phone: '',
     license: '',
     specialty: '',
-    role: 'Enfermero' as 'Administrador' | 'Enfermero'
+    role: 'Enfermero' as 'Administrador' | 'Enfermero' | 'Doctor'
   });
 
   const [editNurseData, setEditNurseData] = useState({
@@ -48,7 +48,7 @@ export function NursesManagementView({
     phone: '',
     license: '',
     specialty: '',
-    role: 'Enfermero' as 'Administrador' | 'Enfermero'
+    role: 'Enfermero' as 'Administrador' | 'Enfermero' | 'Doctor'
   });
 
   const exportToExcel = () => {
@@ -169,7 +169,7 @@ export function NursesManagementView({
       phone: nurse.phone || '',
       license: nurse.license || '',
       specialty: nurse.specialty || '',
-      role: (nurse.role === 'Administrador' ? 'Administrador' : 'Enfermero') as 'Administrador' | 'Enfermero'
+      role: (nurse.role as 'Administrador' | 'Enfermero' | 'Doctor')
     });
     setIsEditingNurse(true);
   };
@@ -336,10 +336,11 @@ export function NursesManagementView({
                   <select 
                     required
                     value={newNurseData.role}
-                    onChange={e => setNewNurseData({...newNurseData, role: e.target.value as 'Administrador' | 'Enfermero'})}
+                    onChange={e => setNewNurseData({...newNurseData, role: e.target.value as 'Administrador' | 'Enfermero' | 'Doctor'})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
                   >
                     <option value="Enfermero">Enfermero (Operativo)</option>
+                    <option value="Doctor">Médico (Especialista)</option>
                     <option value="Administrador">Administrador (Gestión)</option>
                   </select>
                 </div>
@@ -447,10 +448,11 @@ export function NursesManagementView({
                   <select 
                     required
                     value={editNurseData.role}
-                    onChange={e => setEditNurseData({...editNurseData, role: e.target.value as 'Administrador' | 'Enfermero'})}
+                    onChange={e => setEditNurseData({...editNurseData, role: e.target.value as 'Administrador' | 'Enfermero' | 'Doctor'})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
                   >
                     <option value="Enfermero">Enfermero (Operativo)</option>
+                    <option value="Doctor">Médico (Especialista)</option>
                     <option value="Administrador">Administrador (Gestión)</option>
                   </select>
                 </div>
@@ -518,9 +520,10 @@ export function NursesManagementView({
                 <h3 className="text-xl font-black text-slate-900">{nurse.fullName}</h3>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">@{nurse.username || nurse.email?.split('@')[0]}</p>
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-block mb-2 ${
-                  nurse.role === 'Administrador' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'
+                  nurse.role === 'Administrador' ? 'bg-indigo-100 text-indigo-600' : 
+                  nurse.role === 'Doctor' ? 'bg-amber-100 text-amber-600' : 'bg-primary/10 text-primary'
                 }`}>
-                  {nurse.role || 'Personal'}
+                  {nurse.role === 'Doctor' ? 'Médico' : (nurse.role || 'Personal')}
                 </span>
                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                   nurse.status === 'suspended' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'

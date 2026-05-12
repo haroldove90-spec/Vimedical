@@ -1923,13 +1923,14 @@ export default function App() {
             Configuración
           </button>
 
+          {/* Desktop Install Button in Sidebar */}
           {deferredPrompt && (
             <button
               onClick={handleInstall}
-              className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold bg-white/10 text-white hover:bg-white/20 transition-all duration-200"
+              className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold bg-[#CBB882] text-white hover:bg-[#BBA872] transition-all duration-200 shadow-lg shadow-primary/20 scale-[1.02] mt-4"
             >
-              <Download className="w-5 h-5 text-secondary" />
-              Instalar App
+              <Download className="w-5 h-5" />
+              Instalar Aplicación
             </button>
           )}
         </nav>

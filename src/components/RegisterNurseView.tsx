@@ -16,6 +16,7 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
     email: '',
     password: '',
     license: '',
+    role: 'Enfermero' as Role
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -35,7 +36,7 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
         options: {
           data: {
             full_name: formData.fullName.trim(),
-            role: 'Enfermero',
+            role: formData.role,
           }
         }
       });
@@ -75,7 +76,7 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
               user_id: signUpData.user.id,
               full_name: formData.fullName.trim(),
               email: formData.email.trim(),
-              role: 'Enfermero',
+              role: formData.role,
               license: formData.license.trim(),
               status: 'active'
             });
@@ -91,9 +92,9 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
 
       try {
         await sendNotification(
-          'Nuevo Registro de Enfermería',
-          `${formData.fullName} se ha registrado en el sistema.`,
-          `Atención Administrador: Un nuevo enfermero, ${formData.fullName}, se ha registrado en el sistema.`,
+          `Nuevo Registro de ${formData.role === 'Doctor' ? 'Médico' : 'Enfermería'}`,
+          `${formData.fullName} se ha registrado en el sistema como ${formData.role === 'Doctor' ? 'médico' : 'enfermero'}.`,
+          `Atención Administrador: Un nuevo ${formData.role === 'Doctor' ? 'médico' : 'enfermero'}, ${formData.fullName}, se ha registrado en el sistema.`,
           'Administrador'
         );
       } catch (notifyErr) {
@@ -103,9 +104,9 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
       toast.success('¡Registro completado con éxito!');
       
       if (signUpData.user) {
-        onLogin('Enfermero', {
+        onLogin(formData.role, {
           id: signUpData.user.id,
-          role: 'Enfermero',
+          role: formData.role,
           fullName: formData.fullName.trim(),
           email: formData.email.trim(),
           license: formData.license.trim(),
@@ -158,6 +159,21 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
               />
             </div>
             <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Rol / Acceso</label>
+              <select 
+                required
+                value={formData.role}
+                onChange={(e) => setFormData({...formData, role: e.target.value as Role})}
+                className="w-full border border-slate-200 rounded-2xl p-4 font-bold focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all shadow-inner"
+              >
+                <option value="Enfermero">Enfermero (Operativo)</option>
+                <option value="Doctor">Médico (Especialista)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Cédula Profesional</label>
               <input 
                 type="text" 
@@ -168,9 +184,6 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
                 placeholder="Número de cédula"
               />
             </div>
-          </div>
-
-          <div className="space-y-4">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Correo Electrónico</label>
               <input 
@@ -182,7 +195,9 @@ export function RegisterNurseView({ onBack, sendNotification, onLogin }: Registe
                 placeholder="correo@ejemplo.com"
               />
             </div>
+          </div>
 
+          <div className="space-y-4">
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Contraseña</label>
               <div className="relative">
