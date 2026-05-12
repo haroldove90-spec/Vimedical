@@ -90,62 +90,6 @@ const OrdersView = React.lazy(() => import('./views/OrdersView').then(m => ({ de
 
 // LoginView and RegisterNurseView are now in separate files in /src/components/
 
-function PWAInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showPrompt, setShowPrompt] = useState(false);
-
-  useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowPrompt(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handler);
-
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-      setShowPrompt(false);
-    }
-  };
-
-  if (!showPrompt) return null;
-
-  return (
-    <div className="fixed bottom-6 left-6 right-6 md:left-auto md:right-6 md:w-96 bg-white border-2 border-secondary rounded-2xl shadow-2xl p-6 z-50 animate-bounce-subtle">
-      <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
-          <img src="https://appdesign.appdesignproyectos.com/vimedical.png" alt="Logo" className="w-8 h-8 object-contain mix-blend-multiply" />
-        </div>
-        <div className="flex-1">
-          <h4 className="font-bold text-slate-900">Instalar ViMedical</h4>
-          <p className="text-sm text-slate-500 mt-1">Accede más rápido y recibe notificaciones instalando la app en tu dispositivo.</p>
-          <div className="flex gap-3 mt-4">
-            <button 
-              onClick={handleInstall}
-              className="flex-1 bg-primary text-white py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" /> Instalar
-            </button>
-            <button 
-              onClick={() => setShowPrompt(false)}
-              className="px-4 py-2 text-slate-500 text-sm font-medium hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              Luego
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   console.log('App: Component starting');
@@ -214,6 +158,59 @@ export default function App() {
   const [selectedDiagnosticId, setSelectedDiagnosticId] = useState<string | null>(() => localStorage.getItem('selectedDiagnosticId'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLoadingHelp, setShowLoadingHelp] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
+  function PWAInstallPrompt() {
+    if (!deferredPrompt) return null;
+
+    return (
+      <div className="fixed bottom-24 left-6 right-6 md:left-auto md:right-8 md:bottom-8 md:w-96 bg-white border-2 border-secondary rounded-[2rem] shadow-2xl p-6 z-[100] animate-in slide-in-from-bottom-10 duration-500 ring-4 ring-secondary/10">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/20">
+            <img src="https://appdesign.appdesignproyectos.com/vimedical.png" alt="Logo" className="w-10 h-10 object-contain mix-blend-multiply" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-black text-slate-900 tracking-tight">Instalar ViMedical</h4>
+            <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed">Accede más rápidamente y sin conexión instalando la app en tu pantalla de inicio.</p>
+            <div className="flex gap-2 mt-4">
+              <button 
+                onClick={handleInstall}
+                className="flex-[2] bg-primary text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4" /> Instalar Ahora
+              </button>
+              <button 
+                onClick={() => setDeferredPrompt(null)}
+                className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   // Refs para evitar fugas de memoria y llamadas duplicadas
   const lastFetchUserId = useRef<string | null>(null);
@@ -1727,9 +1724,20 @@ export default function App() {
           <img src="https://appdesign.appdesignproyectos.com/vimedical.png" alt="ViMedical" className="h-8 w-auto mix-blend-multiply" />
           <span className="text-white font-bold tracking-tight">ViMedical</span>
         </div>
-        <button onClick={() => setIsSidebarOpen(true)} className="text-white">
-          <Menu className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          {deferredPrompt && (
+            <button 
+              onClick={handleInstall}
+              className="p-2 text-secondary hover:bg-white/10 rounded-lg transition-all"
+              title="Instalar App"
+            >
+              <Download className="w-6 h-6" />
+            </button>
+          )}
+          <button onClick={() => setIsSidebarOpen(true)} className="text-white">
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* Sidebar Overlay */}
@@ -1914,6 +1922,16 @@ export default function App() {
             <Settings className="w-5 h-5" />
             Configuración
           </button>
+
+          {deferredPrompt && (
+            <button
+              onClick={handleInstall}
+              className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold bg-white/10 text-white hover:bg-white/20 transition-all duration-200"
+            >
+              <Download className="w-5 h-5 text-secondary" />
+              Instalar App
+            </button>
+          )}
         </nav>
         
         <div className="p-6 mt-auto">
