@@ -5,7 +5,7 @@ import {
 import { motion } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { Patient, Wound, TreatmentLog, View, UserProfile } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, safeDatabaseOp } from '../lib/supabase';
 import { storageService } from '../services/storageService';
 import { CameraCapture } from '../components/CameraCapture';
 
@@ -105,11 +105,12 @@ export function TreatmentFormView({
         }
       };
 
-      const { data, error } = await supabase
-        .from('treatment_logs')
-        .insert([treatmentData])
-        .select()
-        .single();
+      const { data, error } = await safeDatabaseOp<any>(
+        'treatment_logs',
+        'insert',
+        [treatmentData],
+        (q) => q.select().single()
+      );
 
       if (error) throw error;
 

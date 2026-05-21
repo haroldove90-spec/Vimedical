@@ -31,7 +31,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { storageService } from './services/storageService';
 import { MOCK_PATIENTS, MOCK_WOUNDS, MOCK_TREATMENTS, MOCK_CERTIFICATES, MOCK_PROPOSALS, MOCK_DIAGNOSTICS } from './mockData';
-import { supabase } from './lib/supabase';
+import { supabase, safeDatabaseOp } from './lib/supabase';
 import { generateFinalReport, generateQuotationPDF, generateClinicalHistoryPDF, generateDiagnosticPDF, generateCertificatePDF } from './services/pdfService';
 import { requestNotificationPermission, triggerFullNotification, playNotificationSound, speakMessage } from './services/notificationService';
 import { syncService } from './services/syncService';
@@ -310,7 +310,18 @@ export default function App() {
       console.log('App: Auth event triggered:', event, session?.user?.id);
       
       if (event === 'SIGNED_OUT' || (event as any) === 'USER_DELETED') {
-        console.log('App: User signed out or deleted, clearing state');
+        console.log('App: User signed out or deleted, checking local state');
+        
+        // Evitar desloguear al usuario en un refresco de página si hay una sesión local activa.
+        // Esto previene que eventos iniciales de SIGNED_OUT cuando Supabase se está inicializando
+        // o si la app está sin conexión cierren la sesión del usuario de forma disruptiva.
+        if (localStorage.getItem('isLoggedIn') === 'true' && event === 'SIGNED_OUT') {
+          console.log('App: Ignorando evento SIGNED_OUT inicial/transitivo en refresco para mantener sesión local activa.');
+          setIsAuthChecking(false);
+          return;
+        }
+
+        console.log('App: Clearing state and logging out...');
         setIsLoggedIn(false);
         setCurrentProfileData(null);
         setIsAuthChecking(false);
@@ -1308,10 +1319,12 @@ export default function App() {
     }
 
     try {
-      const { error } = await supabase
-        .from('patients')
-        .update(supabaseData)
-        .eq('id', updatedPatient.id);
+      const { error } = await safeDatabaseOp<any>(
+        'patients',
+        'update',
+        supabaseData,
+        (q) => q.eq('id', updatedPatient.id)
+      );
       
       if (error) throw error;
       toast.success('Paciente actualizado correctamente');

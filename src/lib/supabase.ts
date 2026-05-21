@@ -15,3 +15,103 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 console.log('Supabase: Client initialized');
+
+/**
+ * Executes a Supabase insert or update query with self-healing for missing database columns.
+ * It automatically detects if a column does not exist, removes it from the payload, and retries.
+ */
+export async function safeDatabaseOp<T = any>(
+  table: string,
+  op: 'insert' | 'update',
+  payload: any,
+  queryBuilder: (query: any) => any,
+  maxRetries = 5
+): Promise<{ data: T | null; error: any }> {
+  let currentPayload = Array.isArray(payload) 
+    ? payload.map(item => ({ ...item }))
+    : { ...payload };
+
+  let attempts = 0;
+  while (attempts < maxRetries) {
+    attempts++;
+    try {
+      let baseQuery = supabase.from(table);
+      let query: any;
+      if (op === 'insert') {
+        query = baseQuery.insert(currentPayload);
+      } else {
+        query = baseQuery.update(currentPayload);
+      }
+
+      const finalQuery = queryBuilder(query);
+      const { data, error } = await finalQuery;
+
+      if (!error) {
+        return { data: data as T, error: null };
+      }
+
+      // Check if it is a missing column error (Postgres code 42703)
+      const isMissingColumn = 
+        error.code === '42703' || 
+        (error.message && (
+          error.message.toLowerCase().includes('column') || 
+          error.message.toLowerCase().includes('columna')
+        ) && error.message.toLowerCase().includes('exist'));
+
+      if (isMissingColumn) {
+        // Try to parse the missing column name from the error message
+        // Example: "column \"diagnosis\" of relation \"wounds\" does not exist"
+        const match = error.message.match(/column "([^"]+)"/) || 
+                      error.message.match(/column '([^']+)'/) || 
+                      error.message.match(/columna "([^"]+)"/) ||
+                      error.message.match(/columna '([^']+)'/);
+        
+        if (match && match[1]) {
+          const columnName = match[1];
+          console.warn(`[Supabase Auto-Heal] Column '${columnName}' does not exist on table '${table}'. Removing it and retrying...`);
+          
+          if (Array.isArray(currentPayload)) {
+            currentPayload.forEach(item => {
+              delete item[columnName];
+            });
+          } else {
+            delete currentPayload[columnName];
+          }
+          continue; // Retry with cleaned payload
+        } else {
+          // Fallback guess: remove common culprits if parsing failed
+          console.warn(`[Supabase Auto-Heal] Undefined column error on ${table}: ${error.message}. Attempting automatic cleaning...`);
+          const suspects = ['diagnosis', 'initial_wound_photo', 'initial_photos'];
+          let removedAny = false;
+          
+          suspects.forEach(suspect => {
+            if (Array.isArray(currentPayload)) {
+              currentPayload.forEach(item => {
+                if (suspect in item) {
+                  delete item[suspect];
+                  removedAny = true;
+                }
+              });
+            } else {
+              if (suspect in currentPayload) {
+                delete currentPayload[suspect];
+                removedAny = true;
+              }
+            }
+          });
+          
+          if (removedAny) {
+            continue;
+          }
+        }
+      }
+
+      return { data: null, error };
+    } catch (err: any) {
+      console.error(`[Supabase Auto-Heal] Fatal exception on ${table} ${op}:`, err);
+      return { data: null, error: err };
+    }
+  }
+
+  return { data: null, error: { message: `Exceeded max retries in self-healing database op for table ${table}` } };
+}

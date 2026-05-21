@@ -6,7 +6,7 @@ import {
 import { motion } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { Patient, Wound, View } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, safeDatabaseOp } from '../lib/supabase';
 import { storageService } from '../services/storageService';
 import { syncService } from '../services/syncService';
 import { CameraCapture } from '../components/CameraCapture';
@@ -157,7 +157,12 @@ export function AssessmentFormView({
         toast.success('Guardado en cola (Offline)', { id: 'assessment-save' });
         setIsSuccess(true);
       } else {
-        await supabase.from('patients').update(patientUpdateData).eq('id', patientId);
+        await safeDatabaseOp<any>(
+          'patients',
+          'update',
+          patientUpdateData,
+          (q) => q.eq('id', patientId)
+        );
         
         if (patient) {
           onUpdatePatient({
@@ -170,7 +175,12 @@ export function AssessmentFormView({
           });
         }
 
-        const { data, error } = await supabase.from('wounds').insert([sanitizedWoundData]).select().single();
+        const { data, error } = await safeDatabaseOp<any>(
+          'wounds',
+          'insert',
+          [sanitizedWoundData],
+          (q) => q.select().single()
+        );
         if (error) throw error;
         
         await supabase.from('notifications').insert([{

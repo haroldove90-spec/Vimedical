@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, safeDatabaseOp } from '../lib/supabase';
 
 export interface SyncOperation {
   id: string;
@@ -57,10 +57,20 @@ export const syncService = {
       try {
         let error;
         if (op.type === 'INSERT') {
-          const { error: insertError } = await supabase.from(op.table).insert(op.data);
+          const { error: insertError } = await safeDatabaseOp(
+            op.table,
+            'insert',
+            op.data,
+            (q) => q
+          );
           error = insertError;
         } else if (op.type === 'UPDATE') {
-          const { error: updateError } = await supabase.from(op.table).update(op.data).match({ id: op.data.id });
+          const { error: updateError } = await safeDatabaseOp(
+            op.table,
+            'update',
+            op.data,
+            (q) => q.match({ id: op.data.id })
+          );
           error = updateError;
         }
         
