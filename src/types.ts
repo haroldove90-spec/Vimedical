@@ -152,6 +152,9 @@ export type Wound = {
   visitCount?: number;
   targetVisits?: number;
   diagnosis?: string;
+  tunneling?: number;
+  sinusTract?: number;
+  undermining?: number;
 };
 
 export type TreatmentLog = {

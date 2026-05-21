@@ -745,6 +745,7 @@ export default function App() {
           occupation: p.occupation,
           address: p.address,
           initialWoundPhoto: p.initial_wound_photo,
+          initialPhotos: p.initial_photos || (p.initial_wound_photo ? [p.initial_wound_photo] : []),
           privacyNoticeSigned: p.privacy_notice_signed,
           privacyNoticeSignature: p.privacy_notice_signature,
           privacyNoticeDate: p.privacy_notice_date,
@@ -824,7 +825,10 @@ export default function App() {
           painLevel: w.pain_level,
           tissueType: w.tissue_type,
           characteristics: w.characteristics,
-          prognosis: w.prognosis
+          prognosis: w.prognosis,
+          tunneling: w.tunneling,
+          sinusTract: w.sinus_tract,
+          undermining: w.undermining
         }));
         const finalWounds = [...formattedWounds];
         setWounds(finalWounds);
@@ -1302,6 +1306,7 @@ export default function App() {
       occupation: updatedPatient.occupation,
       address: updatedPatient.address,
       initial_wound_photo: updatedPatient.initialWoundPhoto,
+      initial_photos: updatedPatient.initialPhotos || (updatedPatient.initialWoundPhoto ? [updatedPatient.initialWoundPhoto] : []),
       clinical_comments: updatedPatient.clinicalComments,
       privacy_notice_signed: updatedPatient.privacyNoticeSigned,
       privacy_notice_signature: updatedPatient.privacyNoticeSignature,
