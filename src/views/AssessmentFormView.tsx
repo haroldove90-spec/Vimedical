@@ -199,16 +199,28 @@ export function AssessmentFormView({
         );
         if (error) throw error;
         
-        await supabase.from('notifications').insert([{
-          title: submitStatus === 'approved' ? 'Valoración Actualizada' : 'Nueva Valoración de Etapa 2',
-          body: submitStatus === 'approved' 
-            ? `Se ha actualizado el historial clínico de ${patient?.fullName}.` 
-            : `Se ha completado la historia clínica y valoración inicial para ${patient?.fullName}.`,
-          voice_text: submitStatus === 'approved'
-            ? `Historial clínico actualizado para ${patient?.fullName}.`
-            : `Atención: Nueva valoración inicial recibida para ${patient?.fullName}. Por favor revise el plan de tratamiento.`,
-          target_role: 'Doctor'
-        }]);
+        const titleVal = submitStatus === 'approved' ? 'Valoración Actualizada' : 'Nueva Valoración de Etapa 2';
+        const bodyVal = submitStatus === 'approved' 
+          ? `Se ha actualizado el historial clínico de ${patient?.fullName}.` 
+          : `Se ha completado la historia clínica y valoración inicial para ${patient?.fullName}.`;
+        const voiceTextVal = submitStatus === 'approved'
+          ? `Historial clínico actualizado para ${patient?.fullName}.`
+          : `Atención: Nueva valoración inicial recibida para ${patient?.fullName}. Por favor revise el plan de tratamiento.`;
+
+        await supabase.from('notifications').insert([
+          {
+            title: titleVal,
+            body: bodyVal,
+            voice_text: voiceTextVal,
+            target_role: 'Doctor'
+          },
+          {
+            title: titleVal,
+            body: bodyVal,
+            voice_text: voiceTextVal,
+            target_role: 'Administrador'
+          }
+        ]);
 
         toast.success(submitStatus === 'approved' ? 'Historial actualizado correctamente' : 'Valoración enviada a aprobación', { id: 'assessment-save' });
         setIsSuccess(true);

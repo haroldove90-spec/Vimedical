@@ -115,6 +115,28 @@ export function TreatmentFormView({
       if (error) throw error;
 
       if (data) {
+        // Enviar notificaciones
+        const authorName = currentUser?.fullName || 'Enfermero';
+        const patName = patient?.fullName || 'Paciente';
+        try {
+          await supabase.from('notifications').insert([
+            {
+              title: 'Nueva Curación Registrada',
+              body: `${authorName} ha registrado una nueva curación para ${patName}.`,
+              voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
+              target_role: 'Doctor'
+            },
+            {
+              title: 'Nueva Curación Registrada',
+              body: `${authorName} ha registrado una nueva curación para ${patName}.`,
+              voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
+              target_role: 'Administrador'
+            }
+          ]);
+        } catch (err) {
+          console.error('Error sending treatment notifications:', err);
+        }
+
         onSave(data as any);
         toast.success('Curación registrada correctamente', { id: 'treatment-save' });
         navigateTo('patient-detail', patientId);

@@ -152,6 +152,9 @@ export default function App() {
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(MOCK_DIAGNOSTICS);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [selectedQuotationId, setSelectedQuotationId] = useState<string | null>(() => localStorage.getItem('selectedQuotationId'));
   const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(() => localStorage.getItem('selectedCertificateId'));
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(() => localStorage.getItem('selectedProposalId'));
@@ -669,12 +672,17 @@ export default function App() {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'notifications',
-          filter: `target_role=eq.${currentRole}`
+          table: 'notifications'
         },
         (payload) => {
-          const { title, body, voice_text } = payload.new;
-          triggerFullNotification(title, body, voice_text);
+          const { title, body, voice_text, target_role } = payload.new;
+          if (target_role === currentRole || target_role === 'Todos') {
+            triggerFullNotification(title, body, voice_text);
+            // Refrescar al instante el feed local
+            setTimeout(() => {
+              fetchNotifications();
+            }, 300);
+          }
         }
       )
       .subscribe();
@@ -890,11 +898,30 @@ export default function App() {
       fetchQuotations(),
       fetchCertificates(),
       fetchDiagnostics(),
-      fetchProposals()
+      fetchProposals(),
+      fetchNotifications()
     ]).catch(err => console.error('App: Initial data fetch error:', err));
+
+    // Sincronización periódica automática de alta frecuencia como respaldo robusto para tiempo real.
+    // Esto asegura que cualquier cambio hecho por un enfermero (pacientes, heridas, curaciones, etc.)
+    // se refleje automáticamente en las pantallas de Admin y Doctores de inmediato (máximo 5s).
+    const pollInterval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        console.log('[Realtime Sync] Sincronizando datos de pacientes, historial clínico y curaciones en segundo plano...');
+        fetchPatients();
+        fetchWounds();
+        fetchTreatmentLogs();
+        fetchQuotations();
+        fetchCertificates();
+        fetchDiagnostics();
+        fetchProposals();
+        fetchNotifications();
+      }
+    }, 5000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      clearInterval(pollInterval);
       supabase.removeChannel(patientsChannel);
       supabase.removeChannel(woundsChannel);
       supabase.removeChannel(treatmentsChannel);
@@ -905,6 +932,53 @@ export default function App() {
       supabase.removeChannel(proposalsChannel);
     };
   }, [currentRole]);
+
+  const fetchNotifications = async () => {
+    if (!navigator.onLine) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .or(`target_role.eq.${currentRole},target_role.eq.Todos`)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+      } else if (data) {
+        setNotifications(data);
+        setUnreadCount(data.filter((n: any) => !n.is_read).length);
+      }
+    } catch (e) {
+      console.error('Exception fetching notifications:', e);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    
+    if (navigator.onLine) {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+    
+    if (navigator.onLine) {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('is_read', false)
+        .or(`target_role.eq.${currentRole},target_role.eq.Todos`);
+    }
+    toast.success('Todas las notificaciones marcadas como leídas');
+  };
 
   const fetchQuotations = async () => {
     // Cargar desde caché primero
@@ -1743,6 +1817,19 @@ export default function App() {
           <span className="text-white font-bold tracking-tight">ViMedical</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* Campanita Alertas Móvil */}
+          <button 
+            onClick={() => setShowNotificationCenter(true)}
+            className="p-2 text-white hover:bg-white/10 rounded-xl relative transition-all"
+            title="Centro de Notificaciones"
+          >
+            <Bell className="w-6 h-6" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-primary shadow-lg animate-pulse">
+                {unreadCount}
+              </span>
+            )}
+          </button>
           {deferredPrompt && (
             <button 
               onClick={handleInstall}
@@ -2020,6 +2107,54 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pt-16 lg:pt-0">
+        {/* Desktop Top Bar */}
+        <div className="hidden lg:flex items-center justify-between px-10 py-6 border-b border-slate-100 bg-white shadow-xs sticky top-0 z-30">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Panel v2.8</p>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight capitalize">
+              {currentView === 'dashboard' ? `Hola, ${currentProfile?.fullName?.split(' ')[0] || currentRole}` : 
+               currentView === 'patients' ? 'Gestión de Pacientes' :
+               currentView === 'patient-detail' ? 'Paciente & Expediente Clínico' :
+               currentView === 'clinical-history' ? 'Control de Historias Clínicas' :
+               currentView === 'quotations' ? 'Cotizaciones de Servicio' :
+               currentView === 'certificates' ? 'Certificados Médicos' :
+               currentView === 'analytics' ? 'Estadísticas & KPIs' :
+               currentView === 'nurses-management' ? 'Control de Personal' :
+               currentView === 'ecommerce' ? 'Tienda de Productos' :
+               currentView === 'profile' ? 'Configuración de Perfil' : 
+               currentView === 'settings' ? 'Herramientas y Preferencias' : currentView}
+            </h2>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {/* Campanita Escritorio */}
+            <button 
+              onClick={() => setShowNotificationCenter(true)}
+              className="p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl relative transition-all border border-slate-100 shadow-sm hover:scale-105 active:scale-95 cursor-pointer"
+              title="Centro de Alertas y Notificaciones"
+            >
+              <Bell className="w-5 h-5 text-slate-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-md animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            <div className="h-10 w-px bg-slate-100" />
+
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-100/80 px-4 py-2 rounded-2xl">
+              <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center font-black text-xs uppercase shadow-sm">
+                {currentRole[0]}
+              </div>
+              <div>
+                <p className="text-xs font-black text-slate-800 leading-none">{currentProfile?.fullName || currentRole}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{currentRole}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="max-w-[1600px] mx-auto">
           {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} onSwitchRole={setCurrentRole} />}
           {currentView === 'dashboard' && currentRole === 'Administrador' && (
@@ -2266,6 +2401,134 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* Notification Center Modal/Drawer */}
+      <AnimatePresence>
+        {showNotificationCenter && (
+          <div className="fixed inset-0 z-[110] flex justify-end">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowNotificationCenter(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs"
+            />
+            
+            {/* Drawer Container */}
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col z-10 border-l border-slate-100"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-black text-lg text-slate-950 flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-primary" /> Notificaciones
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">Historial de alertas y eventos ({unreadCount} sin leer)</p>
+                </div>
+                <button 
+                  onClick={() => setShowNotificationCenter(false)}
+                  className="p-2 hover:bg-slate-50 text-slate-400 hover:text-slate-600 rounded-xl transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Toolbar */}
+              <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+                <button
+                  onClick={handleMarkAllAsRead}
+                  disabled={unreadCount === 0}
+                  className="text-xs font-bold text-primary hover:text-indigo-700 disabled:opacity-50 flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Marcar todas como leídas
+                </button>
+                <button
+                  onClick={() => {
+                    fetchNotifications();
+                    toast.success('Buzón sincronizado');
+                  }}
+                  className="p-1.5 hover:bg-white text-slate-500 hover:text-slate-700 rounded-lg border border-slate-200 transition-all shadow-xs cursor-pointer"
+                  title="Sincronizar ahora"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-50 p-4 space-y-4">
+                {notifications.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-center p-6 space-y-3">
+                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 text-slate-300">
+                      <Bell className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">Sin notificaciones</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs">No hay alertas registradas que coincidan con tu rol actual de {currentRole}.</p>
+                    </div>
+                  </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <div 
+                      key={notification.id} 
+                      className={`p-4 rounded-2xl border transition-all ${
+                        notification.is_read 
+                          ? 'border-slate-100 bg-white opacity-70' 
+                          : 'border-blue-100 bg-blue-50/10 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5">
+                            {!notification.is_read && (
+                              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse flex-shrink-0" />
+                            )}
+                            <h4 className="text-xs font-black text-slate-900">{notification.title}</h4>
+                          </div>
+                          <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">{notification.body}</p>
+                          
+                          <div className="flex items-center gap-4 mt-3">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-2 py-0.5 rounded-sm">
+                              {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            
+                            {notification.voice_text && (
+                              <button
+                                onClick={() => speakMessage(notification.voice_text)}
+                                className="text-[9px] font-black text-indigo-500 flex items-center gap-1 hover:text-indigo-700 transition-colors uppercase tracking-wider cursor-pointer"
+                              >
+                                <Volume2 className="w-3.5 h-3.5" /> Escuchar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {!notification.is_read && (
+                          <button
+                            onClick={() => handleMarkAsRead(notification.id)}
+                            className="text-[10px] font-black text-primary bg-primary/5 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                            title="Marcar como leída"
+                          >
+                            Leído
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              <div className="p-6 border-t border-slate-100 bg-slate-50/50 text-center">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">ViMedical Alertas Inteligentes • Tiempo Real Activo</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
     )}
     </ErrorBoundary>

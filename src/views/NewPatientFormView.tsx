@@ -202,6 +202,12 @@ export function NewPatientFormView({
             body: `Se ha dado de alta a ${newPatient.fullName}.`,
             voice_text: `Atención: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
             target_role: 'Administrador'
+          },
+          {
+            title: 'Nuevo Paciente Registrado',
+            body: `Se ha dado de alta a ${newPatient.fullName}.`,
+            voice_text: `Atención: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
+            target_role: 'Doctor'
           }
         ]);
 
