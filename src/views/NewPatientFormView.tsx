@@ -196,20 +196,20 @@ export function NewPatientFormView({
           consentFormType: data.consent_form_type
         };
         
-        await supabase.from('notifications').insert([
-          {
-            title: 'Nuevo Paciente Registrado',
-            body: `Se ha dado de alta a ${newPatient.fullName}.`,
-            voice_text: `Atención: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
-            target_role: 'Administrador'
-          },
-          {
-            title: 'Nuevo Paciente Registrado',
-            body: `Se ha dado de alta a ${newPatient.fullName}.`,
-            voice_text: `Atención: Se ha registrado un nuevo paciente: ${newPatient.fullName}.`,
-            target_role: 'Doctor'
-          }
-        ]);
+        const currentRole = localStorage.getItem('currentRole') || 'Enfermero';
+        const targets = 
+          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+          ['Enfermero', 'Doctor'];
+
+        const notificationInserts = targets.map(targetRole => ({
+          title: 'Nuevo Paciente Registrado',
+          body: `Se ha dado de alta a ${newPatient.fullName} por el rol ${currentRole}.`,
+          voice_text: `Atención: Se ha registrado un nuevo paciente: ${newPatient.fullName}, dado de alta por ${currentRole}.`,
+          target_role: targetRole
+        }));
+
+        await supabase.from('notifications').insert(notificationInserts);
 
         setCreatedPatientId(data.id);
         onSave(newPatient);

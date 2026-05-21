@@ -1214,6 +1214,26 @@ export default function App() {
           total: item.total
         }));
         await supabase.from('quotation_items').insert(items);
+
+        // Notificaciones
+        const authorName = currentProfile?.fullName || 'Administrador';
+        const pName = newQuotation.patientName || 'un paciente';
+        const targets = 
+          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+          ['Enfermero', 'Doctor'];
+
+        try {
+          await supabase.from('notifications').insert(targets.map(targetRole => ({
+            title: 'Nueva Cotización',
+            body: `${authorName} ha registrado una cotización para ${pName}.`,
+            voice_text: `Atención: Nueva cotización de servicios por $${newQuotation.totalAmount.toLocaleString()} registrada para ${pName} por ${authorName}.`,
+            target_role: targetRole
+          })));
+        } catch (err) {
+          console.error('Error sending quotation notifications:', err);
+        }
+
         toast.success('Cotización guardada y sincronizada');
       } else {
         syncService.addToQueue('quotations', 'INSERT', newQuotation);
@@ -1254,6 +1274,26 @@ export default function App() {
           created_at: newCertificate.createdAt
         }]);
         if (error) throw error;
+
+        // Notificaciones
+        const authorName = currentProfile?.fullName || 'Médico';
+        const pName = newCertificate.patientName || 'un paciente';
+        const targets = 
+          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+          ['Enfermero', 'Doctor'];
+
+        try {
+          await supabase.from('notifications').insert(targets.map(targetRole => ({
+            title: 'Nuevo Certificado Médico',
+            body: `${authorName} ha emitido un certificado para ${pName}.`,
+            voice_text: `Atención: Nuevo certificado médico emitido para el paciente ${pName} por ${authorName}.`,
+            target_role: targetRole
+          })));
+        } catch (err) {
+          console.error('Error sending certificate notifications:', err);
+        }
+
         toast.success('Certificado guardado y sincronizado');
       } else {
         syncService.addToQueue('medical_certificates', 'INSERT', newCertificate);
@@ -1286,6 +1326,30 @@ export default function App() {
           created_at: newProposal.createdAt
         }]);
         if (error) throw error;
+
+        // Enviar notificaciones al Doctor y al Administrador
+        const authorName = currentProfile?.fullName || 'Enfermero';
+        const pName = newProposal.patientName || 'un paciente';
+        
+        try {
+          await supabase.from('notifications').insert([
+            {
+              title: 'Nueva Propuesta de Tratamiento',
+              body: `${authorName} ha registrado una nueva propuesta para ${pName}.`,
+              voice_text: `Atención: Nueva propuesta de tratamiento registrada para el paciente ${pName} por ${authorName}.`,
+              target_role: 'Doctor'
+            },
+            {
+              title: 'Nueva Propuesta de Tratamiento',
+              body: `${authorName} ha registrado una nueva propuesta para ${pName}.`,
+              voice_text: `Atención: Nueva propuesta de tratamiento registrada para el paciente ${pName} por ${authorName}.`,
+              target_role: 'Administrador'
+            }
+          ]);
+        } catch (err) {
+          console.error('Error sending proposal notifications:', err);
+        }
+
         toast.success('Propuesta guardada y sincronizada');
       } else {
         syncService.addToQueue('treatment_proposals', 'INSERT', newProposal);
@@ -1298,10 +1362,59 @@ export default function App() {
     navigateTo('treatment-proposals');
   };
 
-  const handleSaveDiagnostic = (newDiagnostic: Diagnostic) => {
+  const handleSaveDiagnostic = async (newDiagnostic: Diagnostic) => {
     const updatedDiagnostics = [newDiagnostic, ...diagnostics];
     setDiagnostics(updatedDiagnostics);
     syncService.setCache('diagnostics', updatedDiagnostics);
+
+    try {
+      if (navigator.onLine) {
+        const { error } = await supabase.from('diagnostics').insert([{
+          id: newDiagnostic.id,
+          patient_id: newDiagnostic.patientId,
+          patient_name: newDiagnostic.patientName,
+          patient_age: newDiagnostic.patientAge,
+          date: newDiagnostic.date,
+          clinical_summary: newDiagnostic.clinicalSummary,
+          diagnosis: newDiagnostic.diagnosis,
+          treatment_plan: newDiagnostic.treatmentPlan,
+          recommendations: newDiagnostic.recommendations,
+          doctor_name: newDiagnostic.doctorName,
+          doctor_license: newDiagnostic.doctorLicense,
+          signature: newDiagnostic.signature,
+          created_at: newDiagnostic.createdAt
+        }]);
+        if (error) throw error;
+
+        // Notificaciones
+        const authorName = currentProfile?.fullName || 'Doctor';
+        const pName = newDiagnostic.patientName || 'un paciente';
+        const targets = 
+          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+          ['Enfermero', 'Doctor'];
+
+        try {
+          await supabase.from('notifications').insert(targets.map(targetRole => ({
+            title: 'Nuevo Diagnóstico Clínico',
+            body: `${authorName} ha registrado un diagnóstico para ${pName}.`,
+            voice_text: `Atención: Nuevo diagnóstico clínico registrado para ${pName} por El Doctor ${authorName}.`,
+            target_role: targetRole
+          })));
+        } catch (err) {
+          console.error('Error sending diagnostic notifications:', err);
+        }
+
+        toast.success('Diagnóstico guardado y sincronizado');
+      } else {
+        syncService.addToQueue('diagnostics', 'INSERT', newDiagnostic);
+        toast.success('Diagnóstico guardado (offline)');
+      }
+    } catch (err) {
+      console.error('Error syncing diagnostic:', err);
+      toast.error('Error de sincronización');
+    }
+
     navigateTo('diagnostics');
   };
 
@@ -1468,6 +1581,9 @@ export default function App() {
   };
 
   const handleDeletePatient = (id: string) => {
+    let patientDeleted = patients.find(p => p.id === id);
+    let pName = patientDeleted?.fullName || 'un paciente';
+
     showConfirm(
       '¿Eliminar Paciente?',
       '¿Estás seguro de que deseas eliminar este paciente? Esta acción no se puede deshacer y eliminará todos sus registros asociados.',
@@ -1477,6 +1593,25 @@ export default function App() {
         
         if (navigator.onLine) {
           await supabase.from('patients').delete().eq('id', id);
+
+          // Notificaciones
+          const authorName = currentProfile?.fullName || 'Usuario';
+          const targets = 
+            currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+            currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+            ['Enfermero', 'Doctor'];
+
+          try {
+            await supabase.from('notifications').insert(targets.map(targetRole => ({
+              title: 'Paciente Eliminado',
+              body: `${authorName} ha eliminado al paciente ${pName} y todos sus registros asociados.`,
+              voice_text: `Atención: El paciente ${pName} ha sido eliminado del sistema por ${authorName}.`,
+              target_role: targetRole
+            })));
+          } catch (err) {
+            console.error('Error sending delete patient notifications:', err);
+          }
+
           toast.success('Paciente eliminado');
         } else {
           syncService.addToQueue('patients', 'DELETE', { id });

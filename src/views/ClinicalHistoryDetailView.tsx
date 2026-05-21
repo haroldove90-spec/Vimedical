@@ -42,6 +42,22 @@ export function ClinicalHistoryDetailView({
     onUpdate(formData);
     setIsEditing(false);
     toast.success('Historial actualizado correctamente.');
+
+    const targets = 
+      currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+      currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+      ['Enfermero', 'Doctor'];
+
+    const authorName = currentProfile?.fullName || (currentRole === 'Doctor' ? 'Dr. Especialista' : currentRole === 'Enfermero' ? 'Enf. Operativo' : 'Administrador');
+
+    targets.forEach(role => {
+      sendNotification(
+        'Historial Clínico Editado',
+        `${authorName} ha actualizado los datos clínicos de ${patient.fullName}.`,
+        `Atención ${role}: El historial clínico del paciente ${patient.fullName} ha sido editado por ${authorName}.`,
+        role as any
+      );
+    });
   };
 
   const handleAddComment = () => {
@@ -60,28 +76,28 @@ export function ClinicalHistoryDetailView({
     onUpdate(updatedPatient);
     setNewComment('');
     
-    // Notificar al otro rol y al Administrador
-    const targetRole = currentRole === 'Doctor' ? 'Enfermero' : 'Doctor';
-    const authorName = currentProfile?.fullName || (currentRole === 'Doctor' ? 'Dr. Especialista' : 'Enf. Operativo');
+    const targets = 
+      currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+      currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+      ['Enfermero', 'Doctor'];
+
+    const authorName = currentProfile?.fullName || (currentRole === 'Doctor' ? 'Dr. Especialista' : currentRole === 'Enfermero' ? 'Enf. Operativo' : 'Administrador');
     
-    sendNotification(
-      'Nuevo comentario clínico',
-      `${authorName} ha comentado en el historial de ${patient.fullName}`,
-      `Atención ${targetRole}: Hay un nuevo comentario clínico de ${authorName} para el paciente ${patient.fullName}.`,
-      targetRole
-    );
+    // Notificar a todos los roles destinatarios
+    targets.forEach(role => {
+      sendNotification(
+        'Nuevo comentario clínico',
+        `${authorName} ha comentado en el historial de ${patient.fullName}`,
+        `Atención ${role}: Hay un nuevo comentario clínico de ${authorName} para el paciente ${patient.fullName}.`,
+        role as any
+      );
+    });
 
-    // También notificar al Admin para control
-    sendNotification(
-      'Control: Comentario Clínico',
-      `${authorName} comentó a ${targetRole}`,
-      `Admin: Seguimiento de comunicación clínica para ${patient.fullName}.`,
-      'Administrador'
-    );
-
+    // Also trigger full local toast notification
+    const recipientText = targets.map(r => r === 'Doctor' ? 'médico' : r === 'Enfermero' ? 'enfermero' : 'administrador').join(' y ');
     triggerFullNotification(
       'Comentario Enviado',
-      `Tu comentario ha sido registrado y notificado al ${targetRole === 'Doctor' ? 'médico' : 'enfermero'}.`,
+      `Tu comentario ha sido registrado y notificado al ${recipientText}.`,
       `Mensaje enviado correctamente.`
     );
   };

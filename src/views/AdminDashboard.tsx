@@ -154,6 +154,13 @@ export function AdminDashboard({
                           `Atención Doctor: Tiene una nueva valoración de ${patient?.fullName} pendiente de su aprobación.`,
                           'Doctor'
                         );
+
+                        await sendNotification(
+                          'Valoración Enviada a Doctor',
+                          `El administrador ha revisado y enviado la valoración de ${patient?.fullName} al Doctor.`,
+                          `Atención Enfermero: La valoración inicial para ${patient?.fullName} ha sido enviada al Doctor para su aprobación.`,
+                          'Enfermero'
+                        );
                         onUpdateWoundStatus(wound.id, 'pending_doctor');
                         toast.success('Valoración revisada y enviada al Doctor exitosamente.');
                       }}

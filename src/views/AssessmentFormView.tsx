@@ -207,20 +207,20 @@ export function AssessmentFormView({
           ? `Historial clínico actualizado para ${patient?.fullName}.`
           : `Atención: Nueva valoración inicial recibida para ${patient?.fullName}. Por favor revise el plan de tratamiento.`;
 
-        await supabase.from('notifications').insert([
-          {
-            title: titleVal,
-            body: bodyVal,
-            voice_text: voiceTextVal,
-            target_role: 'Doctor'
-          },
-          {
-            title: titleVal,
-            body: bodyVal,
-            voice_text: voiceTextVal,
-            target_role: 'Administrador'
-          }
-        ]);
+        const currentRole = localStorage.getItem('currentRole') || 'Enfermero';
+        const targets = 
+          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+          ['Enfermero', 'Doctor'];
+
+        const notificationInserts = targets.map(targetRole => ({
+          title: titleVal,
+          body: `${bodyVal} (Registrado por ${currentRole})`,
+          voice_text: voiceTextVal,
+          target_role: targetRole
+        }));
+
+        await supabase.from('notifications').insert(notificationInserts);
 
         toast.success(submitStatus === 'approved' ? 'Historial actualizado correctamente' : 'Valoración enviada a aprobación', { id: 'assessment-save' });
         setIsSuccess(true);

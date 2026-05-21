@@ -118,21 +118,21 @@ export function TreatmentFormView({
         // Enviar notificaciones
         const authorName = currentUser?.fullName || 'Enfermero';
         const patName = patient?.fullName || 'Paciente';
+        const currentRole = localStorage.getItem('currentRole') || 'Enfermero';
+        const targets = 
+          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+          ['Enfermero', 'Doctor'];
+
         try {
-          await supabase.from('notifications').insert([
-            {
-              title: 'Nueva Curación Registrada',
-              body: `${authorName} ha registrado una nueva curación para ${patName}.`,
-              voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
-              target_role: 'Doctor'
-            },
-            {
-              title: 'Nueva Curación Registrada',
-              body: `${authorName} ha registrado una nueva curación para ${patName}.`,
-              voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
-              target_role: 'Administrador'
-            }
-          ]);
+          const notificationInserts = targets.map(targetRole => ({
+            title: 'Nueva Curación Registrada',
+            body: `${authorName} ha registrado una nueva curación para ${patName}.`,
+            voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
+            target_role: targetRole
+          }));
+
+          await supabase.from('notifications').insert(notificationInserts);
         } catch (err) {
           console.error('Error sending treatment notifications:', err);
         }
