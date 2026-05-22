@@ -50,13 +50,17 @@ export async function safeDatabaseOp<T = any>(
         return { data: data as T, error: null };
       }
 
-      // Check if it is a missing column error (Postgres code 42703)
+      // Check if it is a missing column error (Postgres code 42703 or PostgREST code PGRST204)
       const isMissingColumn = 
         error.code === '42703' || 
+        error.code === 'PGRST204' ||
         (error.message && (
           error.message.toLowerCase().includes('column') || 
           error.message.toLowerCase().includes('columna')
-        ) && error.message.toLowerCase().includes('exist'));
+        ) && (
+          error.message.toLowerCase().includes('exist') ||
+          error.message.toLowerCase().includes('schema cache')
+        ));
 
       if (isMissingColumn) {
         // Try to parse the missing column name from the error message
