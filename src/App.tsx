@@ -1646,6 +1646,65 @@ export default function App() {
     }
   };
 
+  const handleUpdateProposalStatus = async (proposalId: string, status: 'accepted' | 'rejected') => {
+    setProposals(prev => {
+      const updated = prev.map(p => 
+        p.id === proposalId ? { ...p, status } : p
+      );
+      syncService.setCache('proposals', updated);
+      return updated;
+    });
+
+    const proposal = proposals.find(p => p.id === proposalId);
+    const candidateName = proposal?.patientName || 'un paciente';
+
+    try {
+      if (navigator.onLine) {
+        await supabase
+          .from('treatment_proposals')
+          .update({ status })
+          .eq('id', proposalId);
+
+        if (status === 'accepted') {
+          await sendNotification(
+            'Propuesta de Tratamiento Aprobada',
+            `La propuesta para ${candidateName} ha sido aprobada por el Doctor.`,
+            `Atención Enfermero: La propuesta de tratamiento para ${candidateName} ha sido aprobada por el Doctor.`,
+            'Enfermero'
+          );
+          await sendNotification(
+            'Propuesta de Tratamiento Aprobada',
+            `La propuesta para ${candidateName} ha sido aprobada por el Doctor.`,
+            `Atención Administrador: La propuesta para ${candidateName} ha sido aprobada por el Doctor.`,
+            'Administrador'
+          );
+        } else if (status === 'rejected') {
+          await sendNotification(
+            'Propuesta de Tratamiento Rechazada',
+            `La propuesta para ${candidateName} ha sido rechazada por el Doctor.`,
+            `Atención Enfermero: La propuesta para ${candidateName} ha sido rechazada por el Doctor.`,
+            'Enfermero'
+          );
+          await sendNotification(
+            'Propuesta de Tratamiento Rechazada',
+            `La propuesta para ${candidateName} ha sido rechazada por el Doctor.`,
+            `Atención Administrador: La propuesta para ${candidateName} ha sido rechazada por el Doctor.`,
+            'Administrador'
+          );
+        }
+
+        const statusLabel = status === 'accepted' ? 'Aceptada' : 'Rechazada';
+        toast.success(`Propuesta ${statusLabel} correctamente`);
+      } else {
+        syncService.addToQueue('treatment_proposals', 'UPDATE', { id: proposalId, status });
+        toast.success('Estado de propuesta actualizado (offline)');
+      }
+    } catch (err) {
+      console.error('Error updating proposal status:', err);
+      toast.error('Error al actualizar el estado de la propuesta');
+    }
+  };
+
   const handleDeletePatient = (id: string) => {
     let patientDeleted = patients.find(p => p.id === id);
     let pName = patientDeleted?.fullName || 'un paciente';
@@ -2368,6 +2427,7 @@ export default function App() {
               onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
               onSwitchRole={setCurrentRole}
+              treatmentProposals={proposals}
             />
           )}
           {currentView === 'dashboard' && currentRole === 'Doctor' && (
@@ -2380,6 +2440,8 @@ export default function App() {
               onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
               onSwitchRole={setCurrentRole}
+              treatmentProposals={proposals}
+              onUpdateProposalStatus={handleUpdateProposalStatus}
             />
           )}
           

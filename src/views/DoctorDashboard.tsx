@@ -7,7 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { syncService } from '../services/syncService';
 import { toast } from 'react-hot-toast';
-import { Patient, Wound, TreatmentLog, Role, UserProfile, View } from '../types';
+import { Patient, Wound, TreatmentLog, Role, UserProfile, View, TreatmentProposal } from '../types';
 import { ImageViewer } from '../components/ImageViewer';
 
 interface DoctorDashboardProps {
@@ -19,6 +19,8 @@ interface DoctorDashboardProps {
   onUpdateWoundStatus: (id: string, status: Wound['status'], comments?: string) => void;
   profile: UserProfile | null;
   onSwitchRole?: (role: Role) => void;
+  treatmentProposals?: TreatmentProposal[];
+  onUpdateProposalStatus?: (id: string, status: 'accepted' | 'rejected') => void;
 }
 
 export function DoctorDashboard({ 
@@ -29,9 +31,12 @@ export function DoctorDashboard({
   sendNotification, 
   onUpdateWoundStatus, 
   profile, 
-  onSwitchRole 
+  onSwitchRole,
+  treatmentProposals = [],
+  onUpdateProposalStatus
 }: DoctorDashboardProps) {
   const pendingDoctor = wounds.filter(w => w.status === 'pending_doctor');
+  const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
   const recentPatients = patients.slice(0, 5);
   const [comments, setComments] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -182,6 +187,70 @@ export function DoctorDashboard({
                 <div className="bg-white border border-dashed border-slate-300 rounded-[2.5rem] p-12 text-center">
                   <CheckCircle className="w-12 h-12 text-emerald-200 mx-auto mb-4" />
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Sin pendientes</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm mb-4">Propuestas de Tratamiento por Autorizar</h3>
+            <div className="grid grid-cols-1 gap-6">
+              {pendingProposals.map(proposal => (
+                <div key={proposal.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-xl">
+                        {proposal.patientName[0]}
+                      </div>
+                      <div>
+                        <h4 className="font-black text-lg text-slate-900">{proposal.patientName}</h4>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Folio: {proposal.id.substring(0, 8)}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 w-full md:w-auto">
+                      <button 
+                        onClick={async () => {
+                          if (onUpdateProposalStatus) {
+                            await onUpdateProposalStatus(proposal.id, 'rejected');
+                          }
+                        }} 
+                        className="flex-1 md:flex-none text-white bg-red-500 px-5 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                      >
+                        <XCircle className="w-4 h-4" /> Rechazar
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (onUpdateProposalStatus) {
+                            await onUpdateProposalStatus(proposal.id, 'accepted');
+                          }
+                        }} 
+                        className="flex-1 md:flex-none text-white bg-emerald-500 px-5 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                      >
+                        <CheckCircle className="w-4 h-4" /> Autorizar
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Programa</p>
+                      <p className="font-bold text-slate-800 text-xs">{proposal.program}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Curaciones / Materiales</p>
+                      <p className="font-bold text-slate-800 text-xs">{proposal.numCurations} curaciones ({proposal.materials})</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Inversión</p>
+                      <p className="font-black text-primary text-sm">${proposal.investment?.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {pendingProposals.length === 0 && (
+                <div className="bg-white border border-dashed border-slate-300 rounded-[2.5rem] p-12 text-center text-slate-400">
+                  <CheckCircle className="w-12 h-12 text-emerald-200 mx-auto mb-4" />
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Sin propuestas de tratamiento pendientes</p>
                 </div>
               )}
             </div>

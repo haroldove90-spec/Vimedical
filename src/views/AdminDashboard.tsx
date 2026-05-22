@@ -6,7 +6,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { syncService } from '../services/syncService';
 import { toast } from 'react-hot-toast';
-import { Patient, Wound, TreatmentLog, Role, UserProfile, View } from '../types';
+import { Patient, Wound, TreatmentLog, Role, UserProfile, View, TreatmentProposal } from '../types';
 
 interface AdminDashboardProps {
   navigateTo: (view: View, pId?: string, wId?: string) => void;
@@ -17,6 +17,7 @@ interface AdminDashboardProps {
   onUpdateWoundStatus: (id: string, status: Wound['status']) => void;
   profile: UserProfile | null;
   onSwitchRole: (role: Role) => void;
+  treatmentProposals?: TreatmentProposal[];
 }
 
 export function AdminDashboard({ 
@@ -27,9 +28,11 @@ export function AdminDashboard({
   sendNotification, 
   onUpdateWoundStatus, 
   profile, 
-  onSwitchRole 
+  onSwitchRole,
+  treatmentProposals = []
 }: AdminDashboardProps) {
   const pendingAdmin = wounds.filter(w => w.status === 'pending_admin');
+  const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
   const recentPatients = patients.slice(0, 5);
 
   return (
@@ -152,6 +155,39 @@ export function AdminDashboard({
                 <div className="bg-white border border-dashed border-slate-300 rounded-[2.5rem] p-12 text-center">
                   <CheckCircle className="w-12 h-12 text-emerald-200 mx-auto mb-4" />
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Sin pendientes</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm mb-4">Propuestas de Tratamiento Pendientes</h3>
+            <div className="grid grid-cols-1 gap-6">
+              {pendingProposals.map(proposal => (
+                <div key={proposal.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl shadow-slate-200/50 hover:scale-[1.01] transition-transform">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-2xl">
+                      {proposal.patientName[0]}
+                    </div>
+                    <div>
+                      <h3 className="font-black text-xl text-slate-900">{proposal.patientName}</h3>
+                      <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Programa: {proposal.program} • {proposal.numCurations} curaciones</p>
+                      <div className="mt-3 inline-block px-4 py-1.5 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        Monto Inversión: ${proposal.investment?.toLocaleString()} ({proposal.materials})
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    <span className="px-4 py-2 bg-amber-50 text-amber-700 font-bold text-xs rounded-xl border border-amber-200 uppercase tracking-wider">
+                      Pte. Autorización Médica
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {pendingProposals.length === 0 && (
+                <div className="bg-white border border-dashed border-slate-300 rounded-[2.5rem] p-12 text-center text-slate-400">
+                  <CheckCircle className="w-12 h-12 text-emerald-200 mx-auto mb-4" />
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Sin propuestas de tratamiento pendientes</p>
                 </div>
               )}
             </div>
