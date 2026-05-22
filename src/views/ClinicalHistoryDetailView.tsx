@@ -33,6 +33,13 @@ export function ClinicalHistoryDetailView({
   const patient = patients.find(p => p.id === patientId);
   if (!patient) return <div>Paciente no encontrado</div>;
 
+  const patientWounds = wounds.filter(w => w.patientId === patient.id);
+  const firstWoundPhoto = [...patientWounds]
+    .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+    .find(w => w.initialPhotos && w.initialPhotos.length > 0)
+    ?.initialPhotos[0];
+  const displayPhoto = patient.initialWoundPhoto || firstWoundPhoto;
+
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Patient>({ ...patient });
   const [newComment, setNewComment] = useState('');
@@ -384,16 +391,16 @@ export function ClinicalHistoryDetailView({
             <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm border-b border-slate-100 pb-4">Primera Foto de la Herida</h3>
             
             <div className="space-y-4">
-              {patient.initialWoundPhoto ? (
+              {displayPhoto ? (
                 <div className="relative group">
                   <img 
-                    src={patient.initialWoundPhoto} 
+                    src={displayPhoto} 
                     alt="Foto inicial herida" 
                     className="w-full h-64 object-cover rounded-2xl cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setSelectedPhoto(patient.initialWoundPhoto!)}
+                    onClick={() => setSelectedPhoto(displayPhoto)}
                   />
                   <button 
-                    onClick={() => setSelectedPhoto(patient.initialWoundPhoto!)}
+                    onClick={() => setSelectedPhoto(displayPhoto)}
                     className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/20 rounded-2xl"
                   >
                     <div className="bg-white/90 p-3 rounded-full shadow-lg">
