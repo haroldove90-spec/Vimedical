@@ -317,9 +317,9 @@ export default function App() {
         
         // Evitar desloguear al usuario en un refresco de página si hay una sesión local activa.
         // Esto previene que eventos iniciales de SIGNED_OUT cuando Supabase se está inicializando
-        // o si la app está sin conexión cierren la sesión del usuario de forma disruptiva.
-        if (localStorage.getItem('isLoggedIn') === 'true' && event === 'SIGNED_OUT') {
-          console.log('App: Ignorando evento SIGNED_OUT inicial/transitivo en refresco para mantener sesión local activa.');
+        // o si la app está sin conexión cierren la sesión del usuario de forma de forma disruptiva.
+        if (localStorage.getItem('isLoggedIn') === 'true') {
+          console.log('App: Ignorando evento de salida inicial/transitivo en refresco para mantener sesión local activa.');
           setIsAuthChecking(false);
           return;
         }
@@ -416,6 +416,11 @@ export default function App() {
             lastFetchUserId.current = null; // Liberar para reintento
             
             if (error.message.includes('JWT') || error.message.includes('token')) {
+              if (hasCachedProfile) {
+                console.warn('App: Auth token error but session is cached locally. Keeping local session.');
+                setIsAuthChecking(false);
+                return;
+              }
               console.warn('App: Auth token error, signing out...');
               await supabase.auth.signOut();
               localStorage.clear();
