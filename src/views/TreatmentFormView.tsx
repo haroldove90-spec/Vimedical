@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { Patient, Wound, TreatmentLog, View, UserProfile } from '../types';
 import { supabase, safeDatabaseOp } from '../lib/supabase';
 import { storageService } from '../services/storageService';
+import { syncService } from '../services/syncService';
 import { CameraCapture } from '../components/CameraCapture';
 
 interface TreatmentFormViewProps {
@@ -92,9 +93,10 @@ export function TreatmentFormView({
         nurse_id: currentUser?.id || '',
         nurse_name: currentUser?.fullName || 'Enfermero',
         date: new Date().toISOString().split('T')[0],
+        evaluation_date: new Date().toISOString(),
         type: formData.get('type') as string,
         description: formData.get('description') as string,
-        photos: uploadedPhotoUrls,
+        photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : (photos.length > 0 ? photos : []),
         observations: formData.get('observations') as string,
         vital_signs: {
           ta: formData.get('ta') as string,
@@ -105,42 +107,94 @@ export function TreatmentFormView({
         }
       };
 
-      const { data, error } = await safeDatabaseOp<any>(
-        'treatment_logs',
-        'insert',
-        [treatmentData],
-        (q) => q.select().single()
-      );
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const useLocalOnly = !isUUID(woundId) || !isUUID(patientId);
 
-      if (error) throw error;
+      let dataToSave: any = null;
 
-      if (data) {
-        // Enviar notificaciones
-        const authorName = currentUser?.fullName || 'Enfermero';
-        const patName = patient?.fullName || 'Paciente';
-        const currentRole = localStorage.getItem('currentRole') || 'Enfermero';
-        const targets = 
-          currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
-          currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
-          ['Enfermero', 'Doctor'];
-
+      if (!useLocalOnly) {
         try {
-          const notificationInserts = targets.map(targetRole => ({
-            title: 'Nueva Curación Registrada',
-            body: `${authorName} ha registrado una nueva curación para ${patName}.`,
-            voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
-            target_role: targetRole
-          }));
+          const { data, error } = await safeDatabaseOp<any>(
+            'treatment_logs',
+            'insert',
+            [treatmentData],
+            (q) => q.select().single()
+          );
 
-          await supabase.from('notifications').insert(notificationInserts);
-        } catch (err) {
-          console.error('Error sending treatment notifications:', err);
+          if (!error && data) {
+            dataToSave = {
+              id: data.id,
+              woundId: data.wound_id,
+              patientId: data.patient_id || patientId,
+              evaluationDate: data.evaluation_date,
+              date: data.evaluation_date || new Date().toISOString(),
+              type: data.type || (formData.get('type') as string),
+              description: data.description || (formData.get('description') as string),
+              photos: data.photos || uploadedPhotoUrls,
+              nurseId: data.nurse_id || (currentUser?.id || ''),
+              nurseName: data.nurse_name || (currentUser?.fullName || 'Enfermero'),
+              notes: data.notes || (formData.get('observations') as string)
+            };
+          } else {
+            console.warn('[Database Error] falling back to local saving:', error);
+          }
+        } catch (dbErr) {
+          console.warn('[Database Exception] falling back to local saving:', dbErr);
         }
-
-        onSave(data as any);
-        toast.success('Curación registrada correctamente', { id: 'treatment-save' });
-        navigateTo('patient-detail', patientId);
       }
+
+      if (!dataToSave) {
+        console.log('[Offline/Mock Fallback] Saving treatment log locally.');
+        dataToSave = {
+          id: crypto.randomUUID(),
+          woundId: woundId,
+          patientId: patientId,
+          evaluationDate: new Date().toISOString(),
+          date: new Date().toISOString(),
+          type: formData.get('type') as string,
+          description: formData.get('description') as string,
+          photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : (photos.length > 0 ? photos : []),
+          nurseId: currentUser?.id || 'local-nurse',
+          nurseName: currentUser?.fullName || 'Enfermero',
+          notes: formData.get('observations') as string,
+          vitalSigns: {
+            ta: formData.get('ta') as string,
+            fc: formData.get('fc') as string,
+            fr: formData.get('fr') as string,
+            temp: formData.get('temp') as string,
+            oxygen: formData.get('oxygen') as string
+          }
+        };
+        if (isUUID(woundId) && isUUID(patientId)) {
+          syncService.addToQueue('treatment_logs', 'INSERT', treatmentData);
+        }
+      }
+
+      // Enviar notificaciones
+      const authorName = currentUser?.fullName || 'Enfermero';
+      const patName = patient?.fullName || 'Paciente';
+      const currentRole = localStorage.getItem('currentRole') || 'Enfermero';
+      const targets = 
+        currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+        currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+        ['Enfermero', 'Doctor'];
+
+      try {
+        const notificationInserts = targets.map(targetRole => ({
+          title: 'Nueva Curación Registrada',
+          body: `${authorName} ha registrado una nueva curación para ${patName}.`,
+          voice_text: `Atención: Nueva curación registrada para el paciente ${patName} por ${authorName}.`,
+          target_role: targetRole
+        }));
+
+        await supabase.from('notifications').insert(notificationInserts);
+      } catch (err) {
+        console.error('Error sending treatment notifications:', err);
+      }
+
+      onSave(dataToSave as any);
+      toast.success('Curación registrada correctamente', { id: 'treatment-save' });
+      navigateTo('patient-detail', patientId);
     } catch (error: any) {
       console.error('Error saving treatment log:', error);
       toast.error(`Error: ${error.message}`, { id: 'treatment-save' });

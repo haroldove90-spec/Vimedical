@@ -137,31 +137,7 @@ export function AdminDashboard({
                     </div>
                     <button 
                       onClick={async () => {
-                        if (navigator.onLine) {
-                          await supabase.from('wounds').update({ 
-                            status: 'pending_doctor' 
-                          }).eq('id', wound.id);
-                        } else {
-                          syncService.addToQueue('wounds', 'UPDATE', { 
-                            id: wound.id, 
-                            status: 'pending_doctor' 
-                          });
-                        }
-
-                        await sendNotification(
-                          'Nueva Valoración para Revisar',
-                          `El administrador ha enviado la valoración de ${patient?.fullName} para su aprobación médica.`,
-                          `Atención Doctor: Tiene una nueva valoración de ${patient?.fullName} pendiente de su aprobación.`,
-                          'Doctor'
-                        );
-
-                        await sendNotification(
-                          'Valoración Enviada a Doctor',
-                          `El administrador ha revisado y enviado la valoración de ${patient?.fullName} al Doctor.`,
-                          `Atención Enfermero: La valoración inicial para ${patient?.fullName} ha sido enviada al Doctor para su aprobación.`,
-                          'Enfermero'
-                        );
-                        onUpdateWoundStatus(wound.id, 'pending_doctor');
+                        await onUpdateWoundStatus(wound.id, 'pending_doctor');
                         toast.success('Valoración revisada y enviada al Doctor exitosamente.');
                       }}
                       className="w-full md:w-auto bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"

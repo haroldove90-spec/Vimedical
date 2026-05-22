@@ -111,69 +111,17 @@ export function DoctorDashboard({
                               return;
                             }
                             
-                            if (navigator.onLine) {
-                              await supabase.from('wounds').update({ 
-                                status: 'rejected', 
-                                doctor_comments: comments 
-                              }).eq('id', wound.id);
-                            } else {
-                              syncService.addToQueue('wounds', 'UPDATE', { 
-                                id: wound.id, 
-                                status: 'rejected', 
-                                doctor_comments: comments 
-                              });
-                            }
-
-                            await sendNotification(
-                              'Plan de Tratamiento con Correcciones',
-                              `El Doctor ha solicitado correcciones para ${patient?.fullName}: ${comments}`,
-                              `Atención Enfermero: El Doctor ha enviado comentarios de corrección para el paciente ${patient?.fullName}. Por favor revise las indicaciones.`,
-                              'Enfermero'
-                            );
-
-                            await sendNotification(
-                              'Plan de Tratamiento con Correcciones',
-                              `El Doctor ha solicitado correcciones para ${patient?.fullName}`,
-                              `Atención Administrador: El Doctor ha enviado correcciones para el plan de ${patient?.fullName}.`,
-                              'Administrador'
-                            );
-                            onUpdateWoundStatus(wound.id, 'rejected', comments);
+                            await onUpdateWoundStatus(wound.id, 'rejected', comments);
                             toast.success('Plan Rechazado. Se notificará al enfermero.');
                             setComments('');
                           }} 
                           className="flex-1 md:flex-none text-white bg-red-500 px-6 py-3 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
                         >
-                          <XCircle className="w-5 h-5" /> Rechazar
+                          <XCircle className="w-5 h-5" /> Rechazar Plan
                         </button>
                         <button 
                           onClick={async () => {
-                            if (navigator.onLine) {
-                              await supabase.from('wounds').update({ 
-                                status: 'approved', 
-                                doctor_comments: comments || 'Aprobado sin comentarios adicionales.' 
-                              }).eq('id', wound.id);
-                            } else {
-                              syncService.addToQueue('wounds', 'UPDATE', { 
-                                id: wound.id, 
-                                status: 'approved', 
-                                doctor_comments: comments || 'Aprobado sin comentarios adicionales.' 
-                              });
-                            }
-
-                            await sendNotification(
-                              'Plan de Tratamiento Aprobado',
-                              `El Doctor ha aprobado el plan para ${patient?.fullName}. Ya puede iniciar las visitas.`,
-                              `Atención Enfermero: El Doctor ha aprobado el plan de tratamiento para ${patient?.fullName}. Ya puede consultar las indicaciones e iniciar las visitas.`,
-                              'Enfermero'
-                            );
-
-                            await sendNotification(
-                              'Plan de Tratamiento Aprobado',
-                              `El Doctor ha aprobado el plan para ${patient?.fullName}.`,
-                              `Atención Administrador: El Doctor ha aprobado el plan de tratamiento para ${patient?.fullName}.`,
-                              'Administrador'
-                            );
-                            onUpdateWoundStatus(wound.id, 'approved', comments || 'Aprobado sin comentarios adicionales.');
+                            await onUpdateWoundStatus(wound.id, 'approved', comments || 'Aprobado sin comentarios adicionales.');
                             toast.success('Plan Aprobado. El enfermero ya puede iniciar visitas.');
                             setComments('');
                           }} 

@@ -1519,6 +1519,25 @@ export default function App() {
       );
       
       if (error) throw error;
+
+      // Notificaciones
+      const authorName = currentProfile?.fullName || (currentRole === 'Doctor' ? 'Doctor' : currentRole === 'Enfermero' ? 'Enfermero' : 'Administrador');
+      const targets = 
+        currentRole === 'Enfermero' ? ['Doctor', 'Administrador'] : 
+        currentRole === 'Doctor' ? ['Enfermero', 'Administrador'] : 
+        ['Enfermero', 'Doctor'];
+
+      try {
+        await supabase.from('notifications').insert(targets.map(targetRole => ({
+          title: 'Expediente de Paciente Actualizado',
+          body: `${authorName} ha actualizado los datos del paciente ${updatedPatient.fullName}.`,
+          voice_text: `Atención: El expediente del paciente ${updatedPatient.fullName} ha sido modificado por ${authorName}.`,
+          target_role: targetRole
+        })));
+      } catch (err) {
+        console.error('Error sending update patient notifications:', err);
+      }
+
       toast.success('Paciente actualizado correctamente');
     } catch (err) {
       console.error("Error updating patient:", err);
@@ -1548,28 +1567,70 @@ export default function App() {
           })
           .eq('id', woundId);
         
-        // Notificaciones
-        const statusText = status === 'approved' ? 'Aprobado' : 
-                          status === 'completed' ? 'Completado' : 
-                          status === 'rejected' ? 'Rechazado' : status;
-                          
-        // Notificar al Enfermero
-        sendNotification(
-          'Estado de Plan Actualizado',
-          `El plan de ${patientName} ha sido cambiado a ${statusText}.`,
-          `Atención enfermero: El doctor ha actualizado el estado de la herida de ${patientName} a ${statusText}.`,
-          'Enfermero'
-        );
-        
-        // Notificar al Administrador
-        sendNotification(
-          'Control de Plan: ' + statusText,
-          `Doctor actualizó estado de ${patientName}`,
-          `Admin: El doctor ha cambiado el estado del plan de ${patientName} a ${statusText}.`,
-          'Administrador'
-        );
+        // Notificaciones centralizadas y guiadas por rol
+        if (status === 'pending_doctor') {
+          await sendNotification(
+            'Nueva Valoración para Revisar',
+            `El administrador ha enviado la valoración de ${patientName} para su aprobación médica.`,
+            `Atención Doctor: Tiene una nueva valoración de ${patientName} pendiente de su aprobación.`,
+            'Doctor'
+          );
 
-        toast.success(`Estado actualizado a ${statusText}`);
+          await sendNotification(
+            'Valoración Enviada a Doctor',
+            `El administrador ha revisado y enviado la valoración de ${patientName} al Doctor.`,
+            `Atención Enfermero: La valoración inicial para ${patientName} ha sido enviada al Doctor para su aprobación.`,
+            'Enfermero'
+          );
+        } else if (status === 'approved') {
+          await sendNotification(
+            'Plan de Tratamiento Aprobado',
+            `El Doctor ha aprobado el plan para ${patientName}. Ya puede iniciar las visitas de curación.`,
+            `Atención Enfermero: El Doctor ha aprobado el plan de tratamiento para ${patientName}. Ya puede consultar las indicaciones e iniciar las visitas de curación.`,
+            'Enfermero'
+          );
+
+          await sendNotification(
+            'Plan de Tratamiento Aprobado',
+            `El Doctor ha aprobado el plan para ${patientName}.`,
+            `Atención Administrador: El Doctor ha aprobado el plan de tratamiento para ${patientName}.`,
+            'Administrador'
+          );
+        } else if (status === 'rejected') {
+          await sendNotification(
+            'Plan de Tratamiento con Correcciones',
+            `El Doctor ha rechazado o solicitado correcciones para ${patientName}${comments ? ': ' + comments : ''}`,
+            `Atención Enfermero: El Doctor ha enviado comentarios de corrección para el paciente ${patientName}. Por favor revise las indicaciones.`,
+            'Enfermero'
+          );
+
+          await sendNotification(
+            'Plan de Tratamiento con Correcciones',
+            `El Doctor ha solicitado correcciones para ${patientName}.`,
+            `Atención Administrador: El Doctor ha enviado correcciones para el plan de ${patientName}.`,
+            'Administrador'
+          );
+        } else {
+          // Genérico para otros estados (e.g. completed)
+          const statusText = status === 'completed' ? 'Completado' : status;
+          const targets: Role[] = ['Enfermero', 'Doctor', 'Administrador'];
+          const filteredTargets = targets.filter(t => t !== currentRole);
+
+          for (const targetRole of filteredTargets) {
+            await sendNotification(
+              'Estado de Plan Actualizado',
+              `El plan de ${patientName} ha sido cambiado a ${statusText}.`,
+              `Atención: El estado del caso para ${patientName} se ha cambiado a ${statusText}.`,
+              targetRole
+            );
+          }
+        }
+
+        const statusTextMsg = status === 'approved' ? 'Aprobado' : 
+                               status === 'completed' ? 'Completado' : 
+                               status === 'rejected' ? 'Rechazado' : 
+                               status === 'pending_doctor' ? 'Enviado al Doctor' : status;
+        toast.success(`Estado actualizado a ${statusTextMsg}`);
       } else {
         syncService.addToQueue('wounds', 'UPDATE', { id: woundId, status, doctor_comments: comments });
         toast.success('Estado actualizado (offline)');
