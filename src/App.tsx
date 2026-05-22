@@ -360,7 +360,14 @@ export default function App() {
           try {
             const cachedProfile = JSON.parse(cachedProfileStr);
             setCurrentProfileData(cachedProfile);
-            setCurrentRole(cachedProfile.role);
+            
+            // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
+            const savedRole = localStorage.getItem('currentRole') as Role;
+            const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+              ? savedRole
+              : cachedProfile.role;
+
+            setCurrentRole(finalRole);
             setIsLoggedIn(true);
           } catch (e) {
             console.error('App: Error parsing cached profile', e);
@@ -456,12 +463,18 @@ export default function App() {
               status: profileData.status as 'active' | 'suspended'
             };
 
-            setCurrentRole(normalizedRole);
+            // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
+            const savedRole = localStorage.getItem('currentRole') as Role;
+            const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+              ? savedRole
+              : normalizedRole;
+
+            setCurrentRole(finalRole);
             setCurrentProfileData(profile);
             setIsLoggedIn(true);
             setIsAuthChecking(false);
             localStorage.setItem('isLoggedIn', 'true');
-            localStorage.setItem('currentRole', normalizedRole);
+            localStorage.setItem('currentRole', finalRole);
             localStorage.setItem('currentProfile', JSON.stringify(profile));
             console.log('App: Login state updated successfully');
             setAuthError(null);
@@ -501,12 +514,18 @@ export default function App() {
                  email: repairedProfile.email,
                  status: 'active'
                };
-               setCurrentRole(normalizedRole);
+               // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
+               const savedRole = localStorage.getItem('currentRole') as Role;
+               const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+                 ? savedRole
+                 : normalizedRole;
+
+               setCurrentRole(finalRole);
                setCurrentProfileData(profile);
                setIsLoggedIn(true);
                setIsAuthChecking(false);
                localStorage.setItem('isLoggedIn', 'true');
-               localStorage.setItem('currentRole', normalizedRole);
+               localStorage.setItem('currentRole', finalRole);
                localStorage.setItem('currentProfile', JSON.stringify(profile));
                return;
             }
@@ -556,12 +575,18 @@ export default function App() {
                 email: emergencyProfile.email,
                 status: 'active'
               };
-              setCurrentRole('Enfermero');
+              // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
+              const savedRole = localStorage.getItem('currentRole') as Role;
+              const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+                ? savedRole
+                : 'Enfermero';
+
+              setCurrentRole(finalRole);
               setCurrentProfileData(profile);
               setIsLoggedIn(true);
               setIsAuthChecking(false);
               localStorage.setItem('isLoggedIn', 'true');
-              localStorage.setItem('currentRole', 'Enfermero');
+              localStorage.setItem('currentRole', finalRole);
               localStorage.setItem('currentProfile', JSON.stringify(profile));
               return;
             }
