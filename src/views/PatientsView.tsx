@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
-import { Patient, Wound, View, TreatmentLog } from '../types';
+import { Patient, Wound, View, TreatmentLog, Role, Attendance } from '../types';
 import { ImageViewer } from '../components/ImageViewer';
 
 interface PatientsViewProps {
@@ -15,6 +15,9 @@ interface PatientsViewProps {
   onDelete: (id: string) => void;
   wounds: Wound[];
   treatmentLogs: TreatmentLog[];
+  currentRole?: Role;
+  attendances?: Attendance[];
+  onRegisterAttendance?: (patientId: string, patientName: string, status: 'check_in' | 'check_out') => void;
 }
 
 export function PatientsView({ 
@@ -22,7 +25,10 @@ export function PatientsView({
   patients, 
   onDelete, 
   wounds,
-  treatmentLogs = []
+  treatmentLogs = [],
+  currentRole = 'Enfermero',
+  attendances = [],
+  onRegisterAttendance
 }: PatientsViewProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -120,138 +126,172 @@ export function PatientsView({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredPatients.map(patient => (
-          <div 
-            key={patient.id} 
-            className="bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-slate-200/50 transition-all cursor-pointer group relative overflow-hidden"
-          >
-            <div onClick={() => navigateTo('patient-detail', patient.id)}>
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
-              
-              <div className="flex items-center gap-5 mb-6 relative">
-                <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-primary/20">
-                  {patient.fullName.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-black text-xl text-slate-900 group-hover:text-primary transition-colors">{patient.fullName}</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{patient.occupation || 'Paciente'}</p>
-                </div>
-              </div>
+        {filteredPatients.map(patient => {
+          const patientAttendance = attendances.filter(a => a.patientId === patient.id);
+          const latestAttendance = patientAttendance.length > 0 
+            ? patientAttendance.reduce((prev, current) => (new Date(prev.timestamp) > new Date(current.timestamp)) ? prev : current)
+            : null;
+          const isInVisit = latestAttendance?.status === 'check_in';
 
-              <div className="space-y-4 relative">
-                <div className="flex items-center gap-3 text-slate-500">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm font-bold text-slate-600">
-                    {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString('es-MX') : patient.dateOfBirth}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-slate-500">
-                  <Activity className="w-4 h-4" />
-                  <span className="text-sm font-bold text-slate-600">{patient.phone}</span>
-                </div>
-              </div>
-
-              {/* Evidencias fotográficas (Miniaturas) */}
-              {(() => {
-                // Obtener fotos de curaciones posteriores
-                const patientLogs = treatmentLogs.filter(log => log.patientId === patient.id);
-                const progressivePhotos = patientLogs.flatMap(log => log.photos || []);
+          return (
+            <div 
+              key={patient.id} 
+              className="bg-white border border-slate-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:shadow-slate-200/50 transition-all cursor-pointer group relative overflow-hidden"
+            >
+              <div onClick={() => navigateTo('patient-detail', patient.id)}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500" />
                 
-                // Obtener fotos iniciales de todas sus heridas
-                const patientWounds = wounds.filter(w => w.patientId === patient.id);
-                const initialPhotos = patientWounds.flatMap(w => w.initialPhotos || []);
-                
-                // Acumular todas las fotos con las más recientes primero
-                const allPhotos = [...progressivePhotos, ...initialPhotos].filter(p => typeof p === 'string' && p.trim().length > 0);
-                const uniquePhotos = Array.from(new Set(allPhotos));
-
-                if (uniquePhotos.length > 0) {
-                  return (
-                    <div className="mt-6">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Galería de Evidencias ({uniquePhotos.length})</p>
-                      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                        {uniquePhotos.slice(0, 5).map((photo, idx) => (
-                          <div 
-                            key={idx} 
-                            className="relative group/img flex-shrink-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedPhoto(photo);
-                            }}
-                          >
-                            <img 
-                              src={photo} 
-                              alt={`Progreso ${idx + 1}`} 
-                              className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm group-hover/img:scale-115 transition-transform cursor-zoom-in"
-                              referrerPolicy="no-referrer"
-                            />
-                            {idx === 0 && (
-                              <span className="absolute bottom-0 right-0 bg-primary text-white text-[7px] font-extrabold px-1 rounded-br-lg rounded-tl-lg uppercase tracking-tight">Última</span>
-                            )}
-                          </div>
-                        ))}
+                <div className="flex items-center gap-5 mb-6 relative">
+                  <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-primary/20">
+                    {patient.fullName.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="font-black text-xl text-slate-900 group-hover:text-primary transition-colors">{patient.fullName}</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{patient.occupation || 'Paciente'}</p>
+                    {isInVisit && (
+                      <div className="mt-1 flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg w-fit">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-[8px] font-black uppercase tracking-wider">En visita ({latestAttendance?.nurseName.split(' ')[0]})</span>
                       </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-            </div>
+                    )}
+                  </div>
+                </div>
 
-            <div className="pt-6 mt-6 flex flex-col gap-3 border-t border-slate-100 relative z-10">
-              <div className="flex gap-2">
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigateTo('patient-detail', patient.id);
-                  }}
-                  className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  Ver Perfil
-                </button>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Buscar la primera herida del paciente para iniciar curación
-                    const patientWounds = wounds.filter(w => w.patientId === patient.id);
-                    if (patientWounds.length > 0) {
-                      navigateTo('new-treatment', patient.id, patientWounds[0].id);
-                    } else {
-                      navigateTo('new-assessment', patient.id);
-                    }
-                  }}
-                  className="flex-1 py-3 bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Nueva Curación
-                </button>
+                <div className="space-y-4 relative">
+                  <div className="flex items-center gap-3 text-slate-500">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm font-bold text-slate-600">
+                      {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString('es-MX') : patient.dateOfBirth}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-slate-500">
+                    <Activity className="w-4 h-4" />
+                    <span className="text-sm font-bold text-slate-600">{patient.phone}</span>
+                  </div>
+                </div>
+
+                {/* Evidencias fotográficas (Miniaturas) */}
+                {(() => {
+                  // Obtener fotos de curaciones posteriores
+                  const patientLogs = treatmentLogs.filter(log => log.patientId === patient.id);
+                  const progressivePhotos = patientLogs.flatMap(log => log.photos || []);
+                  
+                  // Obtener fotos iniciales de todas sus heridas
+                  const patientWounds = wounds.filter(w => w.patientId === patient.id);
+                  const initialPhotos = patientWounds.flatMap(w => w.initialPhotos || []);
+                  
+                  // Acumular todas las fotos con las más recientes primero
+                  const allPhotos = [...progressivePhotos, ...initialPhotos].filter(p => typeof p === 'string' && p.trim().length > 0);
+                  const uniquePhotos = Array.from(new Set(allPhotos));
+
+                  if (uniquePhotos.length > 0) {
+                    return (
+                      <div className="mt-6">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Galería de Evidencias ({uniquePhotos.length})</p>
+                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                          {uniquePhotos.slice(0, 5).map((photo, idx) => (
+                            <div 
+                              key={idx} 
+                              className="relative group/img flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPhoto(photo);
+                              }}
+                            >
+                              <img 
+                                src={photo} 
+                                alt={`Progreso ${idx + 1}`} 
+                                className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm group-hover/img:scale-115 transition-transform cursor-zoom-in"
+                                referrerPolicy="no-referrer"
+                              />
+                              {idx === 0 && (
+                                <span className="absolute bottom-0 right-0 bg-primary text-white text-[7px] font-extrabold px-1 rounded-br-lg rounded-tl-lg uppercase tracking-tight">Última</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
-              <div className="flex justify-between items-center px-2">
-                <div className="flex gap-1">
+
+              <div className="pt-6 mt-6 flex flex-col gap-3 border-t border-slate-100 relative z-10">
+                <div className="flex gap-2">
                   <button 
-                    onClick={(e) => { e.stopPropagation(); navigateTo('clinical-history-detail', patient.id); }}
-                    className="p-2 text-slate-300 hover:text-primary transition-all"
-                    title="Editar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigateTo('patient-detail', patient.id);
+                    }}
+                    className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
                   >
-                    <Edit className="w-3.5 h-3.5" />
+                    <Eye className="w-3.5 h-3.5" />
+                    Ver Perfil
                   </button>
                   <button 
-                    onClick={(e) => { e.stopPropagation(); onDelete(patient.id); }}
-                    className="p-2 text-slate-300 hover:text-red-500 transition-all"
-                    title="Eliminar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Buscar la primera herida del paciente para iniciar curación
+                      const patientWounds = wounds.filter(w => w.patientId === patient.id);
+                      if (patientWounds.length > 0) {
+                        navigateTo('new-treatment', patient.id, patientWounds[0].id);
+                      } else {
+                        navigateTo('new-assessment', patient.id);
+                      }
+                    }}
+                    className="flex-1 py-3 bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
                   >
-                    <Trash className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" />
+                    Nueva Curación
                   </button>
                 </div>
-                <div onClick={() => navigateTo('patient-detail', patient.id)} className="flex items-center gap-1 cursor-pointer group/link">
-                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest group-hover/link:text-primary transition-colors">Expediente Completo</span>
-                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover/link:text-primary group-hover/link:translate-x-1 transition-all" />
+
+                {currentRole === 'Enfermero' && onRegisterAttendance && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRegisterAttendance(patient.id, patient.fullName, isInVisit ? 'check_out' : 'check_in');
+                    }}
+                    className={`w-full py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                      isInVisit 
+                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/10 animate-pulse' 
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/10'
+                    }`}
+                  >
+                    {isInVisit ? 'Registrar Retirada (Salida)' : 'Registrar Asistencia (Llegada)'}
+                  </button>
+                )}
+
+                <div className="flex justify-between items-center px-2">
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); navigateTo('clinical-history-detail', patient.id); }}
+                      className="p-2 text-slate-300 hover:text-primary transition-all"
+                      title="Editar"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onDelete(patient.id); }}
+                      className="p-2 text-slate-300 hover:text-red-500 transition-all"
+                      title="Eliminar"
+                    >
+                      <Trash className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div onClick={() => navigateTo('patient-detail', patient.id)} className="flex items-center gap-1 cursor-pointer group/link">
+                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest group-hover/link:text-primary transition-colors">Expediente Completo</span>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover/link:text-primary group-hover/link:translate-x-1 transition-all" />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <ImageViewer 

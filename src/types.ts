@@ -292,3 +292,15 @@ export interface OrderItem {
   unitPrice: number;
   total: number;
 }
+
+export type Attendance = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  nurseId: string;
+  nurseName: string;
+  status: 'check_in' | 'check_out';
+  timestamp: string;
+  location?: string;
+};
+

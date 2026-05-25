@@ -7,7 +7,7 @@ import { motion } from 'motion/react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { Patient, Wound, TreatmentLog, TreatmentProposal, View } from '../types';
+import { Patient, Wound, TreatmentLog, TreatmentProposal, View, Role, Attendance } from '../types';
 import { ImageViewer } from '../components/ImageViewer';
 
 interface PatientDetailViewProps {
@@ -17,6 +17,9 @@ interface PatientDetailViewProps {
   wounds: Wound[];
   treatmentLogs: TreatmentLog[];
   treatmentProposals: TreatmentProposal[];
+  currentRole?: Role;
+  attendances?: Attendance[];
+  onRegisterAttendance?: (patientId: string, patientName: string, status: 'check_in' | 'check_out') => void;
 }
 
 export function PatientDetailView({ 
@@ -25,10 +28,20 @@ export function PatientDetailView({
   patients, 
   wounds, 
   treatmentLogs, 
-  treatmentProposals 
+  treatmentProposals,
+  currentRole = 'Enfermero',
+  attendances = [],
+  onRegisterAttendance
 }: PatientDetailViewProps) {
   const patient = patients.find(p => p.id === patientId);
   const patientWounds = wounds.filter(w => w.patientId === patientId).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  // Calcular asistencia del paciente
+  const patientAttendance = attendances.filter(a => a.patientId === patientId);
+  const latestAttendance = patientAttendance.length > 0
+    ? patientAttendance.reduce((prev, current) => (new Date(prev.timestamp) > new Date(current.timestamp)) ? prev : current)
+    : null;
+  const isInVisit = latestAttendance?.status === 'check_in';
   const latestWound = patientWounds[0];
   const patientProposals = treatmentProposals.filter(tp => tp.patientId === patientId);
   const [activeTab, setActiveTab] = useState<'wounds' | 'history' | 'charts'>('wounds');
@@ -61,6 +74,43 @@ export function PatientDetailView({
             <div>
               <h2 className="text-4xl font-black tracking-tighter text-slate-900">{patient.fullName}</h2>
               <p className="text-slate-500 font-medium mt-1">{patient.occupation || 'Sin ocupación'} • {patient.gender} • {patient.dateOfBirth}</p>
+              
+              {/* Control de Asistencia / Visita del Enfermero */}
+              <div className="mt-4 flex flex-wrap items-center gap-3 justify-center md:justify-start">
+                {isInVisit ? (
+                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-2xl">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <p className="text-xs font-bold text-emerald-800">
+                      En visita por: <span className="font-extrabold">{latestAttendance?.nurseName}</span> desde las {new Date(latestAttendance?.timestamp || '').toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </p>
+                  </div>
+                ) : (
+                  latestAttendance && (
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl text-left">
+                      <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                      <p className="text-xs font-bold text-slate-500">
+                        Última visita: {new Date(latestAttendance.timestamp).toLocaleString('es-MX', {dateStyle: 'short', timeStyle: 'short'})} ({latestAttendance.nurseName})
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {currentRole === 'Enfermero' && onRegisterAttendance && (
+                  <button
+                    onClick={() => onRegisterAttendance(patient.id, patient.fullName, isInVisit ? 'check_out' : 'check_in')}
+                    className={`px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2 ${
+                      isInVisit 
+                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-500/10' 
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/10'
+                    }`}
+                  >
+                    {isInVisit ? 'Notificar Retirada (Salida)' : 'Notificar Asistencia (Llegada)'}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex gap-3">
               {needsAssessment && (

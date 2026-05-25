@@ -35,7 +35,7 @@ import { supabase, safeDatabaseOp } from './lib/supabase';
 import { generateFinalReport, generateQuotationPDF, generateClinicalHistoryPDF, generateDiagnosticPDF, generateCertificatePDF } from './services/pdfService';
 import { requestNotificationPermission, triggerFullNotification, playNotificationSound, speakMessage } from './services/notificationService';
 import { syncService } from './services/syncService';
-import { Role, UserProfile, View, Product, Order, OrderItem, Patient, Wound, TreatmentLog, MedicalCertificate, TreatmentProposal, Diagnostic, ClinicalComment, Quotation, QuotationItem } from './types';
+import { Role, UserProfile, View, Product, Order, OrderItem, Patient, Wound, TreatmentLog, MedicalCertificate, TreatmentProposal, Diagnostic, ClinicalComment, Quotation, QuotationItem, Attendance } from './types';
 import { LoginView } from './components/LoginView';
 import { RegisterNurseView } from './components/RegisterNurseView';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -149,6 +149,7 @@ export default function App() {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [certificates, setCertificates] = useState<MedicalCertificate[]>([]);
   const [proposals, setProposals] = useState<TreatmentProposal[]>(MOCK_PROPOSALS);
+  const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>(MOCK_DIAGNOSTICS);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
@@ -920,6 +921,34 @@ export default function App() {
       }
     };
 
+    const fetchAttendances = async () => {
+      const cached = syncService.getCache('attendances');
+      if (cached) {
+        setAttendances(cached);
+      }
+
+      const { data, error } = await supabase
+        .from('attendances')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (data && !error) {
+        const formatted = data.map((item: any) => ({
+          id: item.id,
+          patientId: item.patient_id,
+          patientName: item.patient_name,
+          nurseId: item.nurse_id,
+          nurseName: item.nurse_name,
+          timestamp: item.timestamp,
+          status: item.status
+        }));
+        setAttendances(formatted);
+        syncService.setCache('attendances', formatted);
+      } else if (error) {
+        console.warn('App: attendances table fetch error/missing. Falling back to cache/local state.', error);
+      }
+    };
+
     // Cargar todos los datos en paralelo para mejorar el tiempo de carga inicial
     Promise.all([
       fetchPatients(),
@@ -929,7 +958,8 @@ export default function App() {
       fetchCertificates(),
       fetchDiagnostics(),
       fetchProposals(),
-      fetchNotifications()
+      fetchNotifications(),
+      fetchAttendances()
     ]).catch(err => console.error('App: Initial data fetch error:', err));
 
     // Sincronización periódica automática de alta frecuencia como respaldo robusto para tiempo real.
@@ -946,6 +976,7 @@ export default function App() {
         fetchDiagnostics();
         fetchProposals();
         fetchNotifications();
+        fetchAttendances();
       }
     }, 5000);
 
@@ -1008,6 +1039,64 @@ export default function App() {
         .or(`target_role.eq.${currentRole},target_role.eq.Todos`);
     }
     toast.success('Todas las notificaciones marcadas como leídas');
+  };
+
+  const handleRegisterAttendance = async (patientId: string, patientName: string, status: 'check_in' | 'check_out') => {
+    if (!currentProfile) {
+      toast.error('Debe iniciar sesión para registrar asistencia');
+      return;
+    }
+
+    const newRecord: Attendance = {
+      id: crypto.randomUUID(),
+      patientId,
+      patientName,
+      nurseId: currentProfile.id,
+      nurseName: currentProfile.fullName,
+      timestamp: new Date().toISOString(),
+      status
+    };
+
+    // Actualizar localmente de inmediato para UX instantánea
+    const updated = [newRecord, ...attendances];
+    setAttendances(updated);
+    syncService.setCache('attendances', updated);
+
+    // Guardar en Supabase
+    const dbPayload = {
+      id: newRecord.id,
+      patient_id: newRecord.patientId,
+      patient_name: newRecord.patientName,
+      nurse_id: newRecord.nurseId,
+      nurse_name: newRecord.nurseName,
+      timestamp: newRecord.timestamp,
+      status: newRecord.status
+    };
+
+    const { error } = await safeDatabaseOp(
+      'attendances',
+      'insert',
+      dbPayload,
+      (query) => query
+    );
+
+    // Enviar notificación de inmediato
+    const title = status === 'check_in' ? '🔔 Llegada de Enfermero' : '🔔 Retirada de Enfermero';
+    const body = `${currentProfile.fullName} ha ${status === 'check_in' ? 'LLEGADO con' : 'se ha RETIRADO de'} el paciente ${patientName}`;
+    const textToSpeak = `${currentProfile.fullName.split(' ')[0]} ha ${status === 'check_in' ? 'llegado con' : 'se ha retirado de'} ${patientName}`;
+
+    // Enviar a Doctor
+    await sendNotification(title, body, textToSpeak, 'Doctor');
+    // Enviar a Admin
+    await sendNotification(title, body, textToSpeak, 'Administrador');
+
+    if (!error) {
+      toast.success(status === 'check_in' ? `Asistencia registrada: Llegada con ${patientName}` : `Asistencia registrada: Retirada de ${patientName}`);
+    } else {
+      console.warn('Error saving attendance to database, saved inside local cache queue.', error);
+      syncService.addToQueue('attendances', 'INSERT', dbPayload);
+      toast.success(status === 'check_in' ? `Asistencia en cola offline: Llegada con ${patientName}` : `Asistencia en cola offline: Retirada de ${patientName}`);
+    }
   };
 
   const fetchQuotations = async () => {
@@ -2453,6 +2542,7 @@ export default function App() {
               profile={currentProfile}
               onSwitchRole={setCurrentRole}
               treatmentProposals={proposals}
+              attendances={attendances}
             />
           )}
           {currentView === 'dashboard' && currentRole === 'Doctor' && (
@@ -2467,10 +2557,22 @@ export default function App() {
               onSwitchRole={setCurrentRole}
               treatmentProposals={proposals}
               onUpdateProposalStatus={handleUpdateProposalStatus}
+              attendances={attendances}
             />
           )}
           
-          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} onDelete={handleDeletePatient} wounds={wounds} treatmentLogs={treatmentLogs} />}
+          {currentView === 'patients' && (
+            <PatientsView 
+              navigateTo={navigateTo} 
+              patients={patients} 
+              onDelete={handleDeletePatient} 
+              wounds={wounds} 
+              treatmentLogs={treatmentLogs} 
+              currentRole={currentRole}
+              attendances={attendances}
+              onRegisterAttendance={handleRegisterAttendance}
+            />
+          )}
           {currentView === 'patient-detail' && selectedPatientId && (
             <PatientDetailView 
               patientId={selectedPatientId} 
@@ -2479,6 +2581,9 @@ export default function App() {
               wounds={wounds}
               treatmentLogs={treatmentLogs}
               treatmentProposals={proposals}
+              currentRole={currentRole}
+              attendances={attendances}
+              onRegisterAttendance={handleRegisterAttendance}
             />
           )}
           {currentView === 'wound-detail' && selectedWoundId && (

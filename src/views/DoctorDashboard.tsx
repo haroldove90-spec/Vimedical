@@ -7,7 +7,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { syncService } from '../services/syncService';
 import { toast } from 'react-hot-toast';
-import { Patient, Wound, TreatmentLog, Role, UserProfile, View, TreatmentProposal } from '../types';
+import { Patient, Wound, TreatmentLog, Role, UserProfile, View, TreatmentProposal, Attendance } from '../types';
 import { ImageViewer } from '../components/ImageViewer';
 
 interface DoctorDashboardProps {
@@ -21,6 +21,7 @@ interface DoctorDashboardProps {
   onSwitchRole?: (role: Role) => void;
   treatmentProposals?: TreatmentProposal[];
   onUpdateProposalStatus?: (id: string, status: 'accepted' | 'rejected') => void;
+  attendances?: Attendance[];
 }
 
 export function DoctorDashboard({ 
@@ -33,7 +34,8 @@ export function DoctorDashboard({
   profile, 
   onSwitchRole,
   treatmentProposals = [],
-  onUpdateProposalStatus
+  onUpdateProposalStatus,
+  attendances = []
 }: DoctorDashboardProps) {
   const pendingDoctor = wounds.filter(w => w.status === 'pending_doctor');
   const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
@@ -301,6 +303,96 @@ export function DoctorDashboard({
         </div>
 
         <div className="space-y-8">
+          {/* CONTROL DE ASISTENCIAS COLA REALTIME */}
+          <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50">
+            <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm mb-6 flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Asistencia de Enfermeros
+            </h3>
+            
+            <div className="space-y-4">
+              {(() => {
+                const nurseStates: { [nurseId: string]: Attendance } = {};
+                (attendances || []).forEach(record => {
+                  if (!nurseStates[record.nurseId]) {
+                    nurseStates[record.nurseId] = record;
+                  }
+                });
+
+                const activeVisits = Object.values(nurseStates).filter(r => r.status === 'check_in');
+                const recentLogs = (attendances || []).slice(0, 5);
+
+                return (
+                  <div>
+                    {/* Visitas Activas */}
+                    <div className="mb-6">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Visitas Activas ({activeVisits.length})</p>
+                      {activeVisits.length > 0 ? (
+                        <div className="space-y-3">
+                          {activeVisits.map(visit => (
+                            <div key={visit.id} className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-between gap-3 shadow-inner">
+                              <div>
+                                <h4 className="font-black text-xs text-emerald-950">{visit.nurseName}</h4>
+                                <p className="text-[10px] text-emerald-800 font-bold mt-0.5">
+                                  Con: <span className="font-black text-primary hover:underline cursor-pointer" onClick={() => navigateTo('patient-detail', visit.patientId)}>{visit.patientName}</span>
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="inline-block bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest animate-pulse">Llegó</span>
+                                <p className="text-[9px] font-bold text-emerald-700 mt-1">
+                                  {new Date(visit.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs font-bold text-slate-400 italic bg-slate-50 border border-dashed p-4 rounded-xl text-center">No hay visitas activas hoy</p>
+                      )}
+                    </div>
+
+                    {/* Historial Reciente */}
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Historial de Turnos</p>
+                      {recentLogs.length > 0 ? (
+                        <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                          {recentLogs.map(log => (
+                            <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs hover:bg-slate-100 transition-colors">
+                              <div>
+                                <p className="font-bold text-slate-800">{log.nurseName}</p>
+                                <p className="text-[10px] font-medium text-slate-500 mt-0.5">
+                                  {log.status === 'check_in' ? 'Entrada con: ' : 'Salida de: '}
+                                  <span className="font-bold text-slate-600">{log.patientName}</span>
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-tighter ${
+                                  log.status === 'check_in' 
+                                    ? 'bg-emerald-100 text-emerald-700' 
+                                    : 'bg-slate-200 text-slate-600'
+                                }`}>
+                                  {log.status === 'check_in' ? 'Llegada' : 'Salida'}
+                                </span>
+                                <p className="text-[8px] font-bold text-slate-400 mt-1">
+                                  {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs font-bold text-slate-300 italic text-center">Sin actividad registrada</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl">
             <h3 className="font-black uppercase tracking-widest text-xs text-secondary mb-6">Accesos Rápidos</h3>
             <div className="space-y-3">
