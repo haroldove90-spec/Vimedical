@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronRight, Camera, FileText, Shield } from 'lucide-react';
 import { Patient, Wound, View, TreatmentLog, UserProfile } from '../types';
+import { ImageViewer } from '../components/ImageViewer';
 
 interface WoundDetailViewProps {
   woundId: string;
@@ -16,11 +17,12 @@ export function WoundDetailView({
   navigateTo, 
   wounds, 
   patients,
-  treatmentLogs,
+  treatmentLogs = [],
   currentProfile
 }: WoundDetailViewProps) {
   const wound = wounds.find(w => w.id === woundId);
   const patient = patients.find(p => p.id === wound?.patientId);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   if (!wound) return null;
 
@@ -42,14 +44,36 @@ export function WoundDetailView({
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
               <Camera className="w-4 h-4" />
             </div>
-            Fotos Iniciales
+            Historial Fotográfico (Evolución)
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            {wound.initialPhotos.map((url, idx) => (
-              <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-slate-200">
-                <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-            ))}
+            {(() => {
+              const logs = treatmentLogs.filter(log => log.woundId === wound.id);
+              const logPhotos = logs.flatMap(l => l.photos || []);
+              const allWoundPhotos = [...logPhotos, ...wound.initialPhotos].filter(p => typeof p === 'string' && p.trim().length > 0);
+              const uniquePhotos = Array.from(new Set(allWoundPhotos));
+
+              if (uniquePhotos.length > 0) {
+                return uniquePhotos.map((url, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => setSelectedPhoto(url)}
+                    className="aspect-square rounded-2xl overflow-hidden border border-slate-200 cursor-zoom-in relative group"
+                  >
+                    <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" referrerPolicy="no-referrer" />
+                    {idx === 0 && (
+                      <span className="absolute bottom-2 right-2 bg-primary text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-tight shadow">Última</span>
+                    )}
+                  </div>
+                ));
+              }
+              return (
+                <div className="col-span-full py-12 bg-slate-50 border border-dashed rounded-2xl text-center text-slate-400">
+                  <Camera className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs font-bold uppercase tracking-widest">Sin evidencias</p>
+                </div>
+              );
+            })()}
           </div>
         </section>
 
@@ -98,6 +122,12 @@ export function WoundDetailView({
           </section>
         </div>
       </div>
+
+      <ImageViewer 
+        isOpen={selectedPhoto !== null} 
+        imageUrl={selectedPhoto} 
+        onClose={() => setSelectedPhoto(null)} 
+      />
     </div>
   );
 }

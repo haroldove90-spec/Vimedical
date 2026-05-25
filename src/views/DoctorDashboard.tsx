@@ -142,23 +142,36 @@ export function DoctorDashboard({
                         <p className="text-slate-700 font-medium leading-relaxed">{wound.proposedPlan}</p>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Evidencia Fotográfica Inicial</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Evidencias Fotográficas (Recientes primero)</p>
                         <div className="flex gap-2 overflow-x-auto pb-2">
-                          {wound.initialPhotos.map((photo, idx) => (
-                            <img 
-                              key={idx} 
-                              src={photo} 
-                              alt={`Evidencia ${idx + 1}`} 
-                              className="w-24 h-24 object-cover rounded-xl border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
-                              referrerPolicy="no-referrer"
-                              onClick={() => setSelectedPhoto(photo)}
-                            />
-                          ))}
-                          {wound.initialPhotos.length === 0 && (
-                            <div className="w-24 h-24 bg-slate-200 rounded-xl flex items-center justify-center text-slate-400">
-                              <Camera className="w-6 h-6" />
-                            </div>
-                          )}
+                          {(() => {
+                            const logs = treatmentLogs.filter(log => log.woundId === wound.id);
+                            const logPhotos = logs.flatMap(l => l.photos || []);
+                            const allWoundPhotos = [...logPhotos, ...wound.initialPhotos].filter(p => typeof p === 'string' && p.trim().length > 0);
+                            const uniquePhotos = Array.from(new Set(allWoundPhotos));
+
+                            if (uniquePhotos.length > 0) {
+                              return uniquePhotos.map((photo, idx) => (
+                                <div key={idx} className="relative group/img flex-shrink-0">
+                                  <img 
+                                    src={photo} 
+                                    alt={`Evidencia ${idx + 1}`} 
+                                    className="w-24 h-24 object-cover rounded-xl border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
+                                    referrerPolicy="no-referrer"
+                                    onClick={() => setSelectedPhoto(photo)}
+                                  />
+                                  {idx === 0 && (
+                                    <span className="absolute bottom-0 right-0 bg-primary text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-br-lg rounded-tl-lg uppercase tracking-tight">Última</span>
+                                  )}
+                                </div>
+                              ));
+                            }
+                            return (
+                              <div className="w-24 h-24 bg-slate-200 rounded-xl flex items-center justify-center text-slate-400">
+                                <Camera className="w-6 h-6" />
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

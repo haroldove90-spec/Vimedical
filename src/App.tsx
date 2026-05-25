@@ -2470,7 +2470,7 @@ export default function App() {
             />
           )}
           
-          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} onDelete={handleDeletePatient} wounds={wounds} />}
+          {currentView === 'patients' && <PatientsView navigateTo={navigateTo} patients={patients} onDelete={handleDeletePatient} wounds={wounds} treatmentLogs={treatmentLogs} />}
           {currentView === 'patient-detail' && selectedPatientId && (
             <PatientDetailView 
               patientId={selectedPatientId} 

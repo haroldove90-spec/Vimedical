@@ -8,6 +8,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 import { Patient, Wound, TreatmentLog, TreatmentProposal, View } from '../types';
+import { ImageViewer } from '../components/ImageViewer';
 
 interface PatientDetailViewProps {
   patientId: string;
@@ -31,6 +32,7 @@ export function PatientDetailView({
   const latestWound = patientWounds[0];
   const patientProposals = treatmentProposals.filter(tp => tp.patientId === patientId);
   const [activeTab, setActiveTab] = useState<'wounds' | 'history' | 'charts'>('wounds');
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   if (!patient) return <div className="p-8 text-center font-black text-slate-400">Paciente no encontrado</div>;
 
@@ -452,24 +454,37 @@ export function PatientDetailView({
                   <div className="flex items-center justify-between mb-10">
                     <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
                       <Camera className="w-7 h-7 text-blue-500" />
-                      5. Fotos Iniciales (Evidencia)
+                      5. Historial de Evidencias Fotográficas (Evolución)
                     </h3>
-                    <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest leading-none">
-                      {latestWound?.initialPhotos?.length || 0} Fotos
-                    </span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                    {latestWound?.initialPhotos?.map((img, i) => (
-                      <div key={i} className="aspect-square rounded-3xl overflow-hidden bg-slate-100 border-4 border-white shadow-md relative group cursor-zoom-in">
-                        <img src={img} alt={`Evidencia herida ${i}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                      </div>
-                    ))}
-                    {(!latestWound?.initialPhotos || latestWound.initialPhotos.length === 0) && (
-                      <div className="col-span-full py-16 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-400">
-                        <Camera className="w-12 h-12 mb-4 opacity-20" />
-                        <p className="font-black uppercase tracking-widest text-sm">Sin evidencia fotográfica</p>
-                      </div>
-                    )}
+                    {(() => {
+                      const logs = treatmentLogs.filter(log => log.woundId === latestWound?.id);
+                      const logPhotos = logs.flatMap(l => l.photos || []);
+                      const allWoundPhotos = [...logPhotos, ...(latestWound?.initialPhotos || [])].filter(p => typeof p === 'string' && p.trim().length > 0);
+                      const uniquePhotos = Array.from(new Set(allWoundPhotos));
+
+                      if (uniquePhotos.length > 0) {
+                        return uniquePhotos.map((img, i) => (
+                          <div 
+                            key={i} 
+                            onClick={() => setSelectedPhoto(img)}
+                            className="aspect-square rounded-3xl overflow-hidden bg-slate-100 border-4 border-white shadow-md relative group cursor-zoom-in flex-shrink-0"
+                          >
+                            <img src={img} alt={`Evidencia herida ${i}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                            {i === 0 && (
+                              <span className="absolute bottom-2 right-2 bg-primary text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-lg uppercase tracking-tight shadow-md">Última</span>
+                            )}
+                          </div>
+                        ));
+                      }
+                      return (
+                        <div className="col-span-full py-16 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-400 w-full">
+                          <Camera className="w-12 h-12 mb-4 opacity-20" />
+                          <p className="font-black uppercase tracking-widest text-sm">Sin evidencia fotográfica</p>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </section>
 
@@ -569,6 +584,12 @@ export function PatientDetailView({
           </div>
         )}
       </div>
+
+      <ImageViewer 
+        isOpen={selectedPhoto !== null} 
+        imageUrl={selectedPhoto} 
+        onClose={() => setSelectedPhoto(null)} 
+      />
     </div>
   );
 }

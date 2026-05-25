@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Shield, AlertTriangle, ShoppingBag, PlusCircle, Receipt, 
-  CheckCircle, Users, FileText, ChevronRight, UserCircle, Stethoscope 
+  CheckCircle, Users, FileText, ChevronRight, UserCircle, Stethoscope, Camera 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { syncService } from '../services/syncService';
 import { toast } from 'react-hot-toast';
 import { Patient, Wound, TreatmentLog, Role, UserProfile, View, TreatmentProposal } from '../types';
+import { ImageViewer } from '../components/ImageViewer';
 
 interface AdminDashboardProps {
   navigateTo: (view: View, pId?: string, wId?: string) => void;
@@ -34,6 +35,7 @@ export function AdminDashboard({
   const pendingAdmin = wounds.filter(w => w.status === 'pending_admin');
   const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
   const recentPatients = patients.slice(0, 5);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -125,29 +127,68 @@ export function AdminDashboard({
               {pendingAdmin.map(wound => {
                 const patient = patients.find(p => p.id === wound.patientId);
                 return (
-                  <div key={wound.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl shadow-slate-200/50 hover:scale-[1.01] transition-transform">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary-dark font-black text-2xl">
-                        {patient?.fullName[0]}
+                  <div key={wound.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 flex flex-col gap-6 shadow-xl shadow-slate-200/50 hover:scale-[1.01] transition-transform">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary-dark font-black text-2xl">
+                          {patient?.fullName[0]}
+                        </div>
+                        <div>
+                          <h3 className="font-black text-xl text-slate-900">{patient?.fullName}</h3>
+                          <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">{wound.location} • {wound.description}</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          await onUpdateWoundStatus(wound.id, 'pending_doctor');
+                          toast.success('Valoración revisada y enviada al Doctor exitosamente.');
+                        }}
+                        className="w-full md:w-auto bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
+                      >
+                        <CheckCircle className="w-5 h-5" />
+                        Revisar y Enviar a Doctor
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Plan propuesto por enfermería</p>
+                        <p className="text-slate-700 font-medium leading-relaxed">{wound.proposedPlan}</p>
                       </div>
                       <div>
-                        <h3 className="font-black text-xl text-slate-900">{patient?.fullName}</h3>
-                        <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">{wound.location} • {wound.description}</p>
-                        <div className="mt-3 inline-block px-4 py-1.5 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                          Plan propuesto: {wound.proposedPlan.substring(0, 50)}...
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Evidencias Fotográficas (Recientes primero)</p>
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                          {(() => {
+                            const logs = treatmentLogs.filter(log => log.woundId === wound.id);
+                            const logPhotos = logs.flatMap(l => l.photos || []);
+                            const allWoundPhotos = [...logPhotos, ...wound.initialPhotos].filter(p => typeof p === 'string' && p.trim().length > 0);
+                            const uniquePhotos = Array.from(new Set(allWoundPhotos));
+
+                            if (uniquePhotos.length > 0) {
+                              return uniquePhotos.map((photo, idx) => (
+                                <div key={idx} className="relative group/img flex-shrink-0">
+                                  <img 
+                                    src={photo} 
+                                    alt={`Evidencia ${idx + 1}`} 
+                                    className="w-20 h-20 object-cover rounded-xl border-2 border-white shadow-sm cursor-pointer hover:scale-110 transition-transform"
+                                    referrerPolicy="no-referrer"
+                                    onClick={() => setSelectedPhoto(photo)}
+                                  />
+                                  {idx === 0 && (
+                                    <span className="absolute bottom-0 right-0 bg-primary text-white text-[7px] font-extrabold px-1 py-0.5 rounded-br-lg rounded-tl-lg uppercase tracking-tight">Última</span>
+                                  )}
+                                </div>
+                              ));
+                            }
+                            return (
+                              <div className="w-20 h-20 bg-slate-200 rounded-xl flex items-center justify-center text-slate-400">
+                                <Camera className="w-5 h-5" />
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
-                    <button 
-                      onClick={async () => {
-                        await onUpdateWoundStatus(wound.id, 'pending_doctor');
-                        toast.success('Valoración revisada y enviada al Doctor exitosamente.');
-                      }}
-                      className="w-full md:w-auto bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
-                    >
-                      <CheckCircle className="w-5 h-5" />
-                      Revisar y Enviar a Doctor
-                    </button>
                   </div>
                 );
               })}
@@ -253,6 +294,12 @@ export function AdminDashboard({
           </div>
         </div>
       </div>
+
+      <ImageViewer 
+        isOpen={selectedPhoto !== null} 
+        imageUrl={selectedPhoto} 
+        onClose={() => setSelectedPhoto(null)} 
+      />
     </div>
   );
 }

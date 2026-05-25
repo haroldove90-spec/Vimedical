@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
-import { Patient, Wound, View } from '../types';
+import { Patient, Wound, View, TreatmentLog } from '../types';
 import { ImageViewer } from '../components/ImageViewer';
 
 interface PatientsViewProps {
@@ -14,13 +14,15 @@ interface PatientsViewProps {
   patients: Patient[];
   onDelete: (id: string) => void;
   wounds: Wound[];
+  treatmentLogs: TreatmentLog[];
 }
 
 export function PatientsView({ 
   navigateTo, 
   patients, 
   onDelete, 
-  wounds 
+  wounds,
+  treatmentLogs = []
 }: PatientsViewProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -151,27 +153,44 @@ export function PatientsView({
 
               {/* Evidencias fotográficas (Miniaturas) */}
               {(() => {
-                const patientWound = wounds.find(w => w.patientId === patient.id);
-                if (patientWound && patientWound.initialPhotos && patientWound.initialPhotos.length > 0) {
+                // Obtener fotos de curaciones posteriores
+                const patientLogs = treatmentLogs.filter(log => log.patientId === patient.id);
+                const progressivePhotos = patientLogs.flatMap(log => log.photos || []);
+                
+                // Obtener fotos iniciales de todas sus heridas
+                const patientWounds = wounds.filter(w => w.patientId === patient.id);
+                const initialPhotos = patientWounds.flatMap(w => w.initialPhotos || []);
+                
+                // Acumular todas las fotos con las más recientes primero
+                const allPhotos = [...progressivePhotos, ...initialPhotos].filter(p => typeof p === 'string' && p.trim().length > 0);
+                const uniquePhotos = Array.from(new Set(allPhotos));
+
+                if (uniquePhotos.length > 0) {
                   return (
-                    <div className="mt-6 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                      {patientWound.initialPhotos.slice(0, 4).map((photo, idx) => (
-                        <div 
-                          key={idx} 
-                          className="relative group/img"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPhoto(photo);
-                          }}
-                        >
-                          <img 
-                            src={photo} 
-                            alt="Evidencia" 
-                            className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm group-hover/img:scale-110 transition-transform cursor-zoom-in"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      ))}
+                    <div className="mt-6">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-2">Galería de Evidencias ({uniquePhotos.length})</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                        {uniquePhotos.slice(0, 5).map((photo, idx) => (
+                          <div 
+                            key={idx} 
+                            className="relative group/img flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPhoto(photo);
+                            }}
+                          >
+                            <img 
+                              src={photo} 
+                              alt={`Progreso ${idx + 1}`} 
+                              className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm group-hover/img:scale-115 transition-transform cursor-zoom-in"
+                              referrerPolicy="no-referrer"
+                            />
+                            {idx === 0 && (
+                              <span className="absolute bottom-0 right-0 bg-primary text-white text-[7px] font-extrabold px-1 rounded-br-lg rounded-tl-lg uppercase tracking-tight">Última</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   );
                 }
