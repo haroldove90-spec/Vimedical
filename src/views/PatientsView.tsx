@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Download, FileText, Plus, Clock, Activity, Eye, Edit, Trash, ChevronRight 
+  Download, FileText, Plus, Clock, Activity, Eye, Edit, Trash, ChevronRight, PenTool, Check, X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 import { Patient, Wound, View, TreatmentLog, Role, Attendance } from '../types';
 import { ImageViewer } from '../components/ImageViewer';
+import { SignaturePad } from '../components/SignaturePad';
 
 interface PatientsViewProps {
   navigateTo: (view: View, pId?: string, wId?: string) => void;
@@ -17,7 +18,14 @@ interface PatientsViewProps {
   treatmentLogs: TreatmentLog[];
   currentRole?: Role;
   attendances?: Attendance[];
-  onRegisterAttendance?: (patientId: string, patientName: string, status: 'check_in' | 'check_out') => void;
+  onRegisterAttendance?: (
+    patientId: string, 
+    patientName: string, 
+    status: 'check_in' | 'check_out',
+    signature?: string,
+    signeeName?: string,
+    signeeType?: 'Paciente' | 'Familiar'
+  ) => void;
 }
 
 export function PatientsView({ 
@@ -32,6 +40,17 @@ export function PatientsView({
 }: PatientsViewProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+
+  // Estados para Registro de Asistencia por Firma Electrónica
+  const [activeAttendance, setActiveAttendance] = useState<{
+    patientId: string;
+    patientName: string;
+    status: 'check_in' | 'check_out';
+  } | null>(null);
+  const [signeeName, setSigneeName] = useState('');
+  const [signeeType, setSigneeType] = useState<'Paciente' | 'Familiar'>('Paciente');
+  const [capturedSignature, setCapturedSignature] = useState<string>('');
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
 
   const exportToExcel = () => {
     const data = patients.map(p => ({
@@ -254,7 +273,14 @@ export function PatientsView({
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      onRegisterAttendance(patient.id, patient.fullName, isInVisit ? 'check_out' : 'check_in');
+                      setActiveAttendance({
+                        patientId: patient.id,
+                        patientName: patient.fullName,
+                        status: isInVisit ? 'check_out' : 'check_in'
+                      });
+                      setSigneeName('');
+                      setSigneeType('Paciente');
+                      setCapturedSignature('');
                     }}
                     className={`w-full py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                       isInVisit 
@@ -299,6 +325,151 @@ export function PatientsView({
         imageUrl={selectedPhoto} 
         onClose={() => setSelectedPhoto(null)} 
       />
+
+      {/* Modal de Asistencia / Firma */}
+      {activeAttendance && (
+        <div className="fixed inset-0 z-[110] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl p-8 overflow-hidden animate-in zoom-in duration-300 relative text-left">
+            <button 
+              onClick={() => setActiveAttendance(null)} 
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            <div className="mb-6">
+              <span className={`inline-block text-[9px] font-black uppercase px-2.5 py-1 rounded-full mb-3 tracking-widest ${
+                activeAttendance.status === 'check_in' 
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                  : 'bg-red-50 text-red-700 border border-red-100'
+              }`}>
+                {activeAttendance.status === 'check_in' ? 'Registro de Llegada' : 'Registro de Retirada'}
+              </span>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Confirmación de Asistencia</h3>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                Paciente: <span className="text-primary font-black">{activeAttendance.patientName}</span>
+              </p>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Quien corrobora la visita:</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSigneeType('Paciente')}
+                    className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all border ${
+                      signeeType === 'Paciente'
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    El Paciente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSigneeType('Familiar')}
+                    className={`flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all border ${
+                      signeeType === 'Familiar'
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Un Familiar
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nombre completo de quien corrobora:</label>
+                <input
+                  type="text"
+                  placeholder={signeeType === 'Paciente' ? activeAttendance.patientName : 'Nombre del familiar...'}
+                  value={signeeName}
+                  onChange={(e) => setSigneeName(e.target.value)}
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm font-bold text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Firma Digital Recabada:</label>
+                {capturedSignature ? (
+                  <div className="border border-slate-200 rounded-3xl p-4 bg-slate-50 relative flex flex-col items-center">
+                    <img src={capturedSignature} alt="Firma recabada" className="max-h-24 object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setShowSignaturePad(true)}
+                      className="mt-3 text-[10px] font-black uppercase text-primary tracking-widest hover:underline flex items-center gap-1"
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      Cambiar Firma
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowSignaturePad(true)}
+                    className="w-full h-24 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400 hover:text-primary hover:border-primary/50 transition-colors bg-slate-50 gap-1.5"
+                  >
+                    <PenTool className="w-5 h-5 opacity-70" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest">Proceder a la Firma</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-8 pt-6 border-t border-slate-100">
+              <button
+                onClick={() => setActiveAttendance(null)}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const finalName = signeeName.trim() || (signeeType === 'Paciente' ? activeAttendance.patientName : '');
+                  if (!finalName) {
+                    toast.error('Por favor, ingrese el nombre de quien corrobora la asistencia.');
+                    return;
+                  }
+                  if (!capturedSignature) {
+                    toast.error('Por favor, solicite y guarde la firma digital para validar.');
+                    return;
+                  }
+
+                  if (onRegisterAttendance) {
+                    onRegisterAttendance(
+                      activeAttendance.patientId,
+                      activeAttendance.patientName,
+                      activeAttendance.status,
+                      capturedSignature,
+                      finalName,
+                      signeeType
+                    );
+                  }
+                  setActiveAttendance(null);
+                }}
+                className="flex-1 py-4 bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary-dark transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+              >
+                <Check className="w-4 h-4" />
+                Guardar & Notificar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSignaturePad && (
+        <SignaturePad
+          title={`Firma de Corroboración - ${activeAttendance?.patientName}`}
+          onSave={(signature) => {
+            setCapturedSignature(signature);
+            setShowSignaturePad(false);
+            toast.success('Firma capturada correctamente.');
+          }}
+          onCancel={() => setShowSignaturePad(false)}
+        />
+      )}
     </div>
   );
 }

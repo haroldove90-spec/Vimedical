@@ -302,5 +302,8 @@ export type Attendance = {
   status: 'check_in' | 'check_out';
   timestamp: string;
   location?: string;
+  signature?: string;
+  signeeName?: string;
+  signeeType?: 'Paciente' | 'Familiar';
 };
 

@@ -277,64 +277,108 @@ export function AdminDashboard({
               </span>
               Asistencia de Enfermeros
             </h3>
-            
-            <div className="space-y-4">
-              {(() => {
-                const nurseStates: { [nurseId: string]: Attendance } = {};
-                (attendances || []).forEach(record => {
-                  if (!nurseStates[record.nurseId]) {
-                    nurseStates[record.nurseId] = record;
-                  }
-                });
 
-                const activeVisits = Object.values(nurseStates).filter(r => r.status === 'check_in');
-                const recentLogs = (attendances || []).slice(0, 5);
+            {(() => {
+              // Calcular Métricas
+              const totalVisits = (attendances || []).length;
+              const activeVisitsCount = (attendances || []).filter(r => r.status === 'check_in').length;
+              const signedVisits = (attendances || []).filter(r => r.signature && r.signature.trim().length > 0).length;
 
-                return (
+              const nurseStates: { [nurseId: string]: Attendance } = {};
+              (attendances || []).forEach(record => {
+                if (!nurseStates[record.nurseId]) {
+                  nurseStates[record.nurseId] = record;
+                }
+              });
+
+              const activeVisits = Object.values(nurseStates).filter(r => r.status === 'check_in');
+              const recentLogs = (attendances || []).slice(0, 10);
+
+              return (
+                <div className="space-y-6">
+                  {/* Métricas de Asistencia */}
+                  <div className="grid grid-cols-3 gap-2 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                    <div className="text-center">
+                      <p className="text-[18px] font-black text-slate-900">{totalVisits}</p>
+                      <p className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider mt-0.5">Visitas Totales</p>
+                    </div>
+                    <div className="text-center border-x border-slate-200">
+                      <p className="text-[18px] font-black text-emerald-600 animate-pulse">{activeVisitsCount}</p>
+                      <p className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider mt-0.5">En Visita</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[18px] font-black text-primary">{signedVisits}</p>
+                      <p className="text-[7.5px] font-extrabold text-slate-400 uppercase tracking-wider mt-0.5">Firmados</p>
+                    </div>
+                  </div>
+
+                  {/* Visitas Activas */}
                   <div>
-                    {/* Visitas Activas Ahora */}
-                    <div className="mb-6">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Visitas Activas ({activeVisits.length})</p>
-                      {activeVisits.length > 0 ? (
-                        <div className="space-y-3">
-                          {activeVisits.map(visit => (
-                            <div key={visit.id} className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-between gap-3 shadow-inner">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Visitas Activas en este Momento ({activeVisits.length})</p>
+                    {activeVisits.length > 0 ? (
+                      <div className="space-y-3">
+                        {activeVisits.map(visit => (
+                          <div key={visit.id} className="p-4 rounded-3xl bg-emerald-50/50 border border-emerald-100/70 flex flex-col gap-2.5 shadow-sm">
+                            <div className="flex items-center justify-between gap-3">
                               <div>
-                                <h4 className="font-black text-xs text-emerald-950">{visit.nurseName}</h4>
+                                <h4 className="font-extrabold text-xs text-emerald-950">
+                                  Enfermero/a: <span className="font-black text-primary">{visit.nurseName}</span>
+                                </h4>
                                 <p className="text-[10px] text-emerald-800 font-bold mt-0.5">
-                                  Con: <span className="font-black text-primary hover:underline cursor-pointer" onClick={() => navigateTo('patient-detail', visit.patientId)}>{visit.patientName}</span>
+                                  Ha confirmado su asistencia con: <span className="font-black underline cursor-pointer hover:text-primary-dark" onClick={() => navigateTo('patient-detail', visit.patientId)}>{visit.patientName}</span>
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
-                                <span className="inline-block bg-emerald-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest animate-pulse">Llegó</span>
-                                <p className="text-[9px] font-bold text-emerald-700 mt-1">
+                                <span className="inline-block bg-emerald-500 text-white text-[7px] font-black uppercase px-2 py-0.5 rounded tracking-widest animate-pulse">Llegó</span>
+                                <p className="text-[8px] font-extrabold text-emerald-700 mt-1">
                                   {new Date(visit.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs font-bold text-slate-400 italic bg-slate-50 border border-dashed p-4 rounded-xl text-center">No hay visitas activas hoy</p>
-                      )}
-                    </div>
 
-                    {/* Historial Reciente */}
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Historial de Turnos</p>
-                      {recentLogs.length > 0 ? (
-                        <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
-                          {recentLogs.map(log => (
-                            <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between text-xs hover:bg-slate-100 transition-colors">
+                            {visit.signature && (
+                              <div className="flex items-center gap-2 bg-white/80 p-1.5 rounded-2xl border border-emerald-100">
+                                <img 
+                                  src={visit.signature} 
+                                  alt="Firma" 
+                                  className="h-8 w-16 object-contain bg-slate-50 rounded-lg cursor-zoom-in"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPhoto(visit.signature!);
+                                  }}
+                                />
+                                <div className="text-left">
+                                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Firma de Corroboración</p>
+                                  <p className="text-[9px] font-extrabold text-slate-700">{visit.signeeName} ({visit.signeeType || 'Paciente'})</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-bold text-slate-400 italic bg-slate-50 border border-dashed p-4 rounded-xl text-center">No hay visitas activas hoy</p>
+                    )}
+                  </div>
+
+                  {/* Historial Reciente */}
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Registro de Actividades Recientes</p>
+                    {recentLogs.length > 0 ? (
+                      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 scrollbar-hide">
+                        {recentLogs.map(log => (
+                          <div key={log.id} className="p-4 bg-slate-50 border border-slate-100 rounded-3xl flex flex-col gap-2.5 hover:bg-slate-100 transition-colors">
+                            <div className="flex items-center justify-between text-xs">
                               <div>
-                                <p className="font-bold text-slate-800">{log.nurseName}</p>
-                                <p className="text-[10px] font-medium text-slate-500 mt-0.5">
-                                  {log.status === 'check_in' ? 'Entrada con: ' : 'Salida de: '}
-                                  <span className="font-bold text-slate-600">{log.patientName}</span>
+                                <p className="font-extrabold text-slate-800">
+                                  Enfermero/a: <span className="font-black text-slate-950">{log.nurseName}</span>
+                                </p>
+                                <p className="text-[10px] font-semibold text-slate-500 mt-1">
+                                  {log.status === 'check_in' ? '✓ Confirmó asistencia con el paciente:' : '✗ Registró salida del paciente:'} <span className="font-bold text-slate-800">{log.patientName}</span>
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
-                                <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-tighter ${
+                                <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded tracking-widest ${
                                   log.status === 'check_in' 
                                     ? 'bg-emerald-100 text-emerald-700' 
                                     : 'bg-slate-200 text-slate-600'
@@ -346,16 +390,34 @@ export function AdminDashboard({
                                 </p>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs font-bold text-slate-300 italic text-center">Sin actividad registrada</p>
-                      )}
-                    </div>
+
+                            {log.signature && (
+                              <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200/50">
+                                <img 
+                                  src={log.signature} 
+                                  alt="Firma" 
+                                  className="h-7 w-14 object-contain bg-slate-50 rounded-lg cursor-zoom-in"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPhoto(log.signature!);
+                                  }}
+                                />
+                                <div className="text-left">
+                                  <p className="text-[7px] font-black text-slate-400 uppercase tracking-wider leading-none">Corroborado por Firma</p>
+                                  <p className="text-[9px] font-black text-slate-700 mt-0.5">{log.signeeName} ({log.signeeType || 'Paciente'})</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-bold text-slate-300 italic text-center">Sin actividad registrada</p>
+                    )}
                   </div>
-                );
-              })()}
-            </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl">

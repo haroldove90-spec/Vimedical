@@ -940,7 +940,10 @@ export default function App() {
           nurseId: item.nurse_id,
           nurseName: item.nurse_name,
           timestamp: item.timestamp,
-          status: item.status
+          status: item.status,
+          signature: item.signature || '',
+          signeeName: item.signee_name || '',
+          signeeType: item.signee_type || 'Paciente'
         }));
         setAttendances(formatted);
         syncService.setCache('attendances', formatted);
@@ -1041,7 +1044,14 @@ export default function App() {
     toast.success('Todas las notificaciones marcadas como leídas');
   };
 
-  const handleRegisterAttendance = async (patientId: string, patientName: string, status: 'check_in' | 'check_out') => {
+  const handleRegisterAttendance = async (
+    patientId: string, 
+    patientName: string, 
+    status: 'check_in' | 'check_out',
+    signature?: string,
+    signeeName?: string,
+    signeeType?: 'Paciente' | 'Familiar'
+  ) => {
     if (!currentProfile) {
       toast.error('Debe iniciar sesión para registrar asistencia');
       return;
@@ -1054,7 +1064,10 @@ export default function App() {
       nurseId: currentProfile.id,
       nurseName: currentProfile.fullName,
       timestamp: new Date().toISOString(),
-      status
+      status,
+      signature,
+      signeeName,
+      signeeType
     };
 
     // Actualizar localmente de inmediato para UX instantánea
@@ -1070,7 +1083,10 @@ export default function App() {
       nurse_id: newRecord.nurseId,
       nurse_name: newRecord.nurseName,
       timestamp: newRecord.timestamp,
-      status: newRecord.status
+      status: newRecord.status,
+      signature: newRecord.signature || '',
+      signee_name: newRecord.signeeName || '',
+      signee_type: newRecord.signeeType || 'Paciente'
     };
 
     const { error } = await safeDatabaseOp(
@@ -1081,9 +1097,15 @@ export default function App() {
     );
 
     // Enviar notificación de inmediato
+    const statusLabelText = status === 'check_in' ? 'LLEGADO con' : 'se ha RETIRADO de';
     const title = status === 'check_in' ? '🔔 Llegada de Enfermero' : '🔔 Retirada de Enfermero';
-    const body = `${currentProfile.fullName} ha ${status === 'check_in' ? 'LLEGADO con' : 'se ha RETIRADO de'} el paciente ${patientName}`;
-    const textToSpeak = `${currentProfile.fullName.split(' ')[0]} ha ${status === 'check_in' ? 'llegado con' : 'se ha retirado de'} ${patientName}`;
+    let body = `${currentProfile.fullName} ha ${statusLabelText} el paciente ${patientName}`;
+    let textToSpeak = `${currentProfile.fullName.split(' ')[0]} ha ${status === 'check_in' ? 'llegado con' : 'se ha retirado de'} ${patientName}`;
+
+    if (signature && signeeName) {
+      body += ` (Firmado por ${signeeType}: ${signeeName})`;
+      textToSpeak += `. Confirmado por el ${signeeType === 'Paciente' ? 'paciente' : 'familiar'} ${signeeName}.`;
+    }
 
     // Enviar a Doctor
     await sendNotification(title, body, textToSpeak, 'Doctor');
@@ -1095,7 +1117,7 @@ export default function App() {
     } else {
       console.warn('Error saving attendance to database, saved inside local cache queue.', error);
       syncService.addToQueue('attendances', 'INSERT', dbPayload);
-      toast.success(status === 'check_in' ? `Asistencia en cola offline: Llegada con ${patientName}` : `Asistencia en cola offline: Retirada de ${patientName}`);
+      toast.success(status === 'check_in' ? `Asistencia registrada (Offline): Llegada con ${patientName}` : `Asistencia registrada (Offline): Retirada de ${patientName}`);
     }
   };
 
