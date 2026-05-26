@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, Volume2, Mic, Activity } from 'lucide-react';
+import { Bell, Volume2, Mic, Activity, Database, Copy, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { requestNotificationPermission, triggerFullNotification, playNotificationSound, speakMessage } from '../services/notificationService';
 
@@ -7,6 +7,31 @@ export function SettingsView() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
+  const [copied, setCopied] = useState(false);
+
+  const migrationSQL = `-- AGREGAR COLUMNAS PARA ADVERTENCIA DE PRIVACIDAD Y CONSENTIMIENTO INFORMADO EN TABLA DE PACIENTES
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS privacy_notice_signed BOOLEAN DEFAULT FALSE;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS privacy_notice_date TEXT;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS privacy_notice_signature TEXT;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS privacy_notice_type TEXT DEFAULT 'casa';
+
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS consent_form_signed BOOLEAN DEFAULT FALSE;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS consent_form_date TEXT;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS consent_form_signature TEXT;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS consent_form_type TEXT DEFAULT 'casa';
+
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS clinical_comments JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS initial_photos TEXT[];
+
+-- AGREGAR FIRMA EN PERFILES (SI SE REQUIERE)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS signature_url TEXT;`;
+
+  const handleCopySQL = () => {
+    navigator.clipboard.writeText(migrationSQL);
+    setCopied(true);
+    toast.success('¡Consulta SQL copiada al portapapeles!');
+    setTimeout(() => setCopied(false), 3000);
+  };
 
   const handleRequestPermission = async () => {
     if (typeof Notification === 'undefined') {
@@ -97,6 +122,49 @@ export function SettingsView() {
                   </div>
                   <span className="text-sm font-bold text-slate-700">Probar Voz</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Actualización / Migración de BD */}
+        <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50">
+          <div className="flex items-start gap-6">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <Database className="w-7 h-7" />
+            </div>
+            <div className="flex-1 space-y-4">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 mb-2">Soporte & Migración de Base de Datos</h3>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                  ¿Los consentimientos o firmas no se guardan tras recargar/sincronizar? Esto ocurre si tu tabla <code className="bg-slate-100 text-slate-800 px-1 py-0.5 rounded font-mono text-xs">patients</code> en Supabase carece de las columnas necesarias para almacenar las firmas electrónicas o el aviso de privacidad. 
+                  Ejecuta este script en la sección <b>SQL Editor</b> de tu panel de Supabase para solucionarlo:
+                </p>
+              </div>
+
+              <div className="relative rounded-2xl bg-slate-950 p-5 font-mono text-[11px] text-slate-300 border border-slate-800 leading-relaxed overflow-x-auto max-h-56">
+                <button
+                  type="button"
+                  onClick={handleCopySQL}
+                  className="absolute top-3 right-3 p-2 bg-slate-800 hover:bg-slate-700 text-slate-100 hover:text-white rounded-xl transition-all border border-slate-700/50 flex items-center gap-1.5 font-sans text-[10px] font-black uppercase tracking-wider"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 text-emerald-400" />
+                      Copiado
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 text-slate-400" />
+                      Copiar SQL
+                    </>
+                  )}
+                </button>
+                <pre className="pr-20">{migrationSQL}</pre>
+              </div>
+              
+              <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100/70 text-[11px] text-amber-800 font-bold leading-relaxed">
+                Aviso: Ejecutar este script únicamente agrega los campos nuevos e inexistentes de forma segura. Tus registros y pacientes actuales no sufrirán ninguna modificación ni pérdida de información.
               </div>
             </div>
           </div>
