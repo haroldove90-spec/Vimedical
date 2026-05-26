@@ -286,6 +286,29 @@ export default function App() {
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, [isLoggedIn]); // Añadimos isLoggedIn como dependencia para re-evaluar la ruta al cambiar estado de sesión
 
+  // Sincronización automática de vista y parámetros seleccionados a localStorage
+  useEffect(() => {
+    if (currentView) {
+      localStorage.setItem('currentView', currentView);
+    }
+  }, [currentView]);
+
+  useEffect(() => {
+    if (selectedPatientId) {
+      localStorage.setItem('selectedPatientId', selectedPatientId);
+    } else {
+      localStorage.removeItem('selectedPatientId');
+    }
+  }, [selectedPatientId]);
+
+  useEffect(() => {
+    if (selectedWoundId) {
+      localStorage.setItem('selectedWoundId', selectedWoundId);
+    } else {
+      localStorage.removeItem('selectedWoundId');
+    }
+  }, [selectedWoundId]);
+
   // 3. Efectos de Autenticación
   useEffect(() => {
     if (isAuthChecking) {

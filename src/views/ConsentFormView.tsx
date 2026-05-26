@@ -65,7 +65,11 @@ export function ConsentFormView({
     }
   }, [patient?.consentFormSigned, isReSigning]);
 
-  const handleSaveSignature = async () => {
+  const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+
     if (!accepted) {
       toast.error('Debe aceptar de conformidad los términos antes de proceder a la firma.');
       return;
@@ -76,7 +80,8 @@ export function ConsentFormView({
       return;
     }
 
-    const signature = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png') || '';
+    const trimmedCanvas = sigCanvas.current.getTrimmedCanvas();
+    const signature = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
     
     setIsSaving(true);
     try {
@@ -114,6 +119,7 @@ export function ConsentFormView({
     <div className="p-8 max-w-4xl mx-auto space-y-8 pb-32">
       <header className="flex items-center gap-4">
         <button 
+          type="button"
           onClick={() => navigateTo('patient-detail', patientId)} 
           className="p-3 bg-white rounded-2xl border border-slate-200 text-slate-400 hover:text-primary transition-all shadow-sm"
         >
@@ -137,6 +143,7 @@ export function ConsentFormView({
           </div>
           {patient?.consentFormSigned && (
             <button 
+              type="button"
               onClick={handleDownloadPDF}
               className="px-4 py-2 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all"
             >
@@ -266,6 +273,7 @@ export function ConsentFormView({
             </div>
 
             <button 
+              type="button"
               disabled={!accepted || isSaving}
               onClick={handleSaveSignature}
               className="w-full bg-secondary text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-secondary/35 hover:scale-[1.01] active:scale-100 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
