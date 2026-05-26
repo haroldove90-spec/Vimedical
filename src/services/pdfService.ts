@@ -534,6 +534,7 @@ export const generateFinalReport = (patient: Patient, wound?: Wound, treatments:
 export const generateConsentFormPDF = (patient: Patient) => {
   const doc = new jsPDF();
   addHeader(doc, 'CONSENTIMIENTO INFORMADO');
+  doc.setTextColor(15, 23, 42); // Restore dark charcoal text color
   
   const pageWidth = doc.internal.pageSize.getWidth();
   let currentY = 55;
@@ -638,6 +639,7 @@ export const generateConsentFormPDF = (patient: Patient) => {
 export const generatePrivacyNoticePDF = (patient: Patient) => {
   const doc = new jsPDF();
   addHeader(doc, 'AVISO DE PRIVACIDAD');
+  doc.setTextColor(15, 23, 42); // Restore dark charcoal text color
   
   const pageWidth = doc.internal.pageSize.getWidth();
   let currentY = 55;

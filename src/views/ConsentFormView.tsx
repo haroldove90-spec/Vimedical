@@ -18,7 +18,10 @@ export function ConsentFormView({
   onSaveSignature,
   patient
 }: ConsentFormViewProps) {
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState(patient?.consentFormSigned || false);
+  const [localSigned, setLocalSigned] = useState(patient?.consentFormSigned || false);
+  const [localSignature, setLocalSignature] = useState(patient?.consentFormSignature || '');
+  const [localDate, setLocalDate] = useState(patient?.consentFormDate || '');
   const [isReSigning, setIsReSigning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -55,7 +58,7 @@ export function ConsentFormView({
 
   useEffect(() => {
     // Only resize if signature canvas is rendered (not signed or in re-signing mode)
-    if (!patient?.consentFormSigned || isReSigning) {
+    if (!localSigned || isReSigning) {
       window.addEventListener('resize', resizeCanvas);
       const timer = setTimeout(resizeCanvas, 300);
       return () => {
@@ -63,7 +66,23 @@ export function ConsentFormView({
         clearTimeout(timer);
       };
     }
-  }, [patient?.consentFormSigned, isReSigning]);
+  }, [localSigned, isReSigning]);
+
+  useEffect(() => {
+    if (patient) {
+      if (patient.consentFormSigned && !isReSigning) {
+        setLocalSigned(true);
+        setAccepted(true);
+        if (patient.consentFormSignature) setLocalSignature(patient.consentFormSignature);
+        if (patient.consentFormDate) setLocalDate(patient.consentFormDate);
+      } else if (!patient.consentFormSigned && !isReSigning) {
+        setLocalSigned(false);
+        setAccepted(false);
+        setLocalSignature('');
+        setLocalDate('');
+      }
+    }
+  }, [patient?.consentFormSigned, patient?.consentFormSignature, patient?.consentFormDate, isReSigning]);
 
   const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {
@@ -81,12 +100,31 @@ export function ConsentFormView({
     }
 
     const trimmedCanvas = sigCanvas.current.getTrimmedCanvas();
-    const signature = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
+    let signature = '';
+    
+    if (trimmedCanvas) {
+      // Create offscreen canvas to paint white background under signature for high contrast and compatibility in PDFs without transparent rendering glitches
+      const offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = trimmedCanvas.width;
+      offscreenCanvas.height = trimmedCanvas.height;
+      const ctx = offscreenCanvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        ctx.drawImage(trimmedCanvas, 0, 0);
+        signature = offscreenCanvas.toDataURL('image/png');
+      } else {
+        signature = trimmedCanvas.toDataURL('image/png');
+      }
+    }
     
     setIsSaving(true);
     try {
       await onSaveSignature(patientId, signature, 'consent');
       toast.success('Consentimiento informado firmado y guardado correctamente.');
+      setLocalSigned(true);
+      setLocalSignature(signature);
+      setLocalDate(new Date().toISOString());
       setIsReSigning(false);
     } catch (error) {
       console.error('Error saving signature:', error);
@@ -98,14 +136,20 @@ export function ConsentFormView({
 
   const handleDownloadPDF = () => {
     if (patient) {
-      generateConsentFormPDF(patient);
+      const patientForPdf: Patient = {
+        ...patient,
+        consentFormSigned: localSigned,
+        consentFormSignature: localSignature,
+        consentFormDate: localDate,
+      };
+      generateConsentFormPDF(patientForPdf);
       toast.success('PDF descargado con éxito.');
     }
   };
 
-  const hasSigned = patient?.consentFormSigned && !isReSigning;
-  const displayYMD = patient?.consentFormDate 
-    ? new Date(patient.consentFormDate).toLocaleDateString('es-MX', {
+  const hasSigned = localSigned && !isReSigning;
+  const displayYMD = localDate 
+    ? new Date(localDate).toLocaleDateString('es-MX', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -140,7 +184,7 @@ export function ConsentFormView({
             </div>
             <h3 className="text-xl font-black text-slate-900">Autorización de Atención Médica y de Enfermería</h3>
           </div>
-          {patient?.consentFormSigned && (
+          {localSigned && (
             <button 
               type="button"
               onClick={handleDownloadPDF}
@@ -189,7 +233,7 @@ export function ConsentFormView({
               <div className="max-w-md mx-auto bg-white p-6 rounded-3xl border border-slate-200/60 shadow-inner flex flex-col items-center justify-center gap-3">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Firma Digital del Paciente</p>
                 <img 
-                  src={patient?.consentFormSignature} 
+                  src={localSignature} 
                   alt="Firma Digital Consentimiento" 
                   className="max-h-24 object-contain" 
                   referrerPolicy="no-referrer"

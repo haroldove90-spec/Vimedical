@@ -18,7 +18,10 @@ export function PrivacyNoticeView({
   onSaveSignature,
   patient
 }: PrivacyNoticeViewProps) {
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState(patient?.privacyNoticeSigned || false);
+  const [localSigned, setLocalSigned] = useState(patient?.privacyNoticeSigned || false);
+  const [localSignature, setLocalSignature] = useState(patient?.privacyNoticeSignature || '');
+  const [localDate, setLocalDate] = useState(patient?.privacyNoticeDate || '');
   const [isReSigning, setIsReSigning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -55,7 +58,7 @@ export function PrivacyNoticeView({
 
   useEffect(() => {
     // Only resize if signature canvas is rendered (not signed or in re-signing mode)
-    if (!patient?.privacyNoticeSigned || isReSigning) {
+    if (!localSigned || isReSigning) {
       window.addEventListener('resize', resizeCanvas);
       const timer = setTimeout(resizeCanvas, 300);
       return () => {
@@ -63,7 +66,23 @@ export function PrivacyNoticeView({
         clearTimeout(timer);
       };
     }
-  }, [patient?.privacyNoticeSigned, isReSigning]);
+  }, [localSigned, isReSigning]);
+
+  useEffect(() => {
+    if (patient) {
+      if (patient.privacyNoticeSigned && !isReSigning) {
+        setLocalSigned(true);
+        setAccepted(true);
+        if (patient.privacyNoticeSignature) setLocalSignature(patient.privacyNoticeSignature);
+        if (patient.privacyNoticeDate) setLocalDate(patient.privacyNoticeDate);
+      } else if (!patient.privacyNoticeSigned && !isReSigning) {
+        setLocalSigned(false);
+        setAccepted(false);
+        setLocalSignature('');
+        setLocalDate('');
+      }
+    }
+  }, [patient?.privacyNoticeSigned, patient?.privacyNoticeSignature, patient?.privacyNoticeDate, isReSigning]);
 
   const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {
@@ -81,12 +100,31 @@ export function PrivacyNoticeView({
     }
 
     const trimmedCanvas = sigCanvas.current.getTrimmedCanvas();
-    const signature = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
+    let signature = '';
+    
+    if (trimmedCanvas) {
+      // Create offscreen canvas to paint white background under signature for high contrast and compatibility in PDFs without transparent rendering glitches
+      const offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = trimmedCanvas.width;
+      offscreenCanvas.height = trimmedCanvas.height;
+      const ctx = offscreenCanvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        ctx.drawImage(trimmedCanvas, 0, 0);
+        signature = offscreenCanvas.toDataURL('image/png');
+      } else {
+        signature = trimmedCanvas.toDataURL('image/png');
+      }
+    }
     
     setIsSaving(true);
     try {
       await onSaveSignature(patientId, signature, 'privacy');
       toast.success('Aviso de privacidad firmado y guardado correctamente.');
+      setLocalSigned(true);
+      setLocalSignature(signature);
+      setLocalDate(new Date().toISOString());
       setIsReSigning(false);
     } catch (error) {
       console.error('Error saving signature:', error);
@@ -98,14 +136,20 @@ export function PrivacyNoticeView({
 
   const handleDownloadPDF = () => {
     if (patient) {
-      generatePrivacyNoticePDF(patient);
+      const patientForPdf: Patient = {
+        ...patient,
+        privacyNoticeSigned: localSigned,
+        privacyNoticeSignature: localSignature,
+        privacyNoticeDate: localDate,
+      };
+      generatePrivacyNoticePDF(patientForPdf);
       toast.success('PDF descargado con éxito.');
     }
   };
 
-  const hasSigned = patient?.privacyNoticeSigned && !isReSigning;
-  const displayYMD = patient?.privacyNoticeDate 
-    ? new Date(patient.privacyNoticeDate).toLocaleDateString('es-MX', {
+  const hasSigned = localSigned && !isReSigning;
+  const displayYMD = localDate 
+    ? new Date(localDate).toLocaleDateString('es-MX', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -140,7 +184,7 @@ export function PrivacyNoticeView({
             </div>
             <h3 className="text-xl font-black text-slate-900">Protección, Manejo y Resguardo de Datos Personales</h3>
           </div>
-          {patient?.privacyNoticeSigned && (
+          {localSigned && (
             <button 
               type="button"
               onClick={handleDownloadPDF}
@@ -157,7 +201,7 @@ export function PrivacyNoticeView({
             De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) en los Estados Unidos Mexicanos, ViMedical establece las bases éticas del tratamiento de su información confidencial:
           </p>
           <p>
-            1. <span className="font-bold text-slate-900">Finalidad Primaria:</span> Los datos personales, clínicos y generales recabados serán incorporados celosamente dentro del expediente clínico electrónico para facilitar la planificación y prestación de servicios especializados en heridas, curaciones, facturación y contacto inmediato para notificaciones urgentes.
+            1. <span className="font-bold text-slate-900">Finalidad Primaria:</span> Los datos personales, clínicos and generales recabados serán incorporados celosamente dentro del expediente clínico electrónico para facilitar la planificación y prestación de servicios especializados en heridas, curaciones, facturación y contacto inmediato para notificaciones urgentes.
           </p>
           <p>
             2. <span className="font-bold text-slate-900">Uso Exclusivo de Datos Sensibles:</span> Por la naturaleza médica de las intervenciones, ViMedical almacenará de forma altamente resguardada datos relativos al historial patológico, alergias, hábitos y registros de imagen fotográfica de evolución cicatrizal. Dichos registros se tratarán bajo los mismos estándares legales de absoluto sigilo médico.
@@ -189,7 +233,7 @@ export function PrivacyNoticeView({
               <div className="max-w-md mx-auto bg-white p-6 rounded-3xl border border-slate-200/60 shadow-inner flex flex-col items-center justify-center gap-3">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Firma Digital del Paciente</p>
                 <img 
-                  src={patient?.privacyNoticeSignature} 
+                  src={localSignature} 
                   alt="Firma Digital Aviso" 
                   className="max-h-24 object-contain" 
                   referrerPolicy="no-referrer"
