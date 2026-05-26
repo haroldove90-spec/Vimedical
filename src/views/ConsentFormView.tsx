@@ -4,6 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { View, Patient } from '../types';
 import { toast } from 'react-hot-toast';
 import { generateConsentFormPDF } from '../services/pdfService';
+import { trimCanvas } from '../utils/canvasHelper';
 
 interface ConsentFormViewProps {
   patientId: string;
@@ -69,17 +70,12 @@ export function ConsentFormView({
   }, [localSigned, isReSigning]);
 
   useEffect(() => {
-    if (patient) {
-      if (patient.consentFormSigned && !isReSigning) {
+    if (patient && !isReSigning) {
+      if (patient.consentFormSigned) {
         setLocalSigned(true);
         setAccepted(true);
         if (patient.consentFormSignature) setLocalSignature(patient.consentFormSignature);
         if (patient.consentFormDate) setLocalDate(patient.consentFormDate);
-      } else if (!patient.consentFormSigned && !isReSigning) {
-        setLocalSigned(false);
-        setAccepted(false);
-        setLocalSignature('');
-        setLocalDate('');
       }
     }
   }, [patient?.consentFormSigned, patient?.consentFormSignature, patient?.consentFormDate, isReSigning]);
@@ -99,7 +95,8 @@ export function ConsentFormView({
       return;
     }
 
-    const trimmedCanvas = sigCanvas.current.getTrimmedCanvas();
+    const rawCanvas = sigCanvas.current.getCanvas();
+    const trimmedCanvas = rawCanvas ? trimCanvas(rawCanvas) : null;
     let signature = '';
     
     if (trimmedCanvas) {

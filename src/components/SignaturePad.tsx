@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { toast } from 'react-hot-toast';
 import { Eraser, Check, X } from 'lucide-react';
+import { trimCanvas } from '../utils/canvasHelper';
 
 interface SignaturePadProps {
   onSave: (signature: string) => void;
@@ -53,7 +54,9 @@ export function SignaturePad({ onSave, onCancel, title }: SignaturePadProps) {
       toast.error('Por favor, proporcione una firma.');
       return;
     }
-    const signature = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png') || '';
+    const rawCanvas = sigCanvas.current?.getCanvas();
+    const trimmedCanvas = rawCanvas ? trimCanvas(rawCanvas) : null;
+    const signature = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
     onSave(signature);
   };
 

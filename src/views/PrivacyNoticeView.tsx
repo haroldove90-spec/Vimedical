@@ -4,6 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { View, Patient } from '../types';
 import { toast } from 'react-hot-toast';
 import { generatePrivacyNoticePDF } from '../services/pdfService';
+import { trimCanvas } from '../utils/canvasHelper';
 
 interface PrivacyNoticeViewProps {
   patientId: string;
@@ -69,17 +70,12 @@ export function PrivacyNoticeView({
   }, [localSigned, isReSigning]);
 
   useEffect(() => {
-    if (patient) {
-      if (patient.privacyNoticeSigned && !isReSigning) {
+    if (patient && !isReSigning) {
+      if (patient.privacyNoticeSigned) {
         setLocalSigned(true);
         setAccepted(true);
         if (patient.privacyNoticeSignature) setLocalSignature(patient.privacyNoticeSignature);
         if (patient.privacyNoticeDate) setLocalDate(patient.privacyNoticeDate);
-      } else if (!patient.privacyNoticeSigned && !isReSigning) {
-        setLocalSigned(false);
-        setAccepted(false);
-        setLocalSignature('');
-        setLocalDate('');
       }
     }
   }, [patient?.privacyNoticeSigned, patient?.privacyNoticeSignature, patient?.privacyNoticeDate, isReSigning]);
@@ -99,7 +95,8 @@ export function PrivacyNoticeView({
       return;
     }
 
-    const trimmedCanvas = sigCanvas.current.getTrimmedCanvas();
+    const rawCanvas = sigCanvas.current.getCanvas();
+    const trimmedCanvas = rawCanvas ? trimCanvas(rawCanvas) : null;
     let signature = '';
     
     if (trimmedCanvas) {

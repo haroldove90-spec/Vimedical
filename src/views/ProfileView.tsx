@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { UserProfile } from '../types';
 import { storageService } from '../services/storageService';
 import SignatureCanvas from 'react-signature-canvas';
+import { trimCanvas } from '../utils/canvasHelper';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -23,7 +24,9 @@ export function ProfileView({ profile, onUpdate, onBack }: ProfileViewProps) {
     try {
       // Guardar firma si se editó
       if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-        const sigData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
+        const rawCanvas = sigCanvas.current.getCanvas();
+        const trimmedCanvas = rawCanvas ? trimCanvas(rawCanvas) : null;
+        const sigData = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
         const fileName = `signatures/${formData.user_id || formData.id}.png`;
         const url = await storageService.uploadBase64('photos', fileName, sigData);
         if (url) {

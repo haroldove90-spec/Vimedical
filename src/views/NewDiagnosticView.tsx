@@ -3,6 +3,7 @@ import { X, RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import SignatureCanvas from 'react-signature-canvas';
 import { Patient, Diagnostic, View } from '../types';
+import { trimCanvas } from '../utils/canvasHelper';
 
 interface NewDiagnosticViewProps {
   navigateTo: (view: View) => void;
@@ -40,7 +41,9 @@ export function NewDiagnosticView({
       return;
     }
 
-    const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
+    const rawCanvas = sigCanvas.current?.getCanvas();
+    const trimmedCanvas = rawCanvas ? trimCanvas(rawCanvas) : null;
+    const signatureData = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
 
     const newDiagnostic: Diagnostic = {
       id: Date.now().toString(),

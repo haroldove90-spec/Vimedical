@@ -5,6 +5,7 @@ import {
 import { toast } from 'react-hot-toast';
 import SignatureCanvas from 'react-signature-canvas';
 import { Patient, Wound, MedicalCertificate, View } from '../types';
+import { trimCanvas } from '../utils/canvasHelper';
 
 interface NewCertificateViewProps {
   navigateTo: (view: View) => void;
@@ -62,7 +63,9 @@ export function NewCertificateView({
 
     setIsSubmitting(true);
     try {
-      const signatureData = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
+      const rawCanvas = sigCanvas.current?.getCanvas();
+      const trimmedCanvas = rawCanvas ? trimCanvas(rawCanvas) : null;
+      const signatureData = trimmedCanvas ? trimmedCanvas.toDataURL('image/png') : '';
       
       const newCertificate: any = {
         id: crypto.randomUUID(),

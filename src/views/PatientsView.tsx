@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Download, FileText, Plus, Clock, Activity, Eye, Edit, Trash, ChevronRight, PenTool, Check, X
+  Download, FileText, Plus, Clock, Activity, Eye, Edit, Trash, ChevronRight, PenTool, Check, X, Shield, FileCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -189,6 +189,25 @@ export function PatientsView({
                   <div className="flex items-center gap-3 text-slate-500">
                     <Activity className="w-4 h-4" />
                     <span className="text-sm font-bold text-slate-600">{patient.phone}</span>
+                  </div>
+                  
+                  <div className="pt-2 border-t border-slate-100/70 flex flex-wrap gap-2">
+                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
+                      patient.consentFormSigned 
+                        ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
+                        : 'bg-rose-50 border-rose-100 text-rose-500'
+                    }`}>
+                      <FileCheck className="w-3 h-3" />
+                      Consentimiento: {patient.consentFormSigned ? 'FIRMADO' : 'PENDIENTE'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
+                      patient.privacyNoticeSigned 
+                        ? 'bg-blue-50 border-blue-100 text-blue-600' 
+                        : 'bg-rose-50 border-rose-100 text-rose-500'
+                    }`}>
+                      <Shield className="w-3 h-3" />
+                      Aviso: {patient.privacyNoticeSigned ? 'FIRMADO' : 'PENDIENTE'}
+                    </span>
                   </div>
                 </div>
 
