@@ -28,6 +28,7 @@ export function ConsentFormView({
   
   const sigCanvas = useRef<SignatureCanvas>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevPatientIdRef = useRef<string>(patientId);
 
   const clear = () => {
     if (sigCanvas.current) {
@@ -70,15 +71,41 @@ export function ConsentFormView({
   }, [localSigned, isReSigning]);
 
   useEffect(() => {
+    if (prevPatientIdRef.current !== patientId) {
+      prevPatientIdRef.current = patientId;
+      if (patient) {
+        setLocalSigned(patient.consentFormSigned || false);
+        setAccepted(patient.consentFormSigned || false);
+        setLocalSignature(patient.consentFormSignature || '');
+        setLocalDate(patient.consentFormDate || '');
+      } else {
+        setLocalSigned(false);
+        setAccepted(false);
+        setLocalSignature('');
+        setLocalDate('');
+      }
+      setIsReSigning(false);
+      return;
+    }
+
     if (patient && !isReSigning) {
       if (patient.consentFormSigned) {
         setLocalSigned(true);
         setAccepted(true);
-        if (patient.consentFormSignature) setLocalSignature(patient.consentFormSignature);
-        if (patient.consentFormDate) setLocalDate(patient.consentFormDate);
+        if (patient.consentFormSignature && (!localSignature || localSignature.startsWith('http'))) {
+          setLocalSignature(patient.consentFormSignature);
+        }
+        if (patient.consentFormDate) {
+          setLocalDate(patient.consentFormDate);
+        }
+      } else {
+        setLocalSigned(false);
+        setAccepted(false);
+        setLocalSignature('');
+        setLocalDate('');
       }
     }
-  }, [patient?.consentFormSigned, patient?.consentFormSignature, patient?.consentFormDate, isReSigning]);
+  }, [patientId, patient?.consentFormSigned, patient?.consentFormSignature, patient?.consentFormDate, isReSigning]);
 
   const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {

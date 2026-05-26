@@ -191,20 +191,26 @@ export function PatientsView({
                     <span className="text-sm font-bold text-slate-600">{patient.phone}</span>
                   </div>
                   
-                  <div className="pt-2 border-t border-slate-100/70 flex flex-wrap gap-2">
-                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
-                      patient.consentFormSigned 
-                        ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
-                        : 'bg-rose-50 border-rose-100 text-rose-500'
-                    }`}>
+                  <div id={`patient-status-container-${patient.id}`} className="pt-2 border-t border-slate-100/70 flex flex-wrap gap-2">
+                    <span 
+                      id={`patient-consent-badge-${patient.id}`}
+                      className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
+                        patient.consentFormSigned 
+                          ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
+                          : 'bg-rose-50 border-rose-100 text-rose-500'
+                      }`}
+                    >
                       <FileCheck className="w-3 h-3" />
                       Consentimiento: {patient.consentFormSigned ? 'FIRMADO' : 'PENDIENTE'}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
-                      patient.privacyNoticeSigned 
-                        ? 'bg-blue-50 border-blue-100 text-blue-600' 
-                        : 'bg-rose-50 border-rose-100 text-rose-500'
-                    }`}>
+                    <span 
+                      id={`patient-privacy-badge-${patient.id}`}
+                      className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
+                        patient.privacyNoticeSigned 
+                          ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
+                          : 'bg-rose-50 border-rose-100 text-rose-500'
+                      }`}
+                    >
                       <Shield className="w-3 h-3" />
                       Aviso: {patient.privacyNoticeSigned ? 'FIRMADO' : 'PENDIENTE'}
                     </span>

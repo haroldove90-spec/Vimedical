@@ -613,7 +613,7 @@ export const generateConsentFormPDF = (patient: Patient) => {
   doc.rect(20, currentY, pageWidth - 40, 15, 'S');
   doc.setFont('helvetica', 'bolditalic');
   doc.text('"Otorgo mi consentimiento libre, espontáneo e informado para recibir atención de enfermería avanzada clínica."', 25, currentY + 9);
-  currentY += 30;
+  currentY += 45;
   
   // Signatures
   doc.setFont('helvetica', 'normal');
@@ -627,7 +627,7 @@ export const generateConsentFormPDF = (patient: Patient) => {
   
   if (patient.consentFormSignature) {
     try {
-      doc.addImage(patient.consentFormSignature, 'PNG', pageWidth - 70, currentY - 21, 40, 18);
+      doc.addImage(patient.consentFormSignature, 'PNG', pageWidth - 70, currentY - 19, 40, 18);
     } catch (e) {
       console.error('Error rendering patient consent signature to PDF', e);
     }
@@ -718,7 +718,7 @@ export const generatePrivacyNoticePDF = (patient: Patient) => {
   doc.rect(20, currentY, pageWidth - 40, 15, 'S');
   doc.setFont('helvetica', 'bolditalic');
   doc.text('"Acepto de manera informada y conforme las finalidades descritas para el resguardo de mi información personal."', 23, currentY + 9);
-  currentY += 30;
+  currentY += 45;
   
   // Signatures
   doc.setFont('helvetica', 'normal');
@@ -732,7 +732,7 @@ export const generatePrivacyNoticePDF = (patient: Patient) => {
   
   if (patient.privacyNoticeSignature) {
     try {
-      doc.addImage(patient.privacyNoticeSignature, 'PNG', pageWidth - 70, currentY - 21, 40, 18);
+      doc.addImage(patient.privacyNoticeSignature, 'PNG', pageWidth - 70, currentY - 19, 40, 18);
     } catch (e) {
       console.error('Error rendering patient privacy signature to PDF', e);
     }

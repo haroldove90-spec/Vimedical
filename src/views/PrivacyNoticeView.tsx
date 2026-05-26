@@ -28,6 +28,7 @@ export function PrivacyNoticeView({
   
   const sigCanvas = useRef<SignatureCanvas>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevPatientIdRef = useRef<string>(patientId);
 
   const clear = () => {
     if (sigCanvas.current) {
@@ -70,15 +71,41 @@ export function PrivacyNoticeView({
   }, [localSigned, isReSigning]);
 
   useEffect(() => {
+    if (prevPatientIdRef.current !== patientId) {
+      prevPatientIdRef.current = patientId;
+      if (patient) {
+        setLocalSigned(patient.privacyNoticeSigned || false);
+        setAccepted(patient.privacyNoticeSigned || false);
+        setLocalSignature(patient.privacyNoticeSignature || '');
+        setLocalDate(patient.privacyNoticeDate || '');
+      } else {
+        setLocalSigned(false);
+        setAccepted(false);
+        setLocalSignature('');
+        setLocalDate('');
+      }
+      setIsReSigning(false);
+      return;
+    }
+
     if (patient && !isReSigning) {
       if (patient.privacyNoticeSigned) {
         setLocalSigned(true);
         setAccepted(true);
-        if (patient.privacyNoticeSignature) setLocalSignature(patient.privacyNoticeSignature);
-        if (patient.privacyNoticeDate) setLocalDate(patient.privacyNoticeDate);
+        if (patient.privacyNoticeSignature && (!localSignature || localSignature.startsWith('http'))) {
+          setLocalSignature(patient.privacyNoticeSignature);
+        }
+        if (patient.privacyNoticeDate) {
+          setLocalDate(patient.privacyNoticeDate);
+        }
+      } else {
+        setLocalSigned(false);
+        setAccepted(false);
+        setLocalSignature('');
+        setLocalDate('');
       }
     }
-  }, [patient?.privacyNoticeSigned, patient?.privacyNoticeSignature, patient?.privacyNoticeDate, isReSigning]);
+  }, [patientId, patient?.privacyNoticeSigned, patient?.privacyNoticeSignature, patient?.privacyNoticeDate, isReSigning]);
 
   const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {
