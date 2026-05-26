@@ -530,3 +530,211 @@ export const generateFinalReport = (patient: Patient, wound?: Wound, treatments:
 
   doc.save(`ViMedical_Informe_${patient.fullName.replace(/\s+/g, '_')}.pdf`);
 };
+
+export const generateConsentFormPDF = (patient: Patient) => {
+  const doc = new jsPDF();
+  addHeader(doc, 'CONSENTIMIENTO INFORMADO');
+  
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 55;
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  // Patient details box
+  doc.setFillColor(248, 250, 252);
+  doc.rect(20, currentY, pageWidth - 40, 25, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.rect(20, currentY, pageWidth - 40, 25, 'S');
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Paciente: ${patient.fullName}`, 25, currentY + 10);
+  doc.text(`ID Referencia: ${patient.id}`, 25, currentY + 17);
+  
+  const dateStr = patient.consentFormDate 
+    ? new Date(patient.consentFormDate).toLocaleString('es-MX', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : new Date().toLocaleString('es-MX');
+  
+  doc.text(`Fecha Firma: ${dateStr}`, pageWidth - 95, currentY + 10);
+  currentY += 35;
+  
+  // Document title
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('AUTORIZACIÓN DE ATENCIÓN DE VALORACIÓN Y TRATAMIENTO', 20, currentY);
+  currentY += 8;
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  
+  const paragraph1 = `Por medio de la presente, el paciente o su representante legal de manera libre, voluntaria y asumiendo plenamente la responsabilidad, otorga su consentimiento expreso e informado a ViMedical y su personal calificado (enfermeros especialistas y médicos) para realizar las maniobras de valoración, curaciones complejas y terapéuticas necesarias para el adecuado manejo de sus heridas y lesiones vasculares, diabéticas o de cualquier etiología clínica.`;
+  const splitP1 = doc.splitTextToSize(paragraph1, pageWidth - 40);
+  doc.text(splitP1, 20, currentY);
+  currentY += splitP1.length * 4.5 + 4;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('ALCANCE DE PROCEDIMIENTOS CLÍNICOS:', 20, currentY);
+  currentY += 5;
+  doc.setFont('helvetica', 'normal');
+  const scopeText = `Esto abarca limpieza profunda, debridación enzimática, autolítica o mecánica de tejido no viable, toma de muestras microbiológicas de exudado, colocación de parches de barrera, apósitos de plata o apósitos de última generación, colocación de vendajes de compresión elástica o inelástica, y la toma obligatoria de registros fotográficos cronológicos clínicos con el fin exclusivo de registrar científicamente la evolución cicatrizal e histológica de las heridas.`;
+  const splitScope = doc.splitTextToSize(scopeText, pageWidth - 40);
+  doc.text(splitScope, 20, currentY);
+  currentY += splitScope.length * 4.5 + 4;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('RIESGOS ASOCIADOS DIRECTOS:', 20, currentY);
+  currentY += 5;
+  doc.setFont('helvetica', 'normal');
+  const risksText = `Se me ha notificado claramente que dichos procesos pueden acarrear riesgos inherentes del tratamiento cutáneo como dolor o ardor transitorio, sangrado moderado controlable por compresión local, irritación perilesional, inflamación colateral o susceptibilidad alérgica menor frente a los agentes de limpieza o apósitos de contacto. Doy fe de entender que la velocidad y el éxito final de la cicatrización dependen estrechamente de mis hábitos nutricionales, patologías preexistentes y apego a las indicaciones de descarga o vendajes.`;
+  const splitRisks = doc.splitTextToSize(risksText, pageWidth - 40);
+  doc.text(splitRisks, 20, currentY);
+  currentY += splitRisks.length * 4.5 + 4;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('DERECHOS DEL TITULAR:', 20, currentY);
+  currentY += 5;
+  doc.setFont('helvetica', 'normal');
+  const rightsText = `Reconozco el derecho pleno de revocar el consentimiento en cualquier fase de la atención sin repercusiones éticas posteriores sobre mi manejo y la disponibilidad constante del personal para disipar cualquier interrogante clínica.`;
+  const splitRights = doc.splitTextToSize(rightsText, pageWidth - 40);
+  doc.text(splitRights, 20, currentY);
+  currentY += splitRights.length * 4.5 + 5;
+  
+  // Highlighted statement
+  doc.setFillColor(243, 244, 246);
+  doc.rect(20, currentY, pageWidth - 40, 15, 'F');
+  doc.setDrawColor(209, 213, 219);
+  doc.rect(20, currentY, pageWidth - 40, 15, 'S');
+  doc.setFont('helvetica', 'bolditalic');
+  doc.text('"Otorgo mi consentimiento libre, espontáneo e informado para recibir atención de enfermería avanzada clínica."', 25, currentY + 9);
+  currentY += 30;
+  
+  // Signatures
+  doc.setFont('helvetica', 'normal');
+  doc.setDrawColor(200, 200, 200);
+  doc.line(20, currentY, 80, currentY);
+  doc.line(pageWidth - 80, currentY, pageWidth - 20, currentY);
+  
+  doc.setFontSize(8);
+  doc.text('Firma Autorizada ViMedical', 50, currentY + 5, { align: 'center' });
+  doc.text(`Firma de Conformidad: ${patient.fullName}`, pageWidth - 50, currentY + 5, { align: 'center' });
+  
+  if (patient.consentFormSignature) {
+    try {
+      doc.addImage(patient.consentFormSignature, 'PNG', pageWidth - 70, currentY - 21, 40, 18);
+    } catch (e) {
+      console.error('Error rendering patient consent signature to PDF', e);
+    }
+  }
+  
+  doc.save(`Consentimiento_ViMedical_${patient.fullName.replace(/\s+/g, '_')}.pdf`);
+};
+
+export const generatePrivacyNoticePDF = (patient: Patient) => {
+  const doc = new jsPDF();
+  addHeader(doc, 'AVISO DE PRIVACIDAD');
+  
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = 55;
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  
+  // Patient details box
+  doc.setFillColor(248, 250, 252);
+  doc.rect(20, currentY, pageWidth - 40, 25, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.rect(20, currentY, pageWidth - 40, 25, 'S');
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Titular de los Datos: ${patient.fullName}`, 25, currentY + 10);
+  doc.text(`ID Referencia: ${patient.id}`, 25, currentY + 17);
+  
+  const dateStr = patient.privacyNoticeDate 
+    ? new Date(patient.privacyNoticeDate).toLocaleString('es-MX', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : new Date().toLocaleString('es-MX');
+  
+  doc.text(`Fecha Firma: ${dateStr}`, pageWidth - 95, currentY + 10);
+  currentY += 35;
+  
+  // Document title
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MANEJO, CONFIDENCIALIDAD Y RESGUARDO DE DATOS SENSIBLES VIMEDICAL', 20, currentY);
+  currentY += 8;
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  
+  const intro = `En cumplimiento estricto con las normativas federales en materia de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) de México, ViMedical hace del conocimiento del titular que sus datos serán tratados con la máxima seguridad ética y profesional médica, asegurando su absoluta confidencialidad:`;
+  const splitIntro = doc.splitTextToSize(intro, pageWidth - 40);
+  doc.text(splitIntro, 20, currentY);
+  currentY += splitIntro.length * 4.5 + 4;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('1. FINALIDAD DEL TRATAMIENTO DE LOS DATOS:', 20, currentY);
+  currentY += 5;
+  doc.setFont('helvetica', 'normal');
+  const purpText = `La información recabada (incluyendo sus nombres completos, edad, ocupación, números de contacto y familiares responsables) será contenida celosamente dentro de su expediente clínico confidencial electrónico con la finalidad única de proveer seguimiento a la evolución clínica de heridas, planificar tratamientos, procesar facturación fiscal de servicios y fungir como contacto idóneo en emergencias.`;
+  const splitPurp = doc.splitTextToSize(purpText, pageWidth - 40);
+  doc.text(splitPurp, 20, currentY);
+  currentY += splitPurp.length * 4.5 + 4;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('2. TRATAMIENTO EXCLUSIVO DE DATOS SENSIBLES:', 20, currentY);
+  currentY += 5;
+  doc.setFont('helvetica', 'normal');
+  const sensText = `ViMedical tratará con rigor confidencial absoluto los datos clínicos altamente sensibles que abarcan historiales médicos previos, sintomatología, patologías de heredofamiliar o metabólica, así como registros gráficos detallados (fotografías microscópicas y macroscópicas directas del proceso de cicatrización cutánea). Ningún registro fotográfico o clínico será exhibido públicamente salvo autorización expresa o requerimiento legal emitido por autoridad competente.`;
+  const splitSens = doc.splitTextToSize(sensText, pageWidth - 40);
+  doc.text(splitSens, 20, currentY);
+  currentY += splitSens.length * 4.5 + 4;
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('3. TRANSFERENCIA DE DATOS Y ENLACE INTERCONSULTANTE:', 20, currentY);
+  currentY += 5;
+  doc.setFont('helvetica', 'normal');
+  const transText = `Toda transferencia de información médica interna para fines de interconsulta con médicos adscritos, cirujanos plásticos o vasculares ajenos a la plantilla principal será tratada bajo los mismos estándares legales de discreción, previa notificación y anuencia verbal de la persona responsable.`;
+  const splitTrans = doc.splitTextToSize(transText, pageWidth - 40);
+  doc.text(splitTrans, 20, currentY);
+  currentY += splitTrans.length * 4.5 + 5;
+  
+  // Highlighted statement
+  doc.setFillColor(243, 244, 246);
+  doc.rect(20, currentY, pageWidth - 40, 15, 'F');
+  doc.setDrawColor(209, 213, 219);
+  doc.rect(20, currentY, pageWidth - 40, 15, 'S');
+  doc.setFont('helvetica', 'bolditalic');
+  doc.text('"Acepto de manera informada y conforme las finalidades descritas para el resguardo de mi información personal."', 23, currentY + 9);
+  currentY += 30;
+  
+  // Signatures
+  doc.setFont('helvetica', 'normal');
+  doc.setDrawColor(200, 200, 200);
+  doc.line(20, currentY, 80, currentY);
+  doc.line(pageWidth - 80, currentY, pageWidth - 20, currentY);
+  
+  doc.setFontSize(8);
+  doc.text('Delegado de Datos Personales ViMedical', 50, currentY + 5, { align: 'center' });
+  doc.text(`Firma del Titular: ${patient.fullName}`, pageWidth - 50, currentY + 5, { align: 'center' });
+  
+  if (patient.privacyNoticeSignature) {
+    try {
+      doc.addImage(patient.privacyNoticeSignature, 'PNG', pageWidth - 70, currentY - 21, 40, 18);
+    } catch (e) {
+      console.error('Error rendering patient privacy signature to PDF', e);
+    }
+  }
+  
+  doc.save(`Aviso_Privacidad_ViMedical_${patient.fullName.replace(/\s+/g, '_')}.pdf`);
+};

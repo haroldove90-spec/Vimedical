@@ -791,7 +791,7 @@ export default function App() {
           privacyNoticeType: p.privacy_notice_type,
           consentFormSigned: p.consent_form_signed,
           consentFormSignature: p.consent_form_signature,
-          consentFormDate: p.privacy_notice_date, // This was likely a copy-paste error in previous turns, but let's keep it consistent with what's there
+          consentFormDate: p.consent_form_date || p.privacy_notice_date,
           consentFormType: p.consent_form_type,
           clinicalComments: p.clinical_comments || [],
           currentCondition: p.current_condition,
@@ -1907,10 +1907,24 @@ export default function App() {
     const patient = patients.find(p => p.id === patientId);
     if (!patient) return;
 
+    let finalSignatureUrl = signature;
+    if (signature && signature.startsWith('data:image')) {
+      try {
+        const bucket = 'signatures';
+        const fileName = `${type}_${patientId}_${Date.now()}.png`;
+        const uploadedUrl = await storageService.uploadBase64(bucket, fileName, signature);
+        if (uploadedUrl) {
+          finalSignatureUrl = uploadedUrl;
+        }
+      } catch (e) {
+        console.error('Error uploading signature to Storage, using base64 fallback:', e);
+      }
+    }
+
     const updatedPatient: Patient = {
       ...patient,
       [type === 'privacy' ? 'privacyNoticeSigned' : 'consentFormSigned']: true,
-      [type === 'privacy' ? 'privacyNoticeSignature' : 'consentFormSignature']: signature,
+      [type === 'privacy' ? 'privacyNoticeSignature' : 'consentFormSignature']: finalSignatureUrl,
       [type === 'privacy' ? 'privacyNoticeDate' : 'consentFormDate']: new Date().toISOString(),
       [type === 'privacy' ? 'privacyNoticeType' : 'consentFormType']: 'casa'
     };
@@ -2684,6 +2698,7 @@ export default function App() {
               patientId={selectedPatientId} 
               navigateTo={navigateTo} 
               onSaveSignature={handleSaveSignature}
+              patient={patients.find(p => p.id === selectedPatientId)}
             />
           )}
           {currentView === 'consent-form' && selectedPatientId && (
@@ -2691,6 +2706,7 @@ export default function App() {
               patientId={selectedPatientId} 
               navigateTo={navigateTo} 
               onSaveSignature={handleSaveSignature}
+              patient={patients.find(p => p.id === selectedPatientId)}
             />
           )}
           {currentView === 'certificates' && (
