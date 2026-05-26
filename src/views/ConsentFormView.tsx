@@ -88,24 +88,31 @@ export function ConsentFormView({
       return;
     }
 
-    if (patient && !isReSigning) {
+    if (patient) {
+      if (isReSigning) {
+        return;
+      }
+
       if (patient.consentFormSigned) {
         setLocalSigned(true);
         setAccepted(true);
-        if (patient.consentFormSignature && (!localSignature || localSignature.startsWith('http'))) {
+        const isLocalBase64 = localSignature.startsWith('data:image');
+        if (patient.consentFormSignature && (!localSignature || !isLocalBase64 || localSignature !== patient.consentFormSignature)) {
           setLocalSignature(patient.consentFormSignature);
         }
         if (patient.consentFormDate) {
           setLocalDate(patient.consentFormDate);
         }
       } else {
-        setLocalSigned(false);
-        setAccepted(false);
-        setLocalSignature('');
-        setLocalDate('');
+        if (!localSigned) {
+          setLocalSigned(false);
+          setAccepted(false);
+          setLocalSignature('');
+          setLocalDate('');
+        }
       }
     }
-  }, [patientId, patient?.consentFormSigned, patient?.consentFormSignature, patient?.consentFormDate, isReSigning]);
+  }, [patientId, patient?.consentFormSigned, patient?.consentFormSignature, patient?.consentFormDate, isReSigning, localSigned, localSignature]);
 
   const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {

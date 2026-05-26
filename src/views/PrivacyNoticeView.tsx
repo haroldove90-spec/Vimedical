@@ -88,24 +88,31 @@ export function PrivacyNoticeView({
       return;
     }
 
-    if (patient && !isReSigning) {
+    if (patient) {
+      if (isReSigning) {
+        return;
+      }
+
       if (patient.privacyNoticeSigned) {
         setLocalSigned(true);
         setAccepted(true);
-        if (patient.privacyNoticeSignature && (!localSignature || localSignature.startsWith('http'))) {
+        const isLocalBase64 = localSignature.startsWith('data:image');
+        if (patient.privacyNoticeSignature && (!localSignature || !isLocalBase64 || localSignature !== patient.privacyNoticeSignature)) {
           setLocalSignature(patient.privacyNoticeSignature);
         }
         if (patient.privacyNoticeDate) {
           setLocalDate(patient.privacyNoticeDate);
         }
       } else {
-        setLocalSigned(false);
-        setAccepted(false);
-        setLocalSignature('');
-        setLocalDate('');
+        if (!localSigned) {
+          setLocalSigned(false);
+          setAccepted(false);
+          setLocalSignature('');
+          setLocalDate('');
+        }
       }
     }
-  }, [patientId, patient?.privacyNoticeSigned, patient?.privacyNoticeSignature, patient?.privacyNoticeDate, isReSigning]);
+  }, [patientId, patient?.privacyNoticeSigned, patient?.privacyNoticeSignature, patient?.privacyNoticeDate, isReSigning, localSigned, localSignature]);
 
   const handleSaveSignature = async (e?: React.MouseEvent | React.FormEvent) => {
     if (e) {
