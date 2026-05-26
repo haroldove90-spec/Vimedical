@@ -88,7 +88,6 @@ export function ConsentFormView({
       await onSaveSignature(patientId, signature, 'consent');
       toast.success('Consentimiento informado firmado y guardado correctamente.');
       setIsReSigning(false);
-      navigateTo('patient-detail', patientId);
     } catch (error) {
       console.error('Error saving signature:', error);
       toast.error('Ocurrió un error al intentar guardar la firma.');

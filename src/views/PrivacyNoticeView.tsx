@@ -88,7 +88,6 @@ export function PrivacyNoticeView({
       await onSaveSignature(patientId, signature, 'privacy');
       toast.success('Aviso de privacidad firmado y guardado correctamente.');
       setIsReSigning(false);
-      navigateTo('patient-detail', patientId);
     } catch (error) {
       console.error('Error saving signature:', error);
       toast.error('Ocurrió un error al intentar guardar la firma.');
