@@ -387,7 +387,7 @@ export default function App() {
             
             // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
             const savedRole = localStorage.getItem('currentRole') as Role;
-            const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+            const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador', 'Coordinador'].includes(savedRole))
               ? savedRole
               : cachedProfile.role;
 
@@ -472,6 +472,7 @@ export default function App() {
             const dbRole = profileData.role?.toLowerCase();
             if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
             else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+            else if (dbRole === 'coordinador' || dbRole?.includes('coordinador')) normalizedRole = 'Coordinador';
             
             const profile: UserProfile = {
               id: profileData.id,
@@ -489,7 +490,7 @@ export default function App() {
 
             // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
             const savedRole = localStorage.getItem('currentRole') as Role;
-            const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+            const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador', 'Coordinador'].includes(savedRole))
               ? savedRole
               : normalizedRole;
 
@@ -530,7 +531,7 @@ export default function App() {
             if (!repairErr && repairedProfile) {
                console.log('App: Profile repaired successfully');
                // Recursive call or just handle here (prefer recursive-like behavior by clearing lastFetch and letting event fire again? No, handle here)
-               const normalizedRole: Role = repairedProfile.role === 'Doctor' ? 'Doctor' : repairedProfile.role === 'Administrador' ? 'Administrador' : 'Enfermero';
+               const normalizedRole: Role = repairedProfile.role === 'Doctor' ? 'Doctor' : repairedProfile.role === 'Administrador' ? 'Administrador' : repairedProfile.role === 'Coordinador' ? 'Coordinador' : 'Enfermero';
                const profile: UserProfile = {
                  id: repairedProfile.id,
                  role: normalizedRole,
@@ -540,7 +541,7 @@ export default function App() {
                };
                // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
                const savedRole = localStorage.getItem('currentRole') as Role;
-               const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+               const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador', 'Coordinador'].includes(savedRole))
                  ? savedRole
                  : normalizedRole;
 
@@ -601,7 +602,7 @@ export default function App() {
               };
               // Respetar el rol guardado en localStorage para que no se pierdan los cambios al refrescar
               const savedRole = localStorage.getItem('currentRole') as Role;
-              const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador'].includes(savedRole))
+              const finalRole = (savedRole && ['Enfermero', 'Doctor', 'Administrador', 'Coordinador'].includes(savedRole))
                 ? savedRole
                 : 'Enfermero';
 
@@ -1777,7 +1778,7 @@ export default function App() {
         } else {
           // Genérico para otros estados (e.g. completed)
           const statusText = status === 'completed' ? 'Completado' : status;
-          const targets: Role[] = ['Enfermero', 'Doctor', 'Administrador'];
+          const targets: Role[] = ['Enfermero', 'Doctor', 'Administrador', 'Coordinador'];
           const filteredTargets = targets.filter(t => t !== currentRole);
 
           for (const targetRole of filteredTargets) {
@@ -2309,8 +2310,8 @@ export default function App() {
               <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <Shield className="w-3 h-3" /> Modo de Vista (Admin)
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                {(['Enfermero', 'Doctor', 'Administrador'] as Role[]).map((role) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(['Enfermero', 'Doctor', 'Coordinador', 'Administrador'] as Role[]).map((role) => (
                   <button
                     key={role}
                     onClick={() => {
@@ -2318,13 +2319,13 @@ export default function App() {
                       setCurrentView('dashboard');
                       toast.success(`Vista cambiada a: ${role}`);
                     }}
-                    className={`text-[10px] font-bold py-2 rounded-lg transition-all ${
+                    className={`text-[9px] font-bold py-2 rounded-lg transition-all ${
                       currentRole === role 
                         ? 'bg-secondary text-primary shadow-lg shadow-secondary/20' 
                         : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    {role === 'Administrador' ? 'Admin' : role}
+                    {role === 'Administrador' ? 'Admin' : role === 'Coordinador' ? 'Coord' : role}
                   </button>
                 ))}
               </div>
@@ -2381,7 +2382,7 @@ export default function App() {
             <span>Cotizaciones</span>
           </button>
 
-          {(currentRole === 'Administrador' || currentRole === 'Doctor' || currentRole === 'Enfermero') && (
+          {(currentRole === 'Administrador' || currentRole === 'Doctor' || currentRole === 'Enfermero' || currentRole === 'Coordinador') && (
             <button
               onClick={() => navigateTo('certificates')}
               className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
@@ -2589,6 +2590,41 @@ export default function App() {
         </div>
 
         <div className="max-w-[1600px] mx-auto">
+          {currentView === 'dashboard' && currentRole === 'Coordinador' && (
+            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-12 text-center shadow-xl shadow-slate-200/50 max-w-2xl mx-auto my-12 animate-in fade-in slide-in-from-bottom-6 duration-500">
+              <div className="w-24 h-24 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-8 shadow-inner">
+                <Users className="w-12 h-12" />
+              </div>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-4">Coordinador de Enfermeros</h2>
+              <div className="inline-block bg-amber-100 text-amber-800 text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full mb-6">
+                Módulo Próximamente
+              </div>
+              <p className="text-slate-500 text-base leading-relaxed mb-8 max-w-md mx-auto">
+                Estamos preparando la consola de coordinación. Desde aquí podrás supervisar asignaciones, monitorear visitas en tiempo real y coordinar las rutas de atención clínica.
+              </p>
+              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 text-left space-y-4">
+                <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">Funcionalidades en desarrollo:</h4>
+                <ul className="grid grid-cols-2 gap-3 text-xs text-slate-600 font-bold">
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Asignación de Pacientes
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Monitoreo GPS de Rutas
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Métricas de Desempeño
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Validación de Bitácoras
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
           {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} onSwitchRole={setCurrentRole} />}
           {currentView === 'dashboard' && currentRole === 'Administrador' && (
             <AdminDashboard 

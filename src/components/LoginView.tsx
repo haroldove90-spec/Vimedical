@@ -68,6 +68,7 @@ export function LoginView({ onLogin }: { onLogin: (role: Role, profile?: UserPro
           const dbRole = profileData.role?.toLowerCase();
           if (dbRole === 'administrador' || dbRole === 'admin') normalizedRole = 'Administrador';
           else if (dbRole === 'doctor' || dbRole === 'médico') normalizedRole = 'Doctor';
+          else if (dbRole === 'coordinador' || dbRole?.includes('coordinador')) normalizedRole = 'Coordinador';
 
           const profile: UserProfile = {
             id: profileData.id,
