@@ -109,7 +109,7 @@ async function startServer() {
       // 2. Create or update profile in profiles table
       console.log(`API: Ensuring profile exists for user_id ${userId}`);
       
-      const profileToUpsert = {
+      const profileToUpsert: any = {
         user_id: userId,
         full_name: fullName,
         email: trimmedEmail,
@@ -120,33 +120,94 @@ async function startServer() {
         status: 'active'
       };
 
-      // Create or update profile in profiles table (manual upsert for compatibility)
-      let profileData;
-      let profileError;
+      // Resilient profile creation and updating with auto-heal
+      let profileData = null;
+      let profileError = null;
+      let currentPayload = { ...profileToUpsert };
+      const maxRetries = 6;
+      let attempts = 0;
 
-      const { data: existingProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
+      while (attempts < maxRetries) {
+        attempts++;
+        try {
+          // Check if profile exists
+          const { data: existing, error: selectError } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
 
-      if (existingProfile) {
-        const result = await supabaseAdmin
-          .from('profiles')
-          .update(profileToUpsert)
-          .eq('user_id', userId)
-          .select()
-          .single();
-        profileData = result.data;
-        profileError = result.error;
-      } else {
-        const result = await supabaseAdmin
-          .from('profiles')
-          .insert(profileToUpsert)
-          .select()
-          .single();
-        profileData = result.data;
-        profileError = result.error;
+          if (selectError) {
+            profileError = selectError;
+            break;
+          }
+
+          let result;
+          if (existing) {
+            result = await supabaseAdmin
+              .from('profiles')
+              .update(currentPayload)
+              .eq('user_id', userId)
+              .select()
+              .single();
+          } else {
+            result = await supabaseAdmin
+              .from('profiles')
+              .insert(currentPayload)
+              .select()
+              .single();
+          }
+
+          if (!result.error) {
+            profileData = result.data;
+            profileError = null;
+            break; // Success!
+          }
+
+          profileError = result.error;
+          const errorMsg = result.error.message || "";
+          
+          // Check for undefined column error
+          const isMissingColumn = 
+            result.error.code === '42703' || 
+            result.error.code === 'PGRST204' ||
+            errorMsg.toLowerCase().includes('column') || 
+            errorMsg.toLowerCase().includes('columna') || 
+            errorMsg.toLowerCase().includes('schema cache');
+
+          if (isMissingColumn) {
+            // Try to parse the missing column
+            const match = errorMsg.match(/column "([^"]+)"/) || 
+                          errorMsg.match(/column '([^']+)'/) || 
+                          errorMsg.match(/columna "([^"]+)"/) ||
+                          errorMsg.match(/columna '([^']+)'/);
+
+            if (match && match[1]) {
+              const columnName = match[1];
+              console.warn(`[Server Auto-Heal] Column '${columnName}' does not exist on table 'profiles'. Removing it and retrying...`);
+              delete currentPayload[columnName];
+              continue;
+            } else {
+              // Try removing suspects
+              console.warn(`[Server Auto-Heal] Undefined column on profiles table. Clearing common culprits.`);
+              const suspects = ['license', 'specialty', 'phone', 'status', 'signature_url', 'bio'];
+              let removedAny = false;
+              for (const suspect of suspects) {
+                if (suspect in currentPayload) {
+                  delete currentPayload[suspect];
+                  removedAny = true;
+                }
+              }
+              if (removedAny) continue;
+            }
+          }
+          
+          break; // It's another type of error, break retry loop
+        } catch (innerErr: any) {
+          console.error(`[Server Auto-Heal] Exception in profile upsert:`, innerErr);
+          profileError = innerErr;
+          break;
+        }
       }
 
       if (profileError) {
@@ -159,9 +220,10 @@ async function startServer() {
       
     } catch (err: any) {
       console.error("API: Unexpected error in /api/create-user:", err);
+      // Safe error response that avoids circular JOSN structure throw
       res.status(500).json({ 
         error: err.message || "Error interno del servidor",
-        details: typeof err === 'object' ? JSON.stringify(err) : String(err)
+        details: err.code || err.details || err.hint || String(err)
       });
     }
   });

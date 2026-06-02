@@ -141,7 +141,13 @@ export function NursesManagementView({
         })
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseErr) {
+        throw new Error(`Error de comunicación con el servidor (${response.status}): ${responseText.substring(0, 160) || 'Respuesta vacía'}`);
+      }
 
       if (!response.ok) {
         throw new Error(result.error || result.details || 'Error al crear el perfil');

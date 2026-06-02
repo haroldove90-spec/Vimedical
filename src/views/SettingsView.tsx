@@ -23,8 +23,13 @@ ALTER TABLE patients ADD COLUMN IF NOT EXISTS consent_form_type TEXT DEFAULT 'ca
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS clinical_comments JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS initial_photos TEXT[];
 
--- AGREGAR FIRMA EN PERFILES (SI SE REQUIERE)
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS signature_url TEXT;`;
+-- ASEGURAR COLUMNAS EN LA TABLA DE PERFILES (PROFILES)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS signature_url TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS license TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS specialty TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bio TEXT;`;
 
   const handleCopySQL = () => {
     navigator.clipboard.writeText(migrationSQL);
