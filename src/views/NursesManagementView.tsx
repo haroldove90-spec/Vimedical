@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   ChevronRight, Download, FileText, UserPlus, X, Mail, Phone, Award, Activity, 
-  CheckCircle, AlertTriangle, Trash2, Users, Edit3 
+  CheckCircle, AlertTriangle, Trash2, Users, Edit3, Eye, EyeOff, RefreshCw, Lock 
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -31,6 +31,33 @@ export function NursesManagementView({
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string, password: string } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const generateSecurePassword = () => {
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+    let retVal = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+      retVal += charset.charAt(Math.floor(Math.random() * n));
+    }
+    
+    // Ensure all criteria are present for extra security
+    const ensureChar = (regex: RegExp, replaceChar: string) => {
+      if (!regex.test(retVal)) {
+        const index = Math.floor(Math.random() * length);
+        retVal = retVal.substring(0, index) + replaceChar + retVal.substring(index + 1);
+      }
+    };
+    
+    ensureChar(/[a-z]/, "m");
+    ensureChar(/[A-Z]/, "W");
+    ensureChar(/[0-9]/, "9");
+    ensureChar(/[!@#$]/, "$");
+
+    setNewNurseData(prev => ({ ...prev, password: retVal }));
+    setShowPassword(true);
+    toast.success('¡Contraseña segura generada!');
+  };
 
   const [newNurseData, setNewNurseData] = useState({
     fullName: '',
@@ -311,15 +338,36 @@ export function NursesManagementView({
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña</label>
-                  <input 
-                    required
-                    type="text"
-                    value={newNurseData.password}
-                    onChange={e => setNewNurseData({...newNurseData, password: e.target.value})}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
-                    placeholder="Clave de acceso"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contraseña</label>
+                    <button
+                      type="button"
+                      onClick={generateSecurePassword}
+                      className="text-[10px] font-black text-primary hover:text-indigo-600 uppercase tracking-wider flex items-center gap-1 transition-all bg-slate-50 hover:bg-slate-100 px-3 py-1 rounded-xl border border-slate-200"
+                    >
+                      <Lock className="w-3 h-3 text-secondary-dark" />
+                      Generar clave segura
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      required
+                      type={showPassword ? "text" : "password"}
+                      value={newNurseData.password}
+                      onChange={e => setNewNurseData({...newNurseData, password: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-4 pr-12 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
+                      placeholder="Clave de acceso"
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      title={showPassword ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Teléfono</label>
