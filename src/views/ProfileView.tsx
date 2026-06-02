@@ -5,6 +5,7 @@ import { UserProfile } from '../types';
 import { storageService } from '../services/storageService';
 import SignatureCanvas from 'react-signature-canvas';
 import { trimCanvas } from '../utils/canvasHelper';
+import { supabase } from '../lib/supabase';
 
 interface ProfileViewProps {
   profile: UserProfile;
@@ -13,7 +14,7 @@ interface ProfileViewProps {
 }
 
 export function ProfileView({ profile, onUpdate, onBack }: ProfileViewProps) {
-  const [formData, setFormData] = useState<UserProfile>({ ...profile });
+  const [formData, setFormData] = useState<UserProfile>({ ...profile, password: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -22,6 +23,25 @@ export function ProfileView({ profile, onUpdate, onBack }: ProfileViewProps) {
   const handleSave = async () => {
     setIsUploading(true);
     try {
+      // Guardar nueva contraseña en Supabase Auth si se proporcionó una
+      if (formData.password && formData.password.trim() !== '') {
+        const trimmedPass = formData.password.trim();
+        if (trimmedPass.length < 6) {
+          throw new Error('La nueva contraseña debe tener al menos 6 caracteres.');
+        }
+        
+        const { error: authError } = await supabase.auth.updateUser({
+          password: trimmedPass
+        });
+        
+        if (authError) {
+          throw new Error(`Error de autenticación: ${authError.message}`);
+        }
+        
+        // Limpiamos la clave para evitar guardarla innecesariamente en la base de datos de perfiles
+        formData.password = '';
+      }
+
       // Guardar firma si se editó
       if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
         const rawCanvas = sigCanvas.current.getCanvas();
@@ -36,8 +56,8 @@ export function ProfileView({ profile, onUpdate, onBack }: ProfileViewProps) {
       onUpdate(formData);
       setIsEditing(false);
       toast.success('Perfil actualizado correctamente');
-    } catch (error) {
-      toast.error('Error al guardar los cambios');
+    } catch (error: any) {
+      toast.error(error.message || 'Error al guardar los cambios');
     } finally {
       setIsUploading(false);
     }
@@ -252,6 +272,7 @@ export function ProfileView({ profile, onUpdate, onBack }: ProfileViewProps) {
                     disabled={!isEditing}
                     value={formData.password ?? ''}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder={isEditing ? "Dejar vacío para no cambiar" : "••••••••"}
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary disabled:opacity-70 pr-12"
                   />
                   <button 

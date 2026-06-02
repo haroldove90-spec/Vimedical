@@ -59,6 +59,32 @@ export function NursesManagementView({
     toast.success('¡Contraseña segura generada!');
   };
 
+  const generateEditSecurePassword = () => {
+    const length = 12;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+    let retVal = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+      retVal += charset.charAt(Math.floor(Math.random() * n));
+    }
+    
+    // Ensure all criteria are present for extra security
+    const ensureChar = (regex: RegExp, replaceChar: string) => {
+      if (!regex.test(retVal)) {
+        const index = Math.floor(Math.random() * length);
+        retVal = retVal.substring(0, index) + replaceChar + retVal.substring(index + 1);
+      }
+    };
+    
+    ensureChar(/[a-z]/, "m");
+    ensureChar(/[A-Z]/, "W");
+    ensureChar(/[0-9]/, "9");
+    ensureChar(/[!@#$]/, "$");
+
+    setEditNurseData(prev => ({ ...prev, password: retVal }));
+    setShowPassword(true);
+    toast.success('¡Contraseña segura generada!');
+  };
+
   const [newNurseData, setNewNurseData] = useState({
     fullName: '',
     password: '',
@@ -75,7 +101,8 @@ export function NursesManagementView({
     phone: '',
     license: '',
     specialty: '',
-    role: 'Enfermero' as Role
+    role: 'Enfermero' as Role,
+    password: ''
   });
 
   const exportToExcel = () => {
@@ -202,7 +229,8 @@ export function NursesManagementView({
       phone: nurse.phone || '',
       license: nurse.license || '',
       specialty: nurse.specialty || '',
-      role: (nurse.role as Role)
+      role: (nurse.role as Role),
+      password: ''
     });
     setIsEditingNurse(true);
   };
@@ -215,6 +243,34 @@ export function NursesManagementView({
     setError('');
 
     try {
+      // Si se proporcionó una nueva contraseña, la actualizamos primero
+      if (editNurseData.password.trim() !== '') {
+        if (editNurseData.password.trim().length < 6) {
+          throw new Error('La nueva contraseña debe tener al menos 6 caracteres.');
+        }
+
+        const response = await fetch('/api/update-user-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: editingNurse.user_id || editingNurse.id,
+            newPassword: editNurseData.password.trim()
+          })
+        });
+
+        const textResponse = await response.text();
+        let result;
+        try {
+          result = JSON.parse(textResponse);
+        } catch (parseErr) {
+          throw new Error(`Error al actualizar contraseña en el servidor (${response.status})`);
+        }
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Error al actualizar la contraseña del usuario.');
+        }
+      }
+
       const updatedNurse: UserProfile = {
         ...editingNurse,
         fullName: editNurseData.fullName,
@@ -520,6 +576,37 @@ export function NursesManagementView({
                     onChange={e => setEditNurseData({...editNurseData, license: e.target.value})}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none transition-all"
                   />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nueva Contraseña</label>
+                    <button
+                      type="button"
+                      onClick={generateEditSecurePassword}
+                      className="text-[10px] font-black text-primary hover:text-indigo-600 uppercase tracking-wider flex items-center gap-1 transition-all bg-slate-50 hover:bg-slate-100 px-3 py-1 rounded-xl border border-slate-200"
+                    >
+                      <Lock className="w-3 h-3 text-secondary-dark" />
+                      Generar
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"}
+                      value={editNurseData.password}
+                      onChange={e => setEditNurseData({...editNurseData, password: e.target.value})}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-4 pr-12 font-medium focus:ring-2 focus:ring-primary outline-none transition-all text-sm"
+                      placeholder="Dejar vacío para no cambiar"
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      title={showPassword ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="col-span-full space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Especialidad / Área</label>

@@ -262,6 +262,40 @@ async function startServer() {
     }
   });
 
+  // API to update a user's password (Admin only, using service role)
+  app.post("/api/update-user-password", async (req, res) => {
+    if (!supabaseAdmin) {
+      return res.status(500).json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" });
+    }
+
+    const { userId, newPassword } = req.body;
+    console.log(`API: Attempting to update password for user ${userId}`);
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({ error: "Faltan datos obligatorios (userId, newPassword)." });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "La contraseña debe tener al menos 6 caracteres." });
+    }
+
+    try {
+      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: newPassword
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      console.log(`API: Successfully updated password for user ${userId}`);
+      res.json({ success: true, message: "Contraseña actualizada exitosamente." });
+    } catch (err: any) {
+      console.error("API: Unexpected error in /api/update-user-password:", err);
+      res.status(500).json({ error: err.message || "Error interno del servidor" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
