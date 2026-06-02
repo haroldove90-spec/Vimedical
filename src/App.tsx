@@ -2637,6 +2637,7 @@ export default function App() {
               profile={currentProfile}
               onSwitchRole={setCurrentRole}
               treatmentProposals={proposals}
+              onUpdateProposalStatus={handleUpdateProposalStatus}
               attendances={attendances}
             />
           )}

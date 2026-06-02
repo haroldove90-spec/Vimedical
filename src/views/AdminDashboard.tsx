@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Shield, AlertTriangle, ShoppingBag, PlusCircle, Receipt, 
-  CheckCircle, Users, FileText, ChevronRight, UserCircle, Stethoscope, Camera 
+  CheckCircle, Users, FileText, ChevronRight, UserCircle, Stethoscope, Camera, X 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { syncService } from '../services/syncService';
@@ -15,10 +15,11 @@ interface AdminDashboardProps {
   wounds: Wound[];
   treatmentLogs: TreatmentLog[];
   sendNotification: (title: string, body: string, voiceText: string, targetRole: Role) => Promise<void>;
-  onUpdateWoundStatus: (id: string, status: Wound['status']) => void;
+  onUpdateWoundStatus: (id: string, status: Wound['status'], comments?: string) => void;
   profile: UserProfile | null;
   onSwitchRole: (role: Role) => void;
   treatmentProposals?: TreatmentProposal[];
+  onUpdateProposalStatus?: (id: string, status: 'accepted' | 'rejected') => void;
   attendances?: Attendance[];
 }
 
@@ -32,12 +33,14 @@ export function AdminDashboard({
   profile, 
   onSwitchRole,
   treatmentProposals = [],
+  onUpdateProposalStatus,
   attendances = []
 }: AdminDashboardProps) {
-  const pendingAdmin = wounds.filter(w => w.status === 'pending_admin');
+  const pendingAdmin = wounds.filter(w => w.status === 'pending_admin' || w.status === 'pending_doctor');
   const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
   const recentPatients = patients.slice(0, 5);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [commentsMap, setCommentsMap] = useState<{[key: string]: string}>({});
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -132,24 +135,82 @@ export function AdminDashboard({
                   <div key={wound.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 flex flex-col gap-6 shadow-xl shadow-slate-200/50 hover:scale-[1.01] transition-transform">
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary-dark font-black text-2xl">
+                        <div className="w-16 h-16 rounded-2xl bg-secondary/20 flex items-center justify-center text-secondary-dark font-black text-2xl shrink-0">
                           {patient?.fullName[0]}
                         </div>
                         <div>
-                          <h3 className="font-black text-xl text-slate-900">{patient?.fullName}</h3>
-                          <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">{wound.location} • {wound.description}</p>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-black text-xl text-slate-900">{patient?.fullName}</h3>
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              wound.status === 'pending_admin' 
+                                ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                            }`}>
+                              {wound.status === 'pending_admin' ? 'Pte. Admin' : 'Pte. Médico'}
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mt-1">{wound.location} • {wound.description}</p>
                         </div>
                       </div>
-                      <button 
-                        onClick={async () => {
-                          await onUpdateWoundStatus(wound.id, 'pending_doctor');
-                          toast.success('Valoración revisada y enviada al Doctor exitosamente.');
-                        }}
-                        className="w-full md:w-auto bg-primary text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:bg-indigo-700 transition-all"
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                        Revisar y Enviar a Doctor
-                      </button>
+                      
+                      <div className="flex flex-wrap gap-2.5 w-full md:w-auto shrink-0">
+                        <button 
+                          onClick={async () => {
+                            const comments = commentsMap[wound.id] || 'Aprobado y autorizado por el Administrador.';
+                            await onUpdateWoundStatus(wound.id, 'approved', comments);
+                            toast.success('Valoración autorizada y aprobada por el Administrador.');
+                            setCommentsMap(prev => {
+                              const updated = { ...prev };
+                              delete updated[wound.id];
+                              return updated;
+                            });
+                          }}
+                          className="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10 transition-all"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Autorizar
+                        </button>
+
+                        {wound.status === 'pending_admin' && (
+                          <button 
+                            onClick={async () => {
+                              const comments = commentsMap[wound.id] || 'Revisado y enviado para aprobación médica.';
+                              await onUpdateWoundStatus(wound.id, 'pending_doctor', comments);
+                              toast.success('Enviado al Doctor para valoración médica.');
+                              setCommentsMap(prev => {
+                                const updated = { ...prev };
+                                delete updated[wound.id];
+                                return updated;
+                              });
+                            }}
+                            className="flex-1 sm:flex-none bg-primary hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-500/10 transition-all"
+                          >
+                            <Stethoscope className="w-4 h-4" />
+                            Enviar a Doctor
+                          </button>
+                        )}
+
+                        <button 
+                          onClick={async () => {
+                            const comments = commentsMap[wound.id];
+                            if (!comments) {
+                              toast.error('Por favor, indica un comentario con los motivos del rechazo.');
+                              return;
+                            }
+                            await onUpdateWoundStatus(wound.id, 'rejected', comments);
+                            toast.error('Valoración rechazada. Se han solicitado correcciones.');
+                            setCommentsMap(prev => {
+                              const updated = { ...prev };
+                              delete updated[wound.id];
+                              return updated;
+                            });
+                          }}
+                          className="flex-1 sm:flex-none bg-red-100 hover:bg-red-200 text-red-700 px-5 py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all border border-red-200"
+                        >
+                          <X className="w-4 h-4" />
+                          Rechazar
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
@@ -191,6 +252,17 @@ export function AdminDashboard({
                         </div>
                       </div>
                     </div>
+
+                    <div className="border-t border-slate-100 pt-4">
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">Comentarios de Revisión / Indicaciones Clínicas o Administrativas</label>
+                      <input 
+                        type="text" 
+                        value={commentsMap[wound.id] || ''}
+                        onChange={(e) => setCommentsMap({ ...commentsMap, [wound.id]: e.target.value })}
+                        placeholder="Ej. Realizar asepsias con solución salina estéril, se solicita foto adicional..." 
+                        className="w-full border border-slate-200 rounded-2xl p-4 text-xs font-semibold focus:ring-2 focus:ring-primary outline-none bg-slate-50 focus:bg-white transition-all shadow-inner" 
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -206,7 +278,7 @@ export function AdminDashboard({
           <section>
             <h3 className="font-black text-slate-900 uppercase tracking-wider text-sm mb-4">Propuestas de Tratamiento Pendientes</h3>
             <div className="grid grid-cols-1 gap-6">
-              {pendingProposals.map(proposal => (
+               {pendingProposals.map(proposal => (
                 <div key={proposal.id} className="bg-white border border-slate-200 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl shadow-slate-200/50 hover:scale-[1.01] transition-transform">
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-2xl">
@@ -220,10 +292,35 @@ export function AdminDashboard({
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 w-full md:w-auto">
-                    <span className="px-4 py-2 bg-amber-50 text-amber-700 font-bold text-xs rounded-xl border border-amber-200 uppercase tracking-wider">
-                      Pte. Autorización Médica
-                    </span>
+                  <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                    <button 
+                      onClick={async () => {
+                        if (onUpdateProposalStatus) {
+                          await onUpdateProposalStatus(proposal.id, 'accepted');
+                          toast.success('¡Propuesta de tratamiento aprobada y autorizada correctamente!');
+                        } else {
+                          toast.error('La acción de autorización no está disponible temporalmente.');
+                        }
+                      }}
+                      className="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10 transition-all border border-emerald-400"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Autorizar
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        if (onUpdateProposalStatus) {
+                          await onUpdateProposalStatus(proposal.id, 'rejected');
+                          toast.error('Propuesta de tratamiento rechazada correctamente.');
+                        } else {
+                          toast.error('La acción de rechazo no está disponible temporalmente.');
+                        }
+                      }}
+                      className="flex-1 sm:flex-none bg-red-100 hover:bg-red-200 text-red-700 px-5 py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all border border-red-200"
+                    >
+                      <X className="w-4 h-4" />
+                      Rechazar
+                    </button>
                   </div>
                 </div>
               ))}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   CheckCircle, PlusCircle, FileText, ChevronRight, User, ShieldCheck, 
-  Save, Clock, PenTool 
+  Save, Clock, PenTool, AlertTriangle 
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Patient, View } from '../types';
@@ -145,6 +145,10 @@ export function NewPatientFormView({
       };
       
       syncService.addToQueue('patients', 'INSERT', patientData);
+      toast('Dispositivo sin conexión a Internet. El alta del paciente se guardará de forma segura en este navegador y se sincronizará automáticamente con el servidor al recuperar la conexión.', {
+        duration: 8000,
+        icon: '⚠️'
+      });
       setCreatedPatientId(tempId);
       onSave(newPatient);
       setIsSubmitting(false);
@@ -263,6 +267,20 @@ export function NewPatientFormView({
         <h2 className="text-4xl font-black tracking-tighter text-slate-900">Alta de Paciente</h2>
         <p className="text-slate-500 font-medium text-lg mt-1">Etapa 1: Identificación y Datos de Contacto</p>
       </header>
+
+      {!navigator.onLine && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md shadow-amber-500/5">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-amber-700" />
+            </div>
+            <div>
+              <h4 className="font-black text-amber-900 text-sm">Dispositivo sin conexión a Internet</h4>
+              <p className="text-xs text-amber-700 font-semibold mt-1">El alta de paciente se guardará de forma segura en este dispositivo y se sincronizará automáticamente tan pronto como recuperes la conexión a Internet.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-10">
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 shadow-xl shadow-slate-200/50">

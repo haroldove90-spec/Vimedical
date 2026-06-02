@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   ChevronRight, Activity, FileText, Camera, X, PlusCircle, RefreshCw, 
-  Save, Send, CheckCircle, Clock, CheckSquare 
+  Save, Send, CheckCircle, Clock, CheckSquare, AlertTriangle 
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'react-hot-toast';
@@ -168,7 +168,11 @@ export function AssessmentFormView({
       if (!navigator.onLine) {
         syncService.addToQueue('patients', 'UPDATE', { ...patientUpdateData, id: patientId });
         syncService.addToQueue('wounds', 'INSERT', sanitizedWoundData);
-        toast.success('Guardado en cola (Offline)', { id: 'assessment-save' });
+        toast('Dispositivo sin conexión a Internet. La valoración inicial se ha guardado de forma segura en este navegador y se sincronizará automáticamente con el servidor cuando recuperes la conexión.', {
+          duration: 9000,
+          id: 'assessment-save',
+          icon: '⚠️'
+        });
         setIsSuccess(true);
       } else {
         await safeDatabaseOp<any>(
@@ -263,6 +267,20 @@ export function AssessmentFormView({
         <h2 className="text-4xl font-black tracking-tighter text-slate-900">Valoración Inicial</h2>
         <p className="text-slate-500 font-medium">Paciente: {patient?.fullName}</p>
       </header>
+
+      {!navigator.onLine && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md shadow-amber-500/5">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-amber-700" />
+            </div>
+            <div>
+              <h4 className="font-black text-amber-900 text-sm">Dispositivo sin conexión a Internet</h4>
+              <p className="text-xs text-amber-700 font-semibold mt-1">La valoración inicial se registrará de forma local segura en este navegador y se auto-sincronizará con la nube inmediatamente cuando recuperes la conexión.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form className="space-y-10" onSubmit={(e) => handleSubmit(e)}>
         

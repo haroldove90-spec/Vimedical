@@ -1,4 +1,5 @@
 import { supabase, safeDatabaseOp } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 export interface SyncOperation {
   id: string;
@@ -50,6 +51,9 @@ export const syncService = {
     if (queue.length === 0) return;
 
     console.log(`Procesando cola de sincronización (${queue.length} operaciones)...`);
+    const toastId = toast.loading(`Se detectó conexión a Internet. Sincronizando ${queue.length} registro(s) pendiente(s) guardado(s) offline...`, {
+      position: 'bottom-right'
+    });
     
     const remainingQueue: SyncOperation[] = [];
 
@@ -89,8 +93,16 @@ export const syncService = {
     this.saveQueue(remainingQueue);
     if (remainingQueue.length === 0) {
       console.log('Sincronización completada con éxito.');
+      toast.success('¡Sincronización automática exitosa! Todos los registros guardados localmente sin conexión se han subido de forma segura al servidor.', {
+        id: toastId,
+        duration: 6000
+      });
     } else {
       console.log(`Sincronización parcial. Quedan ${remainingQueue.length} operaciones.`);
+      toast.error(`Sincronización parcial. No se lograron respaldar ${remainingQueue.length} registro(s). Se intentará nuevamente al recuperar estabilidad.`, {
+        id: toastId,
+        duration: 5000
+      });
     }
   },
 
