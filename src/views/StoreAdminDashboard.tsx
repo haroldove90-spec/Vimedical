@@ -85,6 +85,15 @@ export function StoreAdminDashboard({ profile, onBack, sendNotification }: Store
       let finalProducts: Product[] = [];
       if (pErr) {
         console.error('Error fetching products:', pErr);
+        // Fallback to sample products on error too
+        finalProducts = [
+          { id: 'p1', name: 'Glucómetro Digital Accu-Chek', description: 'Medidor de glucosa en sangre instantáneo con 50 tiras de prueba.', price: 850, stock: 15, category: 'Equipos Médicos', imageUrl: 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?auto=format&fit=crop&q=80&w=600' },
+          { id: 'p2', name: 'Baumanómetro Automático Omron', description: 'Monitor de presión arterial de brazo con memoria de lecturas.', price: 1200, stock: 12, category: 'Equipos Médicos', imageUrl: 'https://images.unsplash.com/photo-1615461066841-6116ecdccd04?auto=format&fit=crop&q=80&w=600' },
+          { id: 'p3', name: 'Oxímetro de Pulso Portátil', description: 'Mide la saturación de oxígeno en sangre y frecuencia cardíaca.', price: 350, stock: 25, category: 'Equipos Médicos', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=600' },
+          { id: 'p4', name: 'Prontosan Solución 350ml', description: 'Líquido para lavado e higienización de heridas y quemaduras.', price: 480, stock: 18, category: 'Farmacia', imageUrl: 'https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?auto=format&fit=crop&q=80&w=600' },
+          { id: 'p5', name: 'Termómetro Infrarrojo Sin Contacto', description: 'Lectura instantánea de temperatura corporal a distancia de seguridad.', price: 650, stock: 8, category: 'Equipos Médicos', imageUrl: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&q=80&w=600' },
+          { id: 'p6', name: 'Paracetamol 500mg (20 tabletas)', description: 'Auxiliar para aliviar el dolor leve a moderado y reducir la fiebre.', price: 45, stock: 120, category: 'Farmacia', imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=600' }
+        ];
       } else if (pData && pData.length > 0) {
         finalProducts = pData.map(p => ({
           id: p.id,

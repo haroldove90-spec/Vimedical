@@ -7,7 +7,7 @@ import {
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
-  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History, Ruler
+  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History, Ruler, Sliders, ShoppingCart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -133,6 +133,7 @@ export default function App() {
     }
   });
   const [authError, setAuthError] = useState<string | null>(null);
+  const [storeMode, setStoreMode] = useState<'customer' | 'admin'>('customer');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingOps, setPendingOps] = useState(0);
@@ -2686,11 +2687,88 @@ export default function App() {
           )}
           {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} onSwitchRole={setCurrentRole} />}
           {currentView === 'dashboard' && currentRole === 'Administrador' && (
-            <StoreAdminDashboard 
+            <AdminDashboard 
+              navigateTo={navigateTo} 
+              patients={patients} 
+              wounds={wounds} 
+              treatmentLogs={treatmentLogs}
+              sendNotification={sendNotification} 
+              onUpdateWoundStatus={handleUpdateWoundStatus}
               profile={currentProfile}
-              onBack={() => navigateTo('patients')}
-              sendNotification={sendNotification}
+              onSwitchRole={setCurrentRole}
+              treatmentProposals={proposals}
+              onUpdateProposalStatus={handleUpdateProposalStatus}
+              attendances={attendances}
             />
+          )}
+          {currentView === 'dashboard' && currentRole === 'E-commerce' && (
+            <div className="flex flex-col h-full bg-slate-50 w-full">
+              {/* Premium Workspace Selector Header */}
+              <div className="bg-white border-b border-slate-200 px-8 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                    <ShoppingBag className="w-7 h-7 text-[#CBB882]" />
+                    Módulo de Tienda y E-commerce
+                  </h1>
+                  <p className="text-slate-400 text-xs font-semibold mt-1">
+                    Cambia de módulo para navegar la tienda en línea como cliente o gestionar stock, ventas y pedidos.
+                  </p>
+                </div>
+                
+                {/* Visual Pill Toggles */}
+                <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center gap-1 border border-slate-200 self-start md:self-auto">
+                  <button
+                    id="btn-vista-cliente"
+                    onClick={() => {
+                      setStoreMode('customer');
+                      toast.success('Acceso activado: Cliente Final (Tienda)');
+                    }}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                      storeMode === 'customer'
+                        ? 'bg-[#1E293B] text-white shadow-md'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Vista Cliente (Tienda)
+                  </button>
+                  <button
+                    id="btn-vista-admin"
+                    onClick={() => {
+                      setStoreMode('admin');
+                      toast.success('Acceso activado: Administrador de Tienda');
+                    }}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                      storeMode === 'admin'
+                        ? 'bg-[#1E293B] text-white shadow-md'
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
+                    }`}
+                  >
+                    <Sliders className="w-4 h-4" />
+                    Admin de Tienda (Stock/Ventas)
+                  </button>
+                </div>
+              </div>
+
+              {/* View Injection Canvas/Stage */}
+              <div className="flex-1 overflow-auto">
+                {storeMode === 'customer' ? (
+                  <EcommerceView 
+                    onBack={() => {
+                      setStoreMode('admin');
+                    }} 
+                    userProfile={currentProfile} 
+                    sendNotification={sendNotification} 
+                  />
+                ) : (
+                  <StoreAdminDashboard 
+                    profile={currentProfile}
+                    onBack={() => setStoreMode('customer')}
+                    sendNotification={sendNotification}
+                  />
+                )}
+              </div>
+            </div>
           )}
           {currentView === 'dashboard' && currentRole === 'Doctor' && (
             <DoctorDashboard 
