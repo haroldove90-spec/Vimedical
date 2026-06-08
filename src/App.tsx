@@ -74,6 +74,7 @@ const DiagnosticDetailView = React.lazy(() => import('./views/DiagnosticDetailVi
 const SettingsView = React.lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
 const ProfileView = React.lazy(() => import('./views/ProfileView').then(m => ({ default: m.ProfileView })));
 const EcommerceView = React.lazy(() => import('./views/EcommerceView').then(m => ({ default: m.EcommerceView })));
+const StoreAdminDashboard = React.lazy(() => import('./views/StoreAdminDashboard').then(m => ({ default: m.StoreAdminDashboard })));
 const AnalyticsView = React.lazy(() => import('./views/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
 const InventoryView = React.lazy(() => import('./views/InventoryView').then(m => ({ default: m.InventoryView })));
 const OrdersView = React.lazy(() => import('./views/OrdersView').then(m => ({ default: m.OrdersView })));
@@ -780,200 +781,231 @@ export default function App() {
       .subscribe();
 
     const fetchPatients = async () => {
-      // Cargar desde caché primero para rapidez y offline
-      const cachedPatients = syncService.getCache('patients');
-      if (cachedPatients) {
-        setPatients(cachedPatients);
-      }
+      try {
+        // Cargar desde caché primero para rapidez y offline
+        const cachedPatients = syncService.getCache('patients');
+        if (cachedPatients) {
+          setPatients(cachedPatients);
+        }
 
-      if (!navigator.onLine) return;
+        if (!navigator.onLine) return;
 
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (data) {
-        const formattedPatients: Patient[] = data.map(p => ({
-          id: p.id,
-          fullName: p.full_name,
-          dateOfBirth: p.date_of_birth,
-          phone: p.phone,
-          religion: p.religion,
-          educationLevel: p.education_level,
-          familyHistory: p.family_history,
-          pathologicalHistory: p.pathological_history,
-          nonPathologicalHistory: p.non_pathological_history,
-          gender: p.gender,
-          maritalStatus: p.marital_status,
-          occupation: p.occupation,
-          address: p.address,
-          initialWoundPhoto: p.initial_wound_photo,
-          initialPhotos: p.initial_photos || (p.initial_wound_photo ? [p.initial_wound_photo] : []),
-          privacyNoticeSigned: p.privacy_notice_signed,
-          privacyNoticeSignature: p.privacy_notice_signature,
-          privacyNoticeDate: p.privacy_notice_date,
-          privacyNoticeType: p.privacy_notice_type,
-          consentFormSigned: p.consent_form_signed,
-          consentFormSignature: p.consent_form_signature,
-          consentFormDate: p.consent_form_date || p.privacy_notice_date,
-          consentFormType: p.consent_form_type,
-          clinicalComments: p.clinical_comments || [],
-          currentCondition: p.current_condition,
-          physicalExploration: (() => {
-            if (!p.physical_exploration) return undefined;
-            if (typeof p.physical_exploration === 'object') return p.physical_exploration;
-            try {
-              return JSON.parse(p.physical_exploration);
-            } catch (e) {
-              // Si no es JSON, devolver como string en un objeto para compatibilidad
-              return { adicionales: p.physical_exploration };
-            }
-          })(),
-          createdAt: p.created_at
-        }));
-        const finalPatients = [...formattedPatients];
-        setPatients(finalPatients);
-        syncService.setCache('patients', finalPatients);
+        const { data, error } = await supabase
+          .from('patients')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.warn('App: error fetching patients:', error);
+          return;
+        }
+
+        if (data) {
+          const formattedPatients: Patient[] = data.map(p => ({
+            id: p.id,
+            fullName: p.full_name,
+            dateOfBirth: p.date_of_birth,
+            phone: p.phone,
+            religion: p.religion,
+            educationLevel: p.education_level,
+            familyHistory: p.family_history,
+            pathologicalHistory: p.pathological_history,
+            nonPathologicalHistory: p.non_pathological_history,
+            gender: p.gender,
+            maritalStatus: p.marital_status,
+            occupation: p.occupation,
+            address: p.address,
+            initialWoundPhoto: p.initial_wound_photo,
+            initialPhotos: p.initial_photos || (p.initial_wound_photo ? [p.initial_wound_photo] : []),
+            privacyNoticeSigned: p.privacy_notice_signed,
+            privacyNoticeSignature: p.privacy_notice_signature,
+            privacyNoticeDate: p.privacy_notice_date,
+            privacyNoticeType: p.privacy_notice_type,
+            consentFormSigned: p.consent_form_signed,
+            consentFormSignature: p.consent_form_signature,
+            consentFormDate: p.consent_form_date || p.privacy_notice_date,
+            consentFormType: p.consent_form_type,
+            clinicalComments: p.clinical_comments || [],
+            currentCondition: p.current_condition,
+            physicalExploration: (() => {
+              if (!p.physical_exploration) return undefined;
+              if (typeof p.physical_exploration === 'object') return p.physical_exploration;
+              try {
+                return JSON.parse(p.physical_exploration);
+              } catch (e) {
+                // Si no es JSON, devolver como string en un objeto para compatibilidad
+                return { adicionales: p.physical_exploration };
+              }
+            })(),
+            createdAt: p.created_at
+          }));
+          const finalPatients = [...formattedPatients];
+          setPatients(finalPatients);
+          syncService.setCache('patients', finalPatients);
+        }
+      } catch (e) {
+        console.error('App: Exception in fetchPatients:', e);
       }
     };
 
     const fetchWounds = async () => {
-      const cachedWounds = syncService.getCache('wounds');
-      if (cachedWounds) {
-        setWounds(cachedWounds);
-      }
+      try {
+        const cachedWounds = syncService.getCache('wounds');
+        if (cachedWounds) {
+          setWounds(cachedWounds);
+        }
 
-      if (!navigator.onLine) return;
+        if (!navigator.onLine) return;
 
-      const { data, error } = await supabase
-        .from('wounds')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (data) {
-        const formattedWounds: Wound[] = data.map(w => ({
-          id: w.id,
-          patientId: w.patient_id,
-          location: w.location,
-          description: w.description,
-          createdAt: w.created_at,
-          status: w.status,
-          initialPhotos: w.initial_photos || [],
-          proposedPlan: w.proposed_plan,
-          doctorComments: w.doctor_comments,
-          visitCount: w.visit_count || 0,
-          targetVisits: w.target_visits || 4,
-          weight: w.weight,
-          height: w.height,
-          temp: w.temp,
-          bloodPressureSystolic: w.blood_pressure_systolic,
-          bloodPressureDiastolic: w.blood_pressure_diastolic,
-          pulse: w.pulse,
-          heartRate: w.heart_rate,
-          respiratoryRate: w.respiratory_rate,
-          oxygenation: w.oxygenation,
-          glycemiaFasting: w.glycemia_fasting,
-          glycemiaPostprandial: w.glycemia_postprandial,
-          abiArm: w.abi_arm,
-          abiLeftToe: w.abi_left_toe,
-          abiLeftPedal: w.abi_left_pedal,
-          abiLeftPostTibial: w.abi_left_post_tibial,
-          abiRightToe: w.abi_right_toe,
-          abiRightPedal: w.abi_right_pedal,
-          abiRightPostTibial: w.abi_right_post_tibial,
-          diagnosis: w.diagnosis,
-          width: w.width,
-          length: w.length,
-          depth: w.depth,
-          painLevel: w.pain_level,
-          tissueType: w.tissue_type,
-          characteristics: w.characteristics,
-          prognosis: w.prognosis,
-          tunneling: w.tunneling,
-          sinusTract: w.sinus_tract,
-          undermining: w.undermining
-        }));
-        const finalWounds = [...formattedWounds];
-        setWounds(finalWounds);
-        syncService.setCache('wounds', finalWounds);
+        const { data, error } = await supabase
+          .from('wounds')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.warn('App: error fetching wounds:', error);
+          return;
+        }
+
+        if (data) {
+          const formattedWounds: Wound[] = data.map(w => ({
+            id: w.id,
+            patientId: w.patient_id,
+            location: w.location,
+            description: w.description,
+            createdAt: w.created_at,
+            status: w.status,
+            initialPhotos: w.initial_photos || [],
+            proposedPlan: w.proposed_plan,
+            doctorComments: w.doctor_comments,
+            visitCount: w.visit_count || 0,
+            targetVisits: w.target_visits || 4,
+            weight: w.weight,
+            height: w.height,
+            temp: w.temp,
+            bloodPressureSystolic: w.blood_pressure_systolic,
+            bloodPressureDiastolic: w.blood_pressure_diastolic,
+            pulse: w.pulse,
+            heartRate: w.heart_rate,
+            respiratoryRate: w.respiratory_rate,
+            oxygenation: w.oxygenation,
+            glycemiaFasting: w.glycemia_fasting,
+            glycemiaPostprandial: w.glycemia_postprandial,
+            abiArm: w.abi_arm,
+            abiLeftToe: w.abi_left_toe,
+            abiLeftPedal: w.abi_left_pedal,
+            abiLeftPostTibial: w.abi_left_post_tibial,
+            abiRightToe: w.abi_right_toe,
+            abiRightPedal: w.abi_right_pedal,
+            abiRightPostTibial: w.abi_right_post_tibial,
+            diagnosis: w.diagnosis,
+            width: w.width,
+            length: w.length,
+            depth: w.depth,
+            painLevel: w.pain_level,
+            tissueType: w.tissue_type,
+            characteristics: w.characteristics,
+            prognosis: w.prognosis,
+            tunneling: w.tunneling,
+            sinusTract: w.sinus_tract,
+            undermining: w.undermining
+          }));
+          const finalWounds = [...formattedWounds];
+          setWounds(finalWounds);
+          syncService.setCache('wounds', finalWounds);
+        }
+      } catch (e) {
+        console.error('App: Exception in fetchWounds:', e);
       }
     };
 
     const fetchTreatmentLogs = async () => {
-      const cachedLogs = syncService.getCache('treatment_logs');
-      if (cachedLogs) {
-        setTreatmentLogs(cachedLogs);
-      }
+      try {
+        const cachedLogs = syncService.getCache('treatment_logs');
+        if (cachedLogs) {
+          setTreatmentLogs(cachedLogs);
+        }
 
-      if (!navigator.onLine) return;
+        if (!navigator.onLine) return;
 
-      const { data, error } = await supabase
-        .from('treatment_logs')
-        .select('*')
-        .order('evaluation_date', { ascending: false });
-      
-      if (data) {
-        const formattedLogs: TreatmentLog[] = data.map(t => ({
-          id: t.id,
-          woundId: t.wound_id,
-          patientId: t.patient_id || '',
-          evaluationDate: t.evaluation_date,
-          date: t.evaluation_date || new Date().toISOString(),
-          type: t.type || 'Curación',
-          description: t.description || 'Seguimiento de herida',
-          width: t.width,
-          length: t.length,
-          fluidLeakage: t.fluid_leakage,
-          foreignMaterial: t.foreign_material,
-          sloughPresence: t.slough_presence,
-          peripheralTractsMeasurements: t.peripheral_tracts_measurements,
-          prognosis: t.prognosis,
-          photos: t.photos || [],
-          prontosanSolution: (t as any).prontosan_solution,
-          prontosanGel: (t as any).prontosan_gel,
-          kerlix: (t as any).kerlix,
-          telfa: (t as any).telfa,
-          avintraAdministered: (t as any).avintra_administered,
-          notes: t.notes,
-          patientSignature: t.patient_signature,
-          nurseId: t.nurse_id,
-          nurseName: t.nurse_name || 'Personal ViMedical',
-          cost: t.cost
-        }));
-        setTreatmentLogs(formattedLogs);
-        syncService.setCache('treatment_logs', formattedLogs);
+        const { data, error } = await supabase
+          .from('treatment_logs')
+          .select('*')
+          .order('evaluation_date', { ascending: false });
+        
+        if (error) {
+          console.warn('App: error fetching treatment logs:', error);
+          return;
+        }
+
+        if (data) {
+          const formattedLogs: TreatmentLog[] = data.map(t => ({
+            id: t.id,
+            woundId: t.wound_id,
+            patientId: t.patient_id || '',
+            evaluationDate: t.evaluation_date,
+            date: t.evaluation_date || new Date().toISOString(),
+            type: t.type || 'Curación',
+            description: t.description || 'Seguimiento de herida',
+            width: t.width,
+            length: t.length,
+            fluidLeakage: t.fluid_leakage,
+            foreignMaterial: t.foreign_material,
+            sloughPresence: t.slough_presence,
+            peripheralTractsMeasurements: t.peripheral_tracts_measurements,
+            prognosis: t.prognosis,
+            photos: t.photos || [],
+            prontosanSolution: (t as any).prontosan_solution,
+            prontosanGel: (t as any).prontosan_gel,
+            kerlix: (t as any).kerlix,
+            telfa: (t as any).telfa,
+            avintraAdministered: (t as any).avintra_administered,
+            notes: t.notes,
+            patientSignature: t.patient_signature,
+            nurseId: t.nurse_id,
+            nurseName: t.nurse_name || 'Personal ViMedical',
+            cost: t.cost
+          }));
+          setTreatmentLogs(formattedLogs);
+          syncService.setCache('treatment_logs', formattedLogs);
+        }
+      } catch (e) {
+        console.error('App: Exception in fetchTreatmentLogs:', e);
       }
     };
 
     const fetchAttendances = async () => {
-      const cached = syncService.getCache('attendances');
-      if (cached) {
-        setAttendances(cached);
-      }
+      try {
+        const cached = syncService.getCache('attendances');
+        if (cached) {
+          setAttendances(cached);
+        }
 
-      const { data, error } = await supabase
-        .from('attendances')
-        .select('*')
-        .order('timestamp', { ascending: false });
+        const { data, error } = await supabase
+          .from('attendances')
+          .select('*')
+          .order('timestamp', { ascending: false });
 
-      if (data && !error) {
-        const formatted = data.map((item: any) => ({
-          id: item.id,
-          patientId: item.patient_id,
-          patientName: item.patient_name,
-          nurseId: item.nurse_id,
-          nurseName: item.nurse_name,
-          timestamp: item.timestamp,
-          status: item.status,
-          signature: item.signature || '',
-          signeeName: item.signee_name || '',
-          signeeType: item.signee_type || 'Paciente'
-        }));
-        setAttendances(formatted);
-        syncService.setCache('attendances', formatted);
-      } else if (error) {
-        console.warn('App: attendances table fetch error/missing. Falling back to cache/local state.', error);
+        if (data && !error) {
+          const formatted = data.map((item: any) => ({
+            id: item.id,
+            patientId: item.patient_id,
+            patientName: item.patient_name,
+            nurseId: item.nurse_id,
+            nurseName: item.nurse_name,
+            timestamp: item.timestamp,
+            status: item.status,
+            signature: item.signature || '',
+            signeeName: item.signee_name || '',
+            signeeType: item.signee_type || 'Paciente'
+          }));
+          setAttendances(formatted);
+          syncService.setCache('attendances', formatted);
+        } else if (error) {
+          console.warn('App: attendances table fetch error/missing. Falling back to cache/local state.', error);
+        }
+      } catch (e) {
+        console.error('App: Exception in fetchAttendances:', e);
       }
     };
 
@@ -1147,160 +1179,176 @@ export default function App() {
   };
 
   const fetchQuotations = async () => {
-    // Cargar desde caché primero
-    const cachedQuotations = syncService.getCache('quotations');
-    if (cachedQuotations) {
-      setQuotations(cachedQuotations);
-    }
+    try {
+      // Cargar desde caché primero
+      const cachedQuotations = syncService.getCache('quotations');
+      if (cachedQuotations) {
+        setQuotations(cachedQuotations);
+      }
 
-    if (!navigator.onLine) return;
+      if (!navigator.onLine) return;
 
-    const { data, error } = await supabase
-      .from('quotations')
-      .select('*, quotation_items(*)')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching quotations:', error);
-    } else if (data) {
-      const formattedQuotations: Quotation[] = data.map((q: any) => ({
-        id: q.id,
-        patientId: q.patient_id,
-        patientName: q.patient_name,
-        createdAt: q.created_at,
-        totalAmount: q.total_amount,
-        status: q.status,
-        notes: q.notes,
-        items: q.quotation_items.map((i: any) => ({
-          id: i.id,
-          description: i.description,
-          quantity: i.quantity,
-          unitCost: i.unit_cost,
-          total: i.total
-        }))
-      }));
-      setQuotations(formattedQuotations);
-      syncService.setCache('quotations', formattedQuotations);
+      const { data, error } = await supabase
+        .from('quotations')
+        .select('*, quotation_items(*)')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching quotations:', error);
+      } else if (data) {
+        const formattedQuotations: Quotation[] = data.map((q: any) => ({
+          id: q.id,
+          patientId: q.patient_id,
+          patientName: q.patient_name,
+          createdAt: q.created_at,
+          totalAmount: q.total_amount,
+          status: q.status,
+          notes: q.notes,
+          items: q.quotation_items.map((i: any) => ({
+            id: i.id,
+            description: i.description,
+            quantity: i.quantity,
+            unitCost: i.unit_cost,
+            total: i.total
+          }))
+        }));
+        setQuotations(formattedQuotations);
+        syncService.setCache('quotations', formattedQuotations);
+      }
+    } catch (e) {
+      console.error('App: Exception in fetchQuotations:', e);
     }
   };
 
   const fetchCertificates = async () => {
-    const cachedCertificates = syncService.getCache('certificates');
-    if (cachedCertificates) {
-      setCertificates(cachedCertificates);
-    } else {
-      setCertificates(MOCK_CERTIFICATES);
-    }
+    try {
+      const cachedCertificates = syncService.getCache('certificates');
+      if (cachedCertificates) {
+        setCertificates(cachedCertificates);
+      } else {
+        setCertificates(MOCK_CERTIFICATES);
+      }
 
-    if (!navigator.onLine) return;
+      if (!navigator.onLine) return;
 
-    const { data, error } = await supabase
-      .from('medical_certificates')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching certificates:', error);
-    } else if (data) {
-      const formattedCertificates: MedicalCertificate[] = data.map((c: any) => ({
-        id: c.id,
-        patientId: c.patient_id,
-        patientName: c.patient_name,
-        patientAge: c.patient_age,
-        date: c.date,
-        reason: c.reason,
-        diagnosis: c.diagnosis,
-        recommendations: c.recommendations,
-        doctorName: c.doctor_name,
-        doctorCredentials: c.doctor_credentials,
-        doctorLicense: c.doctor_license,
-        physicalState: c.physical_state,
-        woundDetails: c.wound_details,
-        treatment: c.treatment,
-        visualStatus: c.visual_status,
-        auditoryStatus: c.auditory_status,
-        locomotorStatus: c.locomotor_status,
-        neurologicalStatus: c.neurological_status,
-        conclusions: c.conclusions,
-        signature: c.signature,
-        createdAt: c.created_at
-      }));
-      setCertificates(formattedCertificates);
-      syncService.setCache('certificates', formattedCertificates);
+      const { data, error } = await supabase
+        .from('medical_certificates')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching certificates:', error);
+      } else if (data) {
+        const formattedCertificates: MedicalCertificate[] = data.map((c: any) => ({
+          id: c.id,
+          patientId: c.patient_id,
+          patientName: c.patient_name,
+          patientAge: c.patient_age,
+          date: c.date,
+          reason: c.reason,
+          diagnosis: c.diagnosis,
+          recommendations: c.recommendations,
+          doctorName: c.doctor_name,
+          doctorCredentials: c.doctor_credentials,
+          doctorLicense: c.doctor_license,
+          physicalState: c.physical_state,
+          woundDetails: c.wound_details,
+          treatment: c.treatment,
+          visualStatus: c.visual_status,
+          auditoryStatus: c.auditory_status,
+          locomotorStatus: c.locomotor_status,
+          neurologicalStatus: c.neurological_status,
+          conclusions: c.conclusions,
+          signature: c.signature,
+          createdAt: c.created_at
+        }));
+        setCertificates(formattedCertificates);
+        syncService.setCache('certificates', formattedCertificates);
+      }
+    } catch (e) {
+      console.error('App: Exception in fetchCertificates:', e);
     }
   };
 
   const fetchProposals = async () => {
-    const cachedProposals = syncService.getCache('proposals');
-    if (cachedProposals) {
-      setProposals(cachedProposals);
-    } else {
-      setProposals(MOCK_PROPOSALS);
-    }
+    try {
+      const cachedProposals = syncService.getCache('proposals');
+      if (cachedProposals) {
+        setProposals(cachedProposals);
+      } else {
+        setProposals(MOCK_PROPOSALS);
+      }
 
-    if (!navigator.onLine) return;
+      if (!navigator.onLine) return;
 
-    const { data, error } = await supabase
-      .from('treatment_proposals')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching proposals:', error);
-    } else if (data) {
-      const formattedProposals: TreatmentProposal[] = data.map((p: any) => ({
-        id: p.id,
-        patientId: p.patient_id,
-        patientName: p.patient_name,
-        date: p.date || p.created_at.split('T')[0],
-        program: p.program,
-        numCurations: p.num_curations,
-        materials: p.materials,
-        investment: p.investment,
-        createdAt: p.created_at,
-        status: p.status,
-        nurseId: p.nurse_id
-      }));
-      setProposals(formattedProposals);
-      syncService.setCache('proposals', formattedProposals);
+      const { data, error } = await supabase
+        .from('treatment_proposals')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching proposals:', error);
+      } else if (data) {
+        const formattedProposals: TreatmentProposal[] = data.map((p: any) => ({
+          id: p.id,
+          patientId: p.patient_id,
+          patientName: p.patient_name,
+          date: p.date || p.created_at.split('T')[0],
+          program: p.program,
+          numCurations: p.num_curations,
+          materials: p.materials,
+          investment: p.investment,
+          createdAt: p.created_at,
+          status: p.status,
+          nurseId: p.nurse_id
+        }));
+        setProposals(formattedProposals);
+        syncService.setCache('proposals', formattedProposals);
+      }
+    } catch (e) {
+      console.error('App: Exception in fetchProposals:', e);
     }
   };
 
   const fetchDiagnostics = async () => {
-    const cachedDiagnostics = syncService.getCache('diagnostics');
-    if (cachedDiagnostics) {
-      setDiagnostics(cachedDiagnostics);
-    } else {
-      setDiagnostics(MOCK_DIAGNOSTICS);
-    }
+    try {
+      const cachedDiagnostics = syncService.getCache('diagnostics');
+      if (cachedDiagnostics) {
+        setDiagnostics(cachedDiagnostics);
+      } else {
+        setDiagnostics(MOCK_DIAGNOSTICS);
+      }
 
-    if (!navigator.onLine) return;
+      if (!navigator.onLine) return;
 
-    const { data, error } = await supabase
-      .from('diagnostics')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching diagnostics:', error);
-    } else if (data) {
-      const formattedDiagnostics: Diagnostic[] = data.map((d: any) => ({
-        id: d.id,
-        patientId: d.patient_id,
-        patientName: d.patient_name,
-        patientAge: d.patient_age,
-        date: d.date,
-        clinicalSummary: d.clinical_summary,
-        diagnosis: d.diagnosis,
-        treatmentPlan: d.treatment_plan,
-        recommendations: d.recommendations,
-        doctorName: d.doctor_name,
-        doctorLicense: d.doctor_license,
-        signature: d.signature,
-        createdAt: d.created_at
-      }));
-      setDiagnostics(formattedDiagnostics);
-      syncService.setCache('diagnostics', formattedDiagnostics);
+      const { data, error } = await supabase
+        .from('diagnostics')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching diagnostics:', error);
+      } else if (data) {
+        const formattedDiagnostics: Diagnostic[] = data.map((d: any) => ({
+          id: d.id,
+          patientId: d.patient_id,
+          patientName: d.patient_name,
+          patientAge: d.patient_age,
+          date: d.date,
+          clinicalSummary: d.clinical_summary,
+          diagnosis: d.diagnosis,
+          treatmentPlan: d.treatment_plan,
+          recommendations: d.recommendations,
+          doctorName: d.doctor_name,
+          doctorLicense: d.doctor_license,
+          signature: d.signature,
+          createdAt: d.created_at
+        }));
+        setDiagnostics(formattedDiagnostics);
+        syncService.setCache('diagnostics', formattedDiagnostics);
+      }
+    } catch (e) {
+      console.error('App: Exception in fetchDiagnostics:', e);
     }
   };
 
@@ -2312,7 +2360,7 @@ export default function App() {
                 <Shield className="w-3 h-3" /> Modo de Vista (Admin)
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {(['Enfermero', 'Doctor', 'Coordinador', 'Administrador'] as Role[]).map((role) => (
+                {(['Enfermero', 'Doctor', 'Coordinador', 'Administrador', 'E-commerce'] as Role[]).map((role) => (
                   <button
                     key={role}
                     onClick={() => {
@@ -2326,7 +2374,7 @@ export default function App() {
                         : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    {role === 'Administrador' ? 'Admin' : role === 'Coordinador' ? 'Coord' : role}
+                    {role === 'Administrador' ? 'Admin' : role === 'Coordinador' ? 'Coord' : role === 'E-commerce' ? 'Tienda' : role}
                   </button>
                 ))}
               </div>
@@ -2440,19 +2488,7 @@ export default function App() {
             </button>
           )}
 
-          {currentRole === 'Administrador' && (
-            <button
-              onClick={() => navigateTo('ecommerce')}
-              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-                currentView === 'ecommerce'
-                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                  : 'text-white/70 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              Tienda
-            </button>
-          )}
+
 
           <button
             onClick={() => navigateTo('profile')}
@@ -2650,18 +2686,10 @@ export default function App() {
           )}
           {currentView === 'dashboard' && currentRole === 'Enfermero' && <NurseDashboard navigateTo={navigateTo} patients={patients} wounds={wounds} treatments={treatmentLogs} profile={currentProfile} onSwitchRole={setCurrentRole} />}
           {currentView === 'dashboard' && currentRole === 'Administrador' && (
-            <AdminDashboard 
-              navigateTo={navigateTo} 
-              patients={patients} 
-              wounds={wounds} 
-              treatmentLogs={treatmentLogs}
-              sendNotification={sendNotification} 
-              onUpdateWoundStatus={handleUpdateWoundStatus}
+            <StoreAdminDashboard 
               profile={currentProfile}
-              onSwitchRole={setCurrentRole}
-              treatmentProposals={proposals}
-              onUpdateProposalStatus={handleUpdateProposalStatus}
-              attendances={attendances}
+              onBack={() => navigateTo('patients')}
+              sendNotification={sendNotification}
             />
           )}
           {currentView === 'dashboard' && currentRole === 'Doctor' && (
