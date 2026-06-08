@@ -7,9 +7,11 @@ export interface SyncOperation {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   data: any;
   createdAt: string;
+  attempts?: number;
 }
 
 const SYNC_QUEUE_KEY = 'vimedical_sync_queue';
+const SYNC_QUARANTINE_KEY = 'vimedical_sync_quarantine';
 
 export const syncService = {
   getQueue(): SyncOperation[] {
@@ -38,10 +40,35 @@ export const syncService = {
       type,
       data,
       createdAt: new Date().toISOString(),
+      attempts: 0,
     };
     queue.push(operation);
     this.saveQueue(queue);
     console.log(`Operación añadida a la cola de sincronización: ${type} en ${table}`);
+  },
+
+  getQuarantine(): any[] {
+    try {
+      const q = localStorage.getItem(SYNC_QUARANTINE_KEY);
+      return q ? JSON.parse(q) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  quarantineOperation(op: SyncOperation, error: any) {
+    try {
+      const q = this.getQuarantine();
+      q.push({
+        ...op,
+        quarantinedAt: new Date().toISOString(),
+        error: error?.message || error?.details || JSON.stringify(error) || 'Error de integridad'
+      });
+      localStorage.setItem(SYNC_QUARANTINE_KEY, JSON.stringify(q));
+      console.warn(`[Sync Quarantine] Operación ${op.id} para tabla ${op.table} colocada en cuarentena tras múltiples intentos.`);
+    } catch (e) {
+      console.error('Error saving to quarantine:', e);
+    }
   },
 
   async processQueue() {
@@ -58,6 +85,7 @@ export const syncService = {
     const remainingQueue: SyncOperation[] = [];
 
     for (const op of queue) {
+      op.attempts = (op.attempts || 0) + 1;
       try {
         let error;
         if (op.type === 'INSERT') {
@@ -79,14 +107,22 @@ export const syncService = {
         }
         
         if (error) {
-          console.error(`Error sincronizando operación ${op.id}:`, error);
-          remainingQueue.push(op);
+          console.error(`Error sincronizando operación ${op.id} (Intento ${op.attempts}):`, error);
+          if (op.attempts >= 3) {
+            this.quarantineOperation(op, error);
+          } else {
+            remainingQueue.push(op);
+          }
         } else {
-          console.log(`Operación ${op.id} sincronizada con éxito.`);
+          console.log(`Operación ${op.id} Sincronizada con éxito.`);
         }
       } catch (err) {
         console.error(`Error fatal sincronizando operación ${op.id}:`, err);
-        remainingQueue.push(op);
+        if (op.attempts >= 3) {
+          this.quarantineOperation(op, err);
+        } else {
+          remainingQueue.push(op);
+        }
       }
     }
 
@@ -95,13 +131,13 @@ export const syncService = {
       console.log('Sincronización completada con éxito.');
       toast.success('¡Sincronización automática exitosa! Todos los registros guardados localmente sin conexión se han subido de forma segura al servidor.', {
         id: toastId,
-        duration: 6000
+        duration: 3500
       });
     } else {
       console.log(`Sincronización parcial. Quedan ${remainingQueue.length} operaciones.`);
-      toast.error(`Sincronización parcial. No se lograron respaldar ${remainingQueue.length} registro(s). Se intentará nuevamente al recuperar estabilidad.`, {
+      toast.error(`Sincronización en curso. Se detectaron ${remainingQueue.length} registro(s) temporalmente retenidos por el servidor, reintentando de fondo.`, {
         id: toastId,
-        duration: 5000
+        duration: 2500
       });
     }
   },

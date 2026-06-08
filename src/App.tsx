@@ -2915,7 +2915,7 @@ export default function App() {
           )}
 
           {currentView === 'wound-measurement' && (
-            <WoundMeasurementView onBack={() => navigateTo('dashboard')} />
+            <WoundMeasurementView onBack={() => navigateTo('dashboard')} patients={patients} />
           )}
           </React.Suspense>
         </div>

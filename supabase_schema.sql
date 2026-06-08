@@ -195,6 +195,22 @@ CREATE TABLE IF NOT EXISTS medical_certificates (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Tabla para Asistencias / Entradas y Salidas de Enfermería
+CREATE TABLE IF NOT EXISTS attendances (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
+  patient_name TEXT,
+  nurse_id TEXT,
+  nurse_name TEXT,
+  status TEXT, -- 'check_in' | 'check_out'
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  location TEXT,
+  signature TEXT,
+  signee_name TEXT,
+  signee_type TEXT DEFAULT 'Paciente',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- ==========================================
 -- Tablas para E-commerce
 -- ==========================================
@@ -239,6 +255,7 @@ ALTER TABLE quotations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE diagnostics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE treatment_proposals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE medical_certificates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
@@ -313,6 +330,10 @@ CREATE POLICY "Users can manage own order items" ON order_items
     )
   );
 
+-- Políticas para Asistencias
+CREATE POLICY "Staff can manage attendances" ON attendances
+  FOR ALL USING (auth.role() = 'authenticated');
+
 -- ==========================================
 -- Triggers y Funciones de Automatización
 -- ==========================================
@@ -356,6 +377,7 @@ BEGIN
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE products; EXCEPTION WHEN others THEN END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE orders; EXCEPTION WHEN others THEN END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE order_items; EXCEPTION WHEN others THEN END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE attendances; EXCEPTION WHEN others THEN END;
 END $$;
 
 -- NOTA: Para el almacenamiento de imágenes, se deben crear los siguientes buckets en Supabase Storage:

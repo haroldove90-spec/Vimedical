@@ -29,7 +29,37 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS license TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS specialty TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bio TEXT;`;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bio TEXT;
+
+-- COMPLEMENTO: CREAR TABLA DE ASISTENCIAS (ATTENDANCES) SI NO EXISTE
+CREATE TABLE IF NOT EXISTS attendances (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  patient_id UUID REFERENCES patients(id) ON DELETE CASCADE,
+  patient_name TEXT,
+  nurse_id TEXT,
+  nurse_name TEXT,
+  status TEXT, -- 'check_in' | 'check_out'
+  timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  location TEXT,
+  signature TEXT,
+  signee_name TEXT,
+  signee_type TEXT DEFAULT 'Paciente',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Habilitar RLS para la tabla de asistencias
+ALTER TABLE attendances ENABLE ROW LEVEL SECURITY;
+
+-- Políticas para la tabla de asistencias
+DROP POLICY IF EXISTS "Staff can manage attendances" ON attendances;
+CREATE POLICY "Staff can manage attendances" ON attendances
+  FOR ALL USING (auth.role() = 'authenticated');
+
+-- Intentar registrar en Realtime
+DO $$
+BEGIN
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE attendances; EXCEPTION WHEN others THEN END;
+END $$;`;
 
   const handleCopySQL = () => {
     navigator.clipboard.writeText(migrationSQL);
