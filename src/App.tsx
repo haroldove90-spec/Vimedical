@@ -7,7 +7,7 @@ import {
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
-  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History
+  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History, Ruler
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -77,6 +77,7 @@ const EcommerceView = React.lazy(() => import('./views/EcommerceView').then(m =>
 const AnalyticsView = React.lazy(() => import('./views/AnalyticsView').then(m => ({ default: m.AnalyticsView })));
 const InventoryView = React.lazy(() => import('./views/InventoryView').then(m => ({ default: m.InventoryView })));
 const OrdersView = React.lazy(() => import('./views/OrdersView').then(m => ({ default: m.OrdersView })));
+const WoundMeasurementView = React.lazy(() => import('./views/WoundMeasurementView').then(m => ({ default: m.WoundMeasurementView })));
 
 
 // ErrorBoundary moved to /src/components/ErrorBoundary.tsx
@@ -2396,6 +2397,21 @@ export default function App() {
             </button>
           )}
 
+          <button
+            onClick={() => navigateTo('wound-measurement')}
+            className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+              currentView === 'wound-measurement'
+                ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                : 'text-white/70 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Ruler className="w-5 h-5 flex-shrink-0" />
+            <span>Medición de Heridas</span>
+            <span className="ml-auto text-[8px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-[0.8] origin-right animate-pulse">
+              Próx.
+            </span>
+          </button>
+
           {currentRole === 'Administrador' && (
             <button
               onClick={() => navigateTo('analytics')}
@@ -2550,6 +2566,7 @@ export default function App() {
                currentView === 'patients' ? 'Gestión de Pacientes' :
                currentView === 'patient-detail' ? 'Paciente & Expediente Clínico' :
                currentView === 'clinical-history' ? 'Control de Historias Clínicas' :
+               currentView === 'wound-measurement' ? 'Medición de Heridas' :
                currentView === 'quotations' ? 'Cotizaciones de Servicio' :
                currentView === 'certificates' ? 'Certificados Médicos' :
                currentView === 'analytics' ? 'Estadísticas & KPIs' :
@@ -2590,6 +2607,12 @@ export default function App() {
         </div>
 
         <div className="max-w-[1600px] mx-auto">
+          <React.Suspense fallback={
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
+              <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Cargando Módulo...</p>
+            </div>
+          }>
           {currentView === 'dashboard' && currentRole === 'Coordinador' && (
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-12 text-center shadow-xl shadow-slate-200/50 max-w-2xl mx-auto my-12 animate-in fade-in slide-in-from-bottom-6 duration-500">
               <div className="w-24 h-24 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-8 shadow-inner">
@@ -2890,6 +2913,11 @@ export default function App() {
               onBack={() => navigateTo('dashboard')} 
             />
           )}
+
+          {currentView === 'wound-measurement' && (
+            <WoundMeasurementView onBack={() => navigateTo('dashboard')} />
+          )}
+          </React.Suspense>
         </div>
       </main>
 
