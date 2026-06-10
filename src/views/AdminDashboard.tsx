@@ -38,7 +38,11 @@ export function AdminDashboard({
 }: AdminDashboardProps) {
   const pendingAdmin = wounds.filter(w => w.status === 'pending_admin' || w.status === 'pending_doctor');
   const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
-  const recentPatients = patients.slice(0, 5);
+  const recentPatients = [...patients].sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA;
+  }).slice(0, 5);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [commentsMap, setCommentsMap] = useState<{[key: string]: string}>({});
 

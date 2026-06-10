@@ -270,11 +270,12 @@ export function PatientDetailView({
                         </div>
                         <div>
                           <h4 className="text-lg font-black text-slate-900">{wound.location}</h4>
-                          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
-                            {wound.status === 'pending_admin' && 'Pendiente Admin'}
-                            {wound.status === 'pending_doctor' && 'Pendiente Doctor'}
-                            {wound.status === 'approved' && 'Aprobado'}
-                            {wound.status === 'completed' && 'Completado'}
+                          <p className="text-xs font-bold uppercase tracking-widest mt-1">
+                            {wound.status === 'pending_admin' && <span className="text-amber-500">Pendiente Admin</span>}
+                            {wound.status === 'pending_doctor' && <span className="text-blue-500">Pendiente Doctor</span>}
+                            {wound.status === 'approved' && <span className="text-emerald-500">Aprobado</span>}
+                            {wound.status === 'rejected' && <span className="text-red-500 font-extrabold">Plan Rechazado / Requiere Correcciones</span>}
+                            {wound.status === 'completed' && <span className="text-slate-500">Completado</span>}
                           </p>
                         </div>
                       </div>
@@ -300,7 +301,12 @@ export function PatientDetailView({
                       </div>
                       <div className="text-center">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estado</p>
-                        <div className={`w-3 h-3 rounded-full mx-auto mt-1 ${wound.status === 'approved' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <div className={`w-3 h-3 rounded-full mx-auto mt-1 ${
+                          wound.status === 'approved' ? 'bg-emerald-500' : 
+                          wound.status === 'rejected' ? 'bg-red-500' : 
+                          wound.status === 'completed' ? 'bg-slate-400' : 
+                          'bg-amber-500'
+                        }`} />
                       </div>
                     </div>
                     {wound.status === 'approved' && (
@@ -593,12 +599,24 @@ export function PatientDetailView({
                         </div>
                       </div>
                     </div>
-                      <div>
+                      <div className="flex flex-col h-full">
                         <p className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em] mb-4">Plan Terapéutico Propuesto</p>
-                        <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/10 h-full">
+                        <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/10 flex-1">
                           <p className="text-2xl font-medium text-indigo-50 leading-loose whitespace-pre-wrap">
                             {latestWound?.proposedPlan || 'No se ha definido un plan de tratamiento aún.'}
                           </p>
+                          
+                          {(latestWound?.doctorComments || latestWound?.doctor_comments) && (
+                            <div className="mt-6 p-6 bg-red-500/10 rounded-2xl border border-red-500/20 text-left animate-in fade-in duration-300">
+                              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                                Indicaciones / Comentarios Clínicos (Médico/Admin)
+                              </p>
+                              <p className="text-red-100 text-sm font-medium whitespace-pre-wrap italic leading-relaxed">
+                                "{latestWound?.doctorComments || latestWound?.doctor_comments}"
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                   </div>

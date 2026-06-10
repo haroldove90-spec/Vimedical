@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS patients (
   consent_form_signature TEXT,
   consent_form_type TEXT DEFAULT 'casa',
   clinical_comments JSONB DEFAULT '[]'::jsonb,
+  registered_by TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

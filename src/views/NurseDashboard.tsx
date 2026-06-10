@@ -26,7 +26,13 @@ export function NurseDashboard({
   profile, 
   onSwitchRole 
 }: NurseDashboardProps) {
-  const myPatients = patients.filter(p => p.registeredBy === profile?.id || !p.registeredBy);
+  const myPatients = patients
+    .filter(p => p.registeredBy === profile?.id || !p.registeredBy)
+    .sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
   const myTreatments = treatments.filter(t => t.nurseId === profile?.id);
   const approvedWounds = wounds.filter(w => w.status === 'approved');
 
@@ -265,7 +271,7 @@ export function NurseDashboard({
               <button onClick={() => navigateTo('patients')} className="text-primary font-bold text-xs hover:underline">Ver todos</button>
             </div>
             <div className="space-y-4">
-              {myPatients.slice(0, 4).map(patient => (
+              {myPatients.slice(0, 8).map(patient => (
                 <div key={patient.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-slate-100 transition-all cursor-pointer group" onClick={() => navigateTo('patient-detail', patient.id)}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-400 font-black shadow-sm group-hover:bg-primary group-hover:text-white transition-all">

@@ -71,7 +71,12 @@ export function ClinicalHistoryDetailView({
     if (!newComment.trim()) return;
     const comment: ClinicalComment = {
       id: Date.now().toString(),
-      author: currentRole === 'Doctor' ? 'Dr. Especialista' : 'Enf. Operativo',
+      author: currentProfile?.fullName || (
+        currentRole === 'Doctor' ? 'Dr. Especialista' : 
+        currentRole === 'Administrador' ? 'Personal Administrativo' : 
+        currentRole === 'Coordinador' ? 'Coordinador de Enfermería' : 
+        'Enf. Operativo'
+      ),
       role: currentRole,
       text: newComment,
       createdAt: new Date().toISOString()

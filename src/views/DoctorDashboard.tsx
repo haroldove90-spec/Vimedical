@@ -39,7 +39,11 @@ export function DoctorDashboard({
 }: DoctorDashboardProps) {
   const pendingDoctor = wounds.filter(w => w.status === 'pending_doctor');
   const pendingProposals = treatmentProposals.filter(p => p.status === 'pending');
-  const recentPatients = patients.slice(0, 5);
+  const recentPatients = [...patients].sort((a, b) => {
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return dateB - dateA;
+  }).slice(0, 5);
   const [comments, setComments] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 

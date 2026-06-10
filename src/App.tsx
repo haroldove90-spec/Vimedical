@@ -838,6 +838,7 @@ export default function App() {
                 return { adicionales: p.physical_exploration };
               }
             })(),
+            registeredBy: p.registered_by,
             createdAt: p.created_at
           }));
           const finalPatients = [...formattedPatients];

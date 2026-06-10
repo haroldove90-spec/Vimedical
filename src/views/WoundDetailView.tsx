@@ -113,10 +113,10 @@ export function WoundDetailView({
                 {wound.proposedPlan || "No hay un plan definido para esta herida."}
               </p>
             </div>
-            {wound.doctor_comments && (
-              <div className="mt-6 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Comentarios del Médico</p>
-                <p className="text-indigo-800 text-sm font-medium">{wound.doctor_comments}</p>
+            {(wound.doctorComments || wound.doctor_comments) && (
+              <div className="mt-6 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 animate-in fade-in slide-in-from-top-1 duration-300">
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Comentarios / Indicaciones Médicas</p>
+                <p className="text-indigo-800 text-sm font-medium whitespace-pre-wrap">{wound.doctorComments || wound.doctor_comments}</p>
               </div>
             )}
           </section>

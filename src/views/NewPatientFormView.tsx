@@ -93,10 +93,62 @@ export function NewPatientFormView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [createdPatientId, setCreatedPatientId] = useState<string | null>(null);
+  const [birthDateDisplay, setBirthDateDisplay] = useState('');
+
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let raw = e.target.value;
+    // Only allow numbers
+    let clean = raw.replace(/[^0-9]/g, '');
+    
+    let formatted = '';
+    if (clean.length > 0) {
+      formatted += clean.substring(0, 2);
+    }
+    if (clean.length > 2) {
+      formatted += '/' + clean.substring(2, 4);
+    }
+    if (clean.length > 4) {
+      formatted += '/' + clean.substring(4, 8);
+    }
+    
+    setBirthDateDisplay(formatted);
+
+    // Validate and convert to YYYY-MM-DD for database
+    if (formatted.length === 10) {
+      const parts = formatted.split('/');
+      const day = parts[0];
+      const month = parts[1];
+      const year = parts[2];
+      
+      const dNum = parseInt(day, 10);
+      const mNum = parseInt(month, 10);
+      const yNum = parseInt(year, 10);
+      const currentYear = new Date().getFullYear();
+
+      if (dNum >= 1 && dNum <= 31 && mNum >= 1 && mNum <= 12 && yNum >= 1900 && yNum <= currentYear) {
+        const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        setFormData(prev => ({ ...prev, dateOfBirth: isoDate }));
+      } else {
+        setFormData(prev => ({ ...prev, dateOfBirth: '' }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, dateOfBirth: '' }));
+    }
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsSubmitting(true);
+
+    if (!formData.dateOfBirth) {
+      toast.error('Por favor, ingresa una fecha de nacimiento válida en formato DD/MM/AAAA (ej. 15/08/1987).');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const savedProfileStr = localStorage.getItem('currentProfile');
+    const currentProfile = savedProfileStr ? JSON.parse(savedProfileStr) : null;
+    const registeredById = currentProfile?.id || null;
 
     const patientData = {
       full_name: formData.fullName || '',
@@ -108,6 +160,7 @@ export function NewPatientFormView({
       marital_status: formData.maritalStatus || '',
       occupation: formData.occupation || '',
       address: formData.address || '',
+      registered_by: registeredById,
       privacy_notice_signed: formData.privacyNoticeSigned || false,
       privacy_notice_signature: formData.privacyNoticeSignature || '',
       privacy_notice_date: formData.privacyNoticeDate || '',
@@ -141,7 +194,9 @@ export function NewPatientFormView({
         consentFormSigned: patientData.consent_form_signed,
         consentFormSignature: patientData.consent_form_signature,
         consentFormDate: patientData.consent_form_date,
-        consentFormType: patientData.consent_form_type
+        consentFormType: patientData.consent_form_type,
+        registeredBy: registeredById,
+        createdAt: new Date().toISOString()
       };
       
       syncService.addToQueue('patients', 'INSERT', patientData);
@@ -197,7 +252,9 @@ export function NewPatientFormView({
           consentFormSigned: data.consent_form_signed,
           consentFormSignature: data.consent_form_signature,
           consentFormDate: data.consent_form_date,
-          consentFormType: data.consent_form_type
+          consentFormType: data.consent_form_type,
+          registeredBy: data.registered_by,
+          createdAt: data.created_at
         };
         
         const currentRole = localStorage.getItem('currentRole') || 'Enfermero';
@@ -300,11 +357,14 @@ export function NewPatientFormView({
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Fecha de Nacimiento *</label>
               <input 
                 required
-                type="date" 
-                value={formData.dateOfBirth} 
-                onChange={e => setFormData({...formData, dateOfBirth: e.target.value})} 
-                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all appearance-none" 
+                type="text" 
+                maxLength={10}
+                placeholder="DD/MM/AAAA"
+                value={birthDateDisplay} 
+                onChange={handleBirthDateChange} 
+                className="w-full border border-slate-200 rounded-2xl p-4 font-medium focus:ring-2 focus:ring-primary outline-none bg-slate-50/50 focus:bg-white transition-all" 
               />
+              <p className="text-[10px] text-slate-400 font-bold mt-1.5 ml-1">Escribe directamente ej. 15/08/1985</p>
             </div>
             
             <div>
