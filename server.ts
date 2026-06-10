@@ -12,7 +12,16 @@ async function startServer() {
   app.use(express.json());
 
   // Supabase Admin Client
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://sptgoslrysifacycncyc.supabase.co';
+  const rawSupabaseUrl = process.env.VITE_SUPABASE_URL || 'https://sptgoslrysifacycncyc.supabase.co';
+  // Sanitize URL by removing trailing slashes and any trailing /rest/v1
+  const sanitizeUrl = (url: string) => {
+    let clean = url.trim().replace(/\/+$/, "");
+    if (clean.endsWith("/rest/v1")) {
+      clean = clean.substring(0, clean.length - 8);
+    }
+    return clean.replace(/\/+$/, "");
+  };
+  const supabaseUrl = sanitizeUrl(rawSupabaseUrl);
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   console.log("Server: Initializing Supabase Admin Client...");

@@ -2,7 +2,16 @@ import { createClient } from '@supabase/supabase-js';
 
 // Usamos las variables de entorno si existen, o los valores directos proporcionados para el prototipo
 console.log('Supabase: Initializing client');
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sptgoslrysifacycncyc.supabase.co';
+const rawSupabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://sptgoslrysifacycncyc.supabase.co';
+// Sanitize URL by removing trailing slashes and any trailing /rest/v1
+const sanitizeUrl = (url: string) => {
+  let clean = url.trim().replace(/\/+$/, "");
+  if (clean.endsWith("/rest/v1")) {
+    clean = clean.substring(0, clean.length - 8);
+  }
+  return clean.replace(/\/+$/, "");
+};
+const supabaseUrl = sanitizeUrl(rawSupabaseUrl);
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwdGdvc2xyeXNpZmFjeWNuY3ljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxNDk4MDcsImV4cCI6MjA4ODcyNTgwN30.HAc0HVh2_h0UdSXt1McVpNnxUjtPqUkekD5h-zMS_zs';
 
 console.log('Supabase: URL:', supabaseUrl);
