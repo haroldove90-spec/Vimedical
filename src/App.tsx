@@ -2448,6 +2448,34 @@ export default function App() {
             </button>
           )}
 
+          {(currentRole === 'Administrador' || currentRole === 'Doctor' || currentRole === 'Enfermero' || currentRole === 'Coordinador') && (
+            <button
+              onClick={() => navigateTo('diagnostics')}
+              className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'diagnostics' || currentView === 'new-diagnostic' || currentView === 'diagnostic-detail'
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <PenTool className="w-5 h-5 flex-shrink-0" />
+              <span>Diagnósticos</span>
+            </button>
+          )}
+
+          {(currentRole === 'Administrador' || currentRole === 'Doctor' || currentRole === 'Enfermero' || currentRole === 'Coordinador') && (
+            <button
+              onClick={() => navigateTo('treatment-proposals')}
+              className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'treatment-proposals' || currentView === 'new-treatment-proposal' || currentView === 'treatment-proposal-detail'
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Receipt className="w-5 h-5 flex-shrink-0" />
+              <span>Planes de Tratamiento</span>
+            </button>
+          )}
+
           <button
             onClick={() => navigateTo('wound-measurement')}
             className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
