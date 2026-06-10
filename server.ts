@@ -238,20 +238,39 @@ async function startServer() {
     console.log(`API: Attempting to delete user ${userId}`);
 
     try {
-      // 1. Delete from profiles table
+      // 1. Fetch profile first to see we have a valid email or user_id
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .or(`user_id.eq.${userId},id.eq.${userId}`)
+        .maybeSingle();
+
+      const actualUserId = profile?.user_id || userId;
+
+      // 2. Delete from profiles table
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .delete()
-        .eq('user_id', userId);
+        .or(`user_id.eq.${userId},id.eq.${userId}`);
 
       if (profileError) console.warn("API: Error deleting profile:", profileError);
 
-      // 2. Delete from Supabase Auth
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-
-      if (authError) {
-        console.error("API: Error deleting auth user:", authError);
-        throw authError;
+      // 3. Delete from Supabase Auth
+      if (actualUserId) {
+        try {
+          const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(actualUserId);
+          if (authError) {
+            console.error("API: Error deleting auth user:", authError);
+            if (!authError.message.includes("not found") && !authError.message.includes("does not exist")) {
+              throw authError;
+            }
+          }
+        } catch (innerAuthErr: any) {
+          console.warn("API: Catch deleting auth user exception:", innerAuthErr);
+          if (!innerAuthErr.message?.includes("not found")) {
+            throw innerAuthErr;
+          }
+        }
       }
 
       console.log(`API: Successfully deleted user ${userId}`);
@@ -280,15 +299,108 @@ async function startServer() {
     }
 
     try {
-      const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      // 1. Try to directly update password using target user ID
+      let updateError: any = null;
+      let targetAuthUserId = userId;
+      
+      console.log(`API: Trying direct update for auth user ${targetAuthUserId}`);
+      const directResult = await supabaseAdmin.auth.admin.updateUserById(targetAuthUserId, {
         password: newPassword
       });
 
-      if (error) {
-        throw error;
+      if (directResult.error) {
+        updateError = directResult.error;
+        console.warn(`API: Direct updateUserById failed with: ${updateError.message}`);
       }
 
-      console.log(`API: Successfully updated password for user ${userId}`);
+      // 2. Self-healing mechanism if user is "not found" or update failed
+      if (updateError) {
+        console.log(`API: Running password update self-heal for ${userId}...`);
+        
+        // Let's find the profile by id or user_id
+        const { data: profile, error: profileErr } = await supabaseAdmin
+          .from('profiles')
+          .select('*')
+          .or(`user_id.eq.${userId},id.eq.${userId}`)
+          .maybeSingle();
+
+        if (profileErr) {
+          console.error("API: Error fetching profile in self-heal:", profileErr);
+          throw updateError;
+        }
+
+        if (!profile) {
+          console.error("API: Profile not found for auto-heal lookup");
+          throw new Error(`No se encontró el perfil de usuario con ID ${userId}.`);
+        }
+
+        console.log(`API: Found profile ${profile.full_name} (${profile.email}) during self-heal.`);
+
+        // Search for this email in Supabase Auth list
+        const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) {
+          console.error("API: Error listing auth users in self-heal:", listError);
+          throw updateError;
+        }
+
+        const users = listData?.users || [];
+        const existingAuthUser = users.find(u => u.email?.toLowerCase() === profile.email?.toLowerCase());
+
+        if (existingAuthUser) {
+          console.log(`API: Existing auth user found by email: ${existingAuthUser.id}. Updating password...`);
+          const updateResult = await supabaseAdmin.auth.admin.updateUserById(existingAuthUser.id, {
+            password: newPassword
+          });
+
+          if (updateResult.error) {
+            console.error("API: Self-heal update password failed:", updateResult.error);
+            throw updateResult.error;
+          }
+
+          // Force update profiles table to have the correct user_id
+          console.log(`API: Self-heal updating profile user_id to ${existingAuthUser.id}`);
+          const { error: profileUpdateErr } = await supabaseAdmin
+            .from('profiles')
+            .update({ user_id: existingAuthUser.id })
+            .eq('id', profile.id);
+
+          if (profileUpdateErr) {
+            console.warn("API: Failed to sync profile user_id, but password was updated.", profileUpdateErr);
+          }
+
+          targetAuthUserId = existingAuthUser.id;
+        } else {
+          // Auth user completely missing! Let's recreate them!
+          console.log(`API: Auth user missing for ${profile.email}. Re-creating user...`);
+          const createResult = await supabaseAdmin.auth.admin.createUser({
+            email: profile.email,
+            password: newPassword,
+            email_confirm: true,
+            user_metadata: { full_name: profile.full_name, role: profile.role }
+          });
+
+          if (createResult.error) {
+            console.error("API: Self-heal createUser failed:", createResult.error);
+            throw createResult.error;
+          }
+
+          const newAuthUser = createResult.data.user;
+          if (newAuthUser) {
+            console.log(`API: Recreated auth user id: ${newAuthUser.id}. Syncing profile...`);
+            const { error: profileUpdateErr } = await supabaseAdmin
+              .from('profiles')
+              .update({ user_id: newAuthUser.id })
+              .eq('id', profile.id);
+
+            if (profileUpdateErr) {
+              console.warn("API: Error syncing profile in self-heal recreate:", profileUpdateErr);
+            }
+            targetAuthUserId = newAuthUser.id;
+          }
+        }
+      }
+
+      console.log(`API: Successfully updated/re-created password for user ${targetAuthUserId}`);
       res.json({ success: true, message: "Contraseña actualizada exitosamente." });
     } catch (err: any) {
       console.error("API: Unexpected error in /api/update-user-password:", err);
