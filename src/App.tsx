@@ -2025,6 +2025,7 @@ export default function App() {
 
             return {
               id: p.id,
+              user_id: p.user_id,
               role: normalizedRole,
               fullName: p.full_name,
               email: p.email,
