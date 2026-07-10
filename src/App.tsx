@@ -7,7 +7,8 @@ import {
   Settings, Volume2, Bell, Mic, Eye, EyeOff, Receipt, DollarSign, Plus, Trash2, Shield, FileCheck, CheckCircle2,
   BarChart3, PenTool, Maximize, Printer, Mail, Phone, Award, AlertCircle, ShoppingBag, UserPlus,
   Lock, LogOut, Wifi, WifiOff, RefreshCw, Edit, Trash, Stethoscope, Package, TrendingUp, TrendingDown,
-  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History, Ruler, Sliders, ShoppingCart
+  ChevronLeft, ArrowLeft, ArrowUpRight, ArrowDownRight, Filter, Save, Send, ShieldCheck, Zap, History, Ruler, Sliders, ShoppingCart,
+  Calendar, Store
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -2506,6 +2507,40 @@ export default function App() {
             </button>
           )}
 
+          {currentRole === 'Administrador' && (
+            <button
+              onClick={() => navigateTo('admin-store')}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'admin-store'
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Store className="w-5 h-5" />
+              Admin Tienda
+              <span className="ml-auto text-[8px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-[0.8] origin-right animate-pulse">
+                Proximamente
+              </span>
+            </button>
+          )}
+
+          {currentRole === 'Administrador' && (
+            <button
+              onClick={() => navigateTo('activity-planning')}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                currentView === 'activity-planning'
+                  ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              Planeación de Actividades
+              <span className="ml-auto text-[8px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-[0.8] origin-right animate-pulse">
+                Proximamente
+              </span>
+            </button>
+          )}
+
 
 
           <button
@@ -2625,6 +2660,8 @@ export default function App() {
                currentView === 'certificates' ? 'Certificados Médicos' :
                currentView === 'analytics' ? 'Estadísticas & KPIs' :
                currentView === 'nurses-management' ? 'Control de Personal' :
+               currentView === 'admin-store' ? 'Administración de Tienda' :
+               currentView === 'activity-planning' ? 'Planeación de Actividades' :
                currentView === 'ecommerce' ? 'Tienda de Productos' :
                currentView === 'profile' ? 'Configuración de Perfil' : 
                currentView === 'settings' ? 'Herramientas y Preferencias' : currentView}
@@ -3005,6 +3042,50 @@ export default function App() {
               onUpdate={handleUpdateProfile} 
               onBack={() => navigateTo('dashboard')} 
             />
+          )}
+          {currentView === 'admin-store' && (
+            <div className="p-8 max-w-4xl mx-auto text-center space-y-6 bg-white border border-slate-200 rounded-[2.5rem] shadow-xl shadow-slate-200/50 mt-12 animate-in fade-in duration-300">
+              <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+                🏪
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Módulo Admin Tienda</h3>
+              <p className="text-slate-500 max-w-md mx-auto font-medium">
+                Estamos construyendo una sección avanzada para el control total de ventas, inventario crítico, facturación y catálogos de e-commerce.
+              </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black rounded-full uppercase tracking-wider">
+                🚧 Módulo en construcción 🚧
+              </div>
+              <div className="pt-6">
+                <button
+                  onClick={() => navigateTo('dashboard')}
+                  className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-primary/20"
+                >
+                  Volver al Tablero
+                </button>
+              </div>
+            </div>
+          )}
+          {currentView === 'activity-planning' && (
+            <div className="p-8 max-w-4xl mx-auto text-center space-y-6 bg-white border border-slate-200 rounded-[2.5rem] shadow-xl shadow-slate-200/50 mt-12 animate-in fade-in duration-300">
+              <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto text-4xl animate-bounce">
+                📅
+              </div>
+              <h3 className="text-3xl font-black text-slate-900 tracking-tight">Planeación de Actividades</h3>
+              <p className="text-slate-500 max-w-md mx-auto font-medium">
+                Una herramienta de programación inteligente con vista de calendario para planificar curaciones, visitas, asignaciones de enfermeros y recordatorios médicos con alertas en tiempo real.
+              </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black rounded-full uppercase tracking-wider">
+                🚧 Módulo en construcción 🚧
+              </div>
+              <div className="pt-6">
+                <button
+                  onClick={() => navigateTo('dashboard')}
+                  className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-primary/20"
+                >
+                  Volver al Tablero
+                </button>
+              </div>
+            </div>
           )}
           {currentView === 'ecommerce' && (
             <EcommerceView onBack={() => navigateTo('dashboard')} userProfile={currentProfile} sendNotification={sendNotification} />
