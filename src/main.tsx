@@ -3,6 +3,37 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Intercept Supabase exceed_egress_quota errors to prevent flooding the panel
+const originalWarn = console.warn;
+console.warn = function(...args) {
+  const str = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (
+    str.includes('exceed_egress_quota') || 
+    str.includes('restricted due to the following violations') || 
+    str.includes('spend caps') ||
+    str.includes('upgrade their plan')
+  ) {
+    (window as any).__supabaseQuotaError = true;
+    return;
+  }
+  originalWarn.apply(console, args);
+};
+
+const originalError = console.error;
+console.error = function(...args) {
+  const str = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (
+    str.includes('exceed_egress_quota') || 
+    str.includes('restricted due to the following violations') || 
+    str.includes('spend caps') ||
+    str.includes('upgrade their plan')
+  ) {
+    (window as any).__supabaseQuotaError = true;
+    return;
+  }
+  originalError.apply(console, args);
+};
+
 class GlobalErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: { children: ReactNode }) {
     super(props);

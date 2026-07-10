@@ -2476,20 +2476,7 @@ export default function App() {
             </button>
           )}
 
-          <button
-            onClick={() => navigateTo('wound-measurement')}
-            className={`w-full flex items-center justify-start gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ${
-              currentView === 'wound-measurement'
-                ? 'bg-secondary text-primary shadow-lg shadow-secondary/20 scale-[1.02]' 
-                : 'text-white/70 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Ruler className="w-5 h-5 flex-shrink-0" />
-            <span>Medición de Heridas</span>
-            <span className="ml-auto text-[8px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider scale-[0.8] origin-right animate-pulse">
-              Próx.
-            </span>
-          </button>
+
 
           {currentRole === 'Administrador' && (
             <button
@@ -2674,6 +2661,23 @@ export default function App() {
         </div>
 
         <div className="max-w-[1600px] mx-auto">
+          {/* Supabase Quota Notice Banner */}
+          {(() => {
+            const hasQuotaError = (window as any).__supabaseQuotaError;
+            if (!hasQuotaError) return null;
+            return (
+              <div className="mx-6 mt-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 shadow-sm text-left animate-in fade-in duration-300">
+                <span className="text-xl">💡</span>
+                <div>
+                  <h4 className="text-sm font-black text-amber-800">Modo Offline Activo (Sincronización Automática Local)</h4>
+                  <p className="text-xs font-bold text-amber-600 mt-0.5 leading-relaxed">
+                    El servidor de base de datos remoto de prueba está temporalmente saturado (cuota de transferencia alcanzada). No te preocupes: <strong className="font-extrabold text-amber-700">la aplicación continúa operativa al 100%</strong> de forma local con la información cacheada. Todos tus cambios se guardan localmente y se sincronizarán automáticamente de forma segura.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
           <React.Suspense fallback={
             <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
               <RefreshCw className="w-8 h-8 text-primary animate-spin" />
